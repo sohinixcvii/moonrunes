@@ -204,7 +204,7 @@ gibbs:
   nstart: 0                       # 0 = fresh start (s0 from haslam.s0_init)
   file_s0: none                   # checkpoint to resume from when nstart > 0
   nwalkers: 20                    # emcee walkers for the beta step
-  nsample: 25                     # emcee samples per Gibbs iteration
+  nsample: 2500                     # emcee samples per Gibbs iteration
 
   # Noise levels.  bayesian_skymap parses these as INTEGER mK.
   # sig1 = TRIS map noise: 66 mK systematic + 18 mK statistical at 600 MHz,
