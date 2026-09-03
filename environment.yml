@@ -1,0 +1,30 @@
+# Conda environment for tris_haslam_cal.
+#
+# Python is pinned explicitly (3.12): healpy wheels, scipy >= 1.15
+# (bayesian_skymap imports scipy.special.sph_harm_y, which only exists there)
+# and limTOD 1.10 are all known-good on 3.12, and an unpinned `python` in this
+# file is what silently produced a different interpreter last time.
+#
+#   conda env create -f environment.yml
+#   conda activate tris-haslam-cal
+#   pip install -e .            # installs limTOD + this package from pyproject
+name: tris-haslam-cal
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  # Compiled/awkward-to-wheel scientific stack comes from conda-forge; the pure
+  # Python layer (limTOD, emcee, this package) comes from pip via pyproject.
+  - numpy>=1.24
+  - scipy>=1.15
+  - healpy>=1.16
+  - astropy>=5.3
+  - matplotlib>=3.7
+  - pyyaml>=6.0
+  - tqdm>=4.60
+  - pytest>=7.4
+  - jupyterlab
+  - ipykernel
+  - pip:
+      - -e .

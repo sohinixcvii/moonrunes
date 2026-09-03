@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tris-haslam-cal"
+version = "0.1.0"
+description = "TRIS map-making (limTOD) feeding a Gibbs recalibration of the Haslam 408 MHz map (bayesian_skymap)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Sohini Dutta" }]
+
+dependencies = [
+    # limTOD is a normal pip dependency -- it is published on PyPI (1.10.0) and
+    # is NOT vendored or submoduled here.  Only bayesian_skymap is a submodule,
+    # because that one needs a local patch.
+    "limTOD>=1.10.0",
+    "numpy>=1.24",
+    # scipy 1.15 is a hard floor: bayesian_skymap imports
+    # scipy.special.sph_harm_y, which does not exist before it.
+    "scipy>=1.15",
+    "healpy>=1.16",
+    "astropy>=5.3",
+    "matplotlib>=3.7",
+    "pyyaml>=6.0",
+    "tqdm>=4.60",
+    # bayesian_skymap's spectral-index step samples with emcee.
+    "emcee>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "jupyterlab", "ipykernel"]
+
+# No console-script entry point on purpose: run_pipeline.py at the repo root is
+# the single entry point, mirroring the --stage layout of the HPC pipeline.
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
