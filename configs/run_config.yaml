@@ -1,0 +1,194 @@
+# =============================================================================
+# tris_haslam_cal -- single source of truth
+# =============================================================================
+# Every decision the gameplan (tris_haslam_pipeline.md) flagged as "decide
+# rather than default" lives here, with the decision written down and the
+# reason next to it.  Nothing downstream may hard-code any of these values:
+# stages read this file, and stage manifests record the exact block they used.
+#
+# Fields marked DECISION are the flagged ones.  Fields marked OPEN still need a
+# human choice before the stage that consumes them can run; the stage raises
+# rather than defaulting.
+# =============================================================================
+
+run:
+  name: tris_haslam_v0
+  outputs_dir: outputs            # relative to repo root; gitignored
+  seed: 20260903                  # every np.random.default_rng in the pipeline
+  overwrite: false                # stages refuse to clobber existing products
+
+paths:
+  # Raw TRIS archive products (the four public LAMBDA text files).  Point this
+  # at the local download; nothing here touches the network.
+  tris_archive_dir: null          # OPEN -- set before stage 1
+  # Jodrell Bank reprocessed Haslam 408 MHz map (FITS).
+  haslam_map: null                # OPEN -- set before stage 2
+  # Berkhuijsen (1972) 820 MHz survey, the Haslam-independent prior basis.
+  berkhuijsen_map: null           # OPEN -- set before stage 2
+  # bayesian_skymap checkout (the patched fork, as a submodule).
+  bayesian_skymap: external/bayesian_skymap
+
+# -----------------------------------------------------------------------------
+# Blocker 1 -- beam width.  RESOLVED: the fork carries the beam-flexibility
+# patch (bayesian_func.resolve_nside_new / nside_for_beam), so beam_deg is no
+# longer restricted to {10, 30} and the TRIS beam is passed through as itself.
+#
+# TRIS HPBW: 19.155 deg (E-plane) / 23.366 deg (H-plane).  beam_deg below is
+# the arithmetic mean of the two principal planes -- bayesian_skymap's forward
+# model is azimuthally symmetric (hp.smoothing with a single fwhm), so an
+# asymmetric beam cannot be represented and the mean is the honest summary.
+# The E/H asymmetry itself is carried properly in stage 1, where limTOD builds
+# the beam from the archive's own cuts; it is only the *recalibration* forward
+# model that symmetrises.
+#
+# Worth knowing: at pixels_per_fwhm = 2.73 the heuristic maps 21.26 deg to
+# nside_new = 8 -- the same grid the 30 deg fallback would have given
+# (nside 8 pixel = 7.33 deg <= 21.26/2.73 = 7.79 deg; nside 16 = 3.66 deg is
+# finer than needed).  So the patch does not change the grid; what it changes
+# is that the beam actually used to forward-model the TRIS map is 21.26 deg
+# instead of 30 deg.  That is the mismatch it removes.
+# -----------------------------------------------------------------------------
+beam:
+  e_plane_hpbw_deg: 19.155        # archive-confirmed
+  h_plane_hpbw_deg: 23.366        # archive-confirmed
+  beam_deg: 21.2605               # DECISION: mean of E/H, passed to --beam-deg
+  nside_new: 8                    # DECISION: pinned, not inferred, so the grid
+                                  # cannot move under us if the heuristic's
+                                  # PIXELS_PER_FWHM convention is ever retuned.
+                                  # Must equal nside_for_beam(beam_deg) = 8.
+  pixels_per_fwhm: 2.73           # bayesian_skymap's convention; recorded only
+  selfrot_deg: -7.0               # E-plane roll east of meridian (geometry owns
+                                  # it -- do NOT pre-rotate the beam map)
+  apply_horizon_mask: true        # cut beam has ~1.2e-4 of its power below the
+                                  # horizon, ~0.035 K against 300 K ground
+
+# -----------------------------------------------------------------------------
+# Stage 1 -- TRIS map-making (limTOD.tris)
+# -----------------------------------------------------------------------------
+tris:
+  # 2.5 GHz dropped: flagged poor quality in the TRIS literature review.
+  frequencies_mhz: [600, 820]     # DECISION
+  # Absolute-calibration reference.  600 MHz has the better-quantified absolute
+  # calibration in the literature review, so it anchors the spectral model.
+  ref_freq_mhz: 600               # DECISION
+  # DECISION (gameplan stage 1.4): the prior-regularized map-maker, not the
+  # beam-width binning scheme -- it is the one built to consume an external
+  # prior, which is exactly what the Berkhuijsen prior below is for.
+  # Allowed: "prior_regularized" | "beamwidth_binning"
+  mapmaker: prior_regularized
+  nside: 64                       # working nside for the TRIS ring solve; the
+                                  # map is degraded to beam.nside_new in stage 3
+  dec_half_width_deg: 45.0        # ring pixel selection half-width
+  # The prior-regularized map-maker has a known zero-level/monopole degeneracy.
+  # A finite zero-level sigma is what breaks it; null leaves it degenerate.
+  zero_level_sigma_k: 0.5         # DECISION -- K, see notebooks/01
+  uncertainty_floor_k: null
+
+# -----------------------------------------------------------------------------
+# Stage 2 -- Haslam prep + gain operator + prior
+# -----------------------------------------------------------------------------
+haslam:
+  nside: 128                      # bayesian_skymap's fixed full-resolution grid
+  # Blocker 2 substitute for the truth-informed `covA = (0.1 * true_s)**2`.
+  # Berkhuijsen (1972) at 820 MHz is Haslam-independent, so using it as the
+  # prior basis is not circular.
+  prior:
+    source: berkhuijsen_1972      # DECISION
+    survey_freq_mhz: 820
+    # Berkhuijsen -> 408 MHz needs a spectral extrapolation; this index is the
+    # one used for that scaling only (it is not the beta the sampler infers).
+    extrapolation_beta: -2.7
+    # Fractional prior width on the extrapolated template, the stand-in for the
+    # paper's 0.1.  Widened because a cross-survey extrapolation is looser than
+    # a 10% band around the truth.
+    frac_sigma: 0.2               # DECISION
+    floor_k: 0.5                  # absolute floor on the prior sigma, K
+
+  # Blocker 2 substitute for `nstart=0 -> initialise s0 at the true sky`.
+  # There is no truth for real data.  Allowed:
+  #   "haslam"     -- initialise at Haslam itself (crude, and NOT circular for
+  #                   an initialisation, only for a prior)
+  #   "tris_extrap"-- TRIS map extrapolated across pixels
+  s0_init: haslam                 # DECISION
+
+  # Gain parametrisation (gameplan stage 2.2).  0 = region-based operator
+  # matrix; 1 = spherical-harmonic gain with lmax_gain.  Region-based is the
+  # default here because the literature benchmark we validate against in
+  # stage 5 (~3% scale, ~0.91 K zero level) is a *scalar* statement, which a
+  # small set of regions maps onto directly; alm gains spread it over modes
+  # that nothing independently constrains at 2 frequencies.
+  op_alm: 0                       # DECISION
+  lmax_gain: 5                    # only used when op_alm = 1
+  n_gain_regions: 6               # only used when op_alm = 0; matches the six
+                                  # regions bayesian_skymap initialises
+
+# -----------------------------------------------------------------------------
+# Stage 3 -- assembled .npz
+# -----------------------------------------------------------------------------
+assemble:
+  lmax_beam: 150
+  freq_beam_mhz: 600              # frequency at which beam_deg is quoted; the
+                                  # forward model scales fwhm by freq_beam/freq
+  # bayesian_skymap reads `sky_haslam` unconditionally as `true_s`, even with
+  # no truth available.  We write the s0_init map into that key and record the
+  # substitution in the manifest, so nothing downstream can mistake it for a
+  # truth map.  See Blocker 2.
+  sky_haslam_is_substitute: true
+  # Initial beta per region, the range bayesian_skymap itself initialises.
+  beta_init: [-2.5, -2.6, -2.7, -2.8, -2.9, -3.0]
+
+# -----------------------------------------------------------------------------
+# Stage 4 -- Gibbs run
+# -----------------------------------------------------------------------------
+gibbs:
+  # DECISION (gameplan 4.1): infer beta jointly -- synchrotron beta is a real
+  # unknown here, not a nuisance to fix.
+  script: gibbs_spectral_nside.py
+  ntimes: 200                     # Gibbs iterations
+  nstart: 0                       # 0 = fresh start (s0 from haslam.s0_init)
+  file_s0: none                   # checkpoint to resume from when nstart > 0
+  nwalkers: 20                    # emcee walkers for the beta step
+  nsample: 25                     # emcee samples per Gibbs iteration
+
+  # Noise levels.  bayesian_skymap parses these as INTEGER mK.
+  # sig1 = TRIS map noise: 66 mK systematic + 18 mK statistical at 600 MHz,
+  #        added in quadrature = 68.4 mK -> 68.
+  sig1_mk: 68                     # DECISION
+  # sig2 = Haslam: the 0.91 K zero-level uncertainty from the EDGES-based
+  #        analysis dominates the 3% scale error over most of the sky.
+  sig2_mk: 910                    # DECISION
+  sig3_mk: null                   # confusion noise; null -> script reuses sig2
+
+  # Blocker 3: the Woodbury fast path is wrong by ~8 orders of magnitude at 2
+  # channels (dropped cross-frequency coupling) and TRIS gives 2.  Never on.
+  use_woodbury: false             # DECISION -- do not flip this on
+  # The two documented fixes.  cgs is documented to diverge on this operator;
+  # hp.smoothing without iter=0 introduces the asymmetry that makes it diverge.
+  solver: gmres                   # DECISION -- gmres, never cgs
+  smoothing_iter: 0               # DECISION -- pass iter=0 to both hp.smoothing
+  krylov_maxiter: 1000
+  krylov_rtol: 1.0e-9
+
+  env:
+    # bayesian_skymap reads its inputs from SKYMAP_DATA_DIR and writes to
+    # SKYMAP_OUT_DIR; both are set by stage 4 from run.outputs_dir.
+    skymap_nside: 128             # exported as SKYMAP_NSIDE
+
+# -----------------------------------------------------------------------------
+# Stage 5 -- validation thresholds
+# -----------------------------------------------------------------------------
+validate:
+  # "Did it finish" is not convergence -- this repo's history has silently
+  # divergent solves accepted as valid samples.
+  require_solver_info_zero: true  # every Krylov solve must report info == 0
+  lnprob_burn_in_frac: 0.3
+  lnprob_rhat_max: 1.1
+  chi2_per_pixel_max: 2.0
+
+  # Literature benchmarks (Sky Map Priors page).  These are sanity checks, not
+  # fit targets: a recovered gain far outside them means the pipeline is doing
+  # something wrong, not that Haslam is newly interesting.
+  gain_scale_expected: 0.03       # ~3% temperature-scale uncertainty
+  gain_scale_tolerance: 3.0       # flag if |g| > tol * expected
+  zero_level_expected_k: 0.91
+  beta_range: [-3.0, -2.5]        # Galactic synchrotron
