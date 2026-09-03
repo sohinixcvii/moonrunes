@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Pipeline products (stage manifests, maps, samples).
+outputs/*
+!outputs/.gitkeep
