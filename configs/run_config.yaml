@@ -20,13 +20,18 @@ run:
 paths:
   # Raw TRIS archive products (the four public LAMBDA text files).  Point this
   # at the local download; nothing here touches the network.
-  tris_archive_dir: null          # OPEN -- set before stage 1
+  tris_archive_dir: ../limTOD/downloads/TRIS
   # Jodrell Bank reprocessed Haslam 408 MHz map (FITS).
   haslam_map: null                # OPEN -- set before stage 2
   # Berkhuijsen (1972) 820 MHz survey, the Haslam-independent prior basis.
   berkhuijsen_map: null           # OPEN -- set before stage 2
   # bayesian_skymap checkout (the patched fork, as a submodule).
   bayesian_skymap: external/bayesian_skymap
+  # limTOD checkout.  limTOD is a normal pip dependency (pyproject), but the
+  # sibling source checkout is what the walkthrough notebook uses and is what
+  # gets picked up when the environment has no installed copy.  Stage 1 imports
+  # the installed package if there is one and falls back to this path.
+  limtod: ../limTOD
 
 # -----------------------------------------------------------------------------
 # Blocker 1 -- beam width.  RESOLVED: the fork carries the beam-flexibility
@@ -81,8 +86,59 @@ tris:
   dec_half_width_deg: 45.0        # ring pixel selection half-width
   # The prior-regularized map-maker has a known zero-level/monopole degeneracy.
   # A finite zero-level sigma is what breaks it; null leaves it degenerate.
-  zero_level_sigma_k: 0.5         # DECISION -- K, see notebooks/01
+  zero_level_sigma_k: 0.5         # DECISION -- K, see notebooks/01.  One value
+                                  # for both rings: the archive quotes 0.066 K
+                                  # at 600 MHz and an ASYMMETRIC +0.430/-0.300 K
+                                  # at 820 MHz, and limTOD deliberately refuses
+                                  # to symmetrise that for you.  0.5 K covers
+                                  # both without pretending to a precision the
+                                  # 820 MHz ring does not have.
+  # Each published ring contains exactly one row with a 0.000 K statistical
+  # error, so a floor is mandatory.  null -> use that ring's smallest strictly
+  # positive statistical error (what the walkthrough notebook does).
   uncertainty_floor_k: null
+  # Resolution at which the beam is rotated before being sampled onto the
+  # `nside` grid.  Must be >= nside; equal to it is correct here because the
+  # cut-built beam is already well sampled at nside 64 (0.92 deg pixels for a
+  # 19 deg FWHM).
+  nside_hires: 64
+
+  # Prior for the prior-regularized map-maker.  Blocker 2 has no truth for real
+  # data and Berkhuijsen is not in hand yet, so GSM2008 stands in as BOTH the
+  # template and the reference "true" sky.  That is circular by construction:
+  # stage 1 records `prior_equals_truth` in its manifest so nothing downstream
+  # can read agreement with GSM2008 as a measurement.  The walkthrough notebook
+  # measured GSM2008 as ~1.9 K cold at 600 MHz and ~0.6 K cold at 820 MHz, so
+  # the fitted zero level absorbs a real model offset -- read it as a
+  # model-mismatch amplitude, not as the archive's zero point.
+  prior:
+    template: gsm2008             # DECISION -- pygdsm GlobalSkyModel (2008)
+    relative_sigma: 0.10          # "trust the template to 10% of local sky"
+    absolute_sigma_k: 0.3         # flat term added in quadrature, K
+    floor_sigma_k: 1.0e-3         # keeps the prior off a delta function
+
+  # Blocker 3 says never the Woodbury fast path -- use the direct Krylov solve.
+  # Stage 1's MAP operator (A^T N^-1 A + P^-1) is SPD, so cg is also valid; the
+  # recorded decision is gmres, matching stage 4.
+  solver:
+    method: gmres                 # DECISION -- gmres | cg | bicgstab
+    # 1e-12, not the 1e-9 used elsewhere: the residual norm is a poor proxy for
+    # solution accuracy here because the prior width spans an order of
+    # magnitude across the band, so a 1e-9 residual leaves the map ~1e-3
+    # posterior sigma off.  1e-12 gets it to ~5e-7 sigma.
+    rtol: 1.0e-12
+    maxiter: 1000
+    # gmres restart length.  null -> n_samples + 40.  The data term has rank
+    # n_samples (120), so a restart longer than that lets gmres terminate
+    # inside one cycle instead of stalling at the default restart of 20.
+    restart: null
+    # Cross-check the Krylov answer against the exact Woodbury identity
+    # (npix x npix -> n_samples x n_samples, exact, not the Blocker 3 fast
+    # path).  This is the "did it actually converge" test, not "did it finish".
+    cross_check: true
+    # Measured in posterior sigma, which is the unit in which a solver error
+    # either matters or does not.  gmres at rtol 1e-12 lands at ~5e-7.
+    cross_check_max_sigma: 1.0e-4
 
 # -----------------------------------------------------------------------------
 # Stage 2 -- Haslam prep + gain operator + prior
