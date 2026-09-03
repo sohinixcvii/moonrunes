@@ -21,10 +21,14 @@ paths:
   # Raw TRIS archive products (the four public LAMBDA text files).  Point this
   # at the local download; nothing here touches the network.
   tris_archive_dir: ../limTOD/downloads/TRIS
-  # Jodrell Bank reprocessed Haslam 408 MHz map (FITS).
-  haslam_map: null                # OPEN -- set before stage 2
-  # Berkhuijsen (1972) 820 MHz survey, the Haslam-independent prior basis.
-  berkhuijsen_map: null           # OPEN -- set before stage 2
+  # Reprocessed Haslam 408 MHz map (FITS).  null is NOT an open decision here:
+  # it means "use the destriped/desourced Remazeilles (2015) map that pygdsm
+  # already caches" (haslam408_dsds_Remazeilles2014.fits), which is the
+  # reprocessed map stage 2 wants.  Set this to override with a local file.
+  haslam_map: null
+  # Berkhuijsen (1972) 820 MHz survey, the only genuinely Haslam-independent
+  # prior basis.  Required only when haslam.prior.source = berkhuijsen_1972.
+  berkhuijsen_map: null
   # bayesian_skymap checkout (the patched fork, as a submodule).
   bayesian_skymap: external/bayesian_skymap
   # limTOD checkout.  limTOD is a normal pip dependency (pyproject), but the
@@ -145,20 +149,63 @@ tris:
 # -----------------------------------------------------------------------------
 haslam:
   nside: 128                      # bayesian_skymap's fixed full-resolution grid
+  # DECISION -- common coordinate frame for everything from here on.  Haslam is
+  # natively galactic and stays that way (no rotation of the high-resolution
+  # map); the gain and beta regions are galactic latitude bands, which is what
+  # bayesian_skymap's own region_operator assumes and what is physical for
+  # synchrotron beta.  Stage 3 rotates stage 1's equatorial TRIS band into this
+  # frame, and the ragged result is carried by pixel_mask.
+  frame: galactic
+  # Haslam is a total-intensity map; bayesian_skymap models sky_gain as a pure
+  # power law with no monopole, so the CMB monopole has to come off first.  The
+  # Rayleigh-Jeans value at 408 MHz (2.7157 K) is used, not the thermodynamic
+  # 2.7255 K, because stage 1 established that this pipeline works in RJ.
+  # pygdsm subtracts a flat 2.725 K; the 0.010 K difference is negligible
+  # against the 0.91 K zero-level uncertainty, but consistency is free.
+  remove_cmb_monopole: true
+
   # Blocker 2 substitute for the truth-informed `covA = (0.1 * true_s)**2`.
-  # Berkhuijsen (1972) at 820 MHz is Haslam-independent, so using it as the
-  # prior basis is not circular.
+  #
+  # ** READ THIS BEFORE TRUSTING A RECOVERED GAIN. **  Berkhuijsen (1972) at
+  # 820 MHz is the only genuinely Haslam-independent basis, and it is not in
+  # hand.  The default below, GSM2008, is NOT independent: it is built from a
+  # set of surveys that includes Haslam 408 MHz, and at 408 MHz its
+  # reconstruction is dominated by it -- notebooks/02 measures a log-space
+  # correlation of 0.993 and a median ratio of 1.005 -- so a GSM2008 prior on
+  # the true sky is a Haslam prior in all but name.  Stage 2 records
+  # `prior_is_haslam_derived` in its manifest and
+  # refuses to let that pass silently.  Three sources are implemented:
+  #
+  #   gsm2008          GSM2008 evaluated at 408 MHz, galactic native.
+  #                    Circular (see above).  Unblocks stages 3-5 as a dry run.
+  #   tris_stage1      Stage 1's TRIS maps extrapolated to 408 MHz.  Genuinely
+  #                    Haslam-independent -- TRIS is an absolute radiometer --
+  #                    but only over the ~52% declination band it observed;
+  #                    outside it the prior falls back to a deliberately loose
+  #                    width (out_of_band_frac_sigma).
+  #   berkhuijsen_1972 The real answer.  Needs paths.berkhuijsen_map.
+  #
+  # What the sampler actually consumes is covA, a per-pixel VARIANCE with a
+  # zero prior mean (gibbs_*.py sets sprior_mean = 0), so the template sets the
+  # prior's scale, not its centre.
   prior:
-    source: berkhuijsen_1972      # DECISION
-    survey_freq_mhz: 820
-    # Berkhuijsen -> 408 MHz needs a spectral extrapolation; this index is the
-    # one used for that scaling only (it is not the beta the sampler infers).
+    source: gsm2008               # DECISION -- gsm2008 | tris_stage1 | berkhuijsen_1972
+    survey_freq_mhz: 820          # only used by berkhuijsen_1972
+    # Spectral index for the survey -> 408 MHz extrapolation only.  It is NOT
+    # the beta the sampler infers.
     extrapolation_beta: -2.7
-    # Fractional prior width on the extrapolated template, the stand-in for the
-    # paper's 0.1.  Widened because a cross-survey extrapolation is looser than
-    # a 10% band around the truth.
+    # Fractional prior width on the template, the stand-in for the paper's 0.1.
+    # Widened because a cross-survey extrapolation is looser than a 10% band
+    # around the truth.
     frac_sigma: 0.2               # DECISION
     floor_k: 0.5                  # absolute floor on the prior sigma, K
+    # tris_stage1 only: prior width outside the TRIS declination band, as a
+    # fraction of the local sky.  Deliberately loose -- nothing independent
+    # constrains those pixels.
+    out_of_band_frac_sigma: 10.0
+    # Substitute for the truth-informed gain prior the script builds as
+    # covG = (0.15 * (1 + g_true))**2.  With no true gain, g = 0.
+    gain_frac_sigma: 0.15
 
   # Blocker 2 substitute for `nstart=0 -> initialise s0 at the true sky`.
   # There is no truth for real data.  Allowed:
@@ -175,8 +222,18 @@ haslam:
   # that nothing independently constrains at 2 frequencies.
   op_alm: 0                       # DECISION
   lmax_gain: 5                    # only used when op_alm = 1
-  n_gain_regions: 6               # only used when op_alm = 0; matches the six
-                                  # regions bayesian_skymap initialises
+  # DECISION -- 12 gain regions, 6 beta regions, following bayesian_skymap's
+  # own generator (tests/make_test_data.py: ngain = 12, BETA_REGIONS has 6).
+  # An earlier comment here claimed 6 "matches the six regions bayesian_skymap
+  # initialises" -- those six are the SPECTRAL INDEX regions, not the gain
+  # regions.  The gain deliberately has more freedom than beta.
+  n_gain_regions: 12              # only used when op_alm = 0
+  n_beta_regions: 6               # must match the length of assemble.beta_init
+  # Region geometry.  "theta_bands" is bayesian_skymap's own convention:
+  # equal-spaced in colatitude, contiguous in galactic latitude.  "equal_area"
+  # splits at equal pixel counts instead, so no gain parameter is carried by a
+  # tiny polar band.
+  region_geometry: theta_bands    # DECISION -- theta_bands | equal_area
 
 # -----------------------------------------------------------------------------
 # Stage 3 -- assembled .npz

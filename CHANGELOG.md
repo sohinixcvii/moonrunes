@@ -12,6 +12,51 @@ resolve before running anything".
 
 ### Added
 
+#### Stage 2 — Haslam prep
+
+- 🌌 **Stage 2 — Haslam, the gain operator, and the prior covariance**
+  (`moonrunes.stage2_haslam_prep`). Loads the destriped/desourced reprocessed Haslam
+  408 MHz map (Remazeilles et al. 2015) from pygdsm's astropy cache, degrades it to
+  `bayesian_skymap`'s fixed nside 128 grid, and removes the CMB monopole — necessary, not
+  cosmetic, because that repository models `sky_gain` as a pure power law with no monopole
+  term, so 2.7 K left in it is a forward-model error everywhere. Runs in about 20 s.
+- 🧭 **Galactic as the common frame** (`haslam.frame`). Haslam is native there and is never
+  rotated; the gain and β regions become galactic latitude bands, which is what
+  `bayesian_skymap`'s own `region_operator` assumes and what is physical for synchrotron β.
+  Stage 3 will rotate stage 1's equatorial TRIS band in, and the ragged result is carried
+  by `pixel_mask`.
+- 🧩 **Region operators pinned against `bayesian_skymap`'s own** — `region_operator` builds
+  the `(npix, nregions)` 0/1 indicator matrices, and the test suite asserts byte equality
+  with `tests/make_test_data.region_operator` rather than trusting a lookalike. An
+  `equal_area` geometry is available as an alternative: equal-spaced colatitude bands leave
+  a 7.6× pixel-count imbalance between the polar and central gain regions.
+- 📐 **Three prior sources, switched by `haslam.prior.source`** — `gsm2008` (default),
+  `tris_stage1` (stage 1's TRIS maps extrapolated 600 → 408 MHz; genuinely
+  Haslam-independent across the 52% of sky the ring covered, deliberately loose outside),
+  and `berkhuijsen_1972` (the real answer, which raises with a clear message until
+  `paths.berkhuijsen_map` points at a file). Swapping Berkhuijsen in when it arrives is one
+  config line and nothing else in the pipeline changes.
+- 🚨 **`prior_is_haslam_derived`, and the measurement behind it.** The default prior is
+  *not* independent of Haslam, and `notebooks/02` quantifies it rather than asserting it:
+  GSM2008 is fitted to eleven input surveys, one of which is Haslam 408 MHz, and at 408 MHz
+  its reconstruction tracks Haslam at **log-space r = 0.993, median ratio 1.005, 80% of
+  pixels within 5%**. Stage 2 sets the flag in its manifest and prints a warning, so a gain
+  recovered against this prior cannot be mistaken for a result.
+- 🔧 **Substitutes for two more truth-informed quantities**, both recorded rather than
+  silently supplied: `covG`, which `gibbs_*.py` builds from the *true* gain as
+  `(0.15 × (1 + g_true))²` (stage 2 emits the same width at `g = 0`), and `sky_haslam`,
+  which those scripts read as the true sky (stage 2 emits `s0_init_k` from
+  `haslam.s0_init`).
+- 📓 **`notebooks/02_build_berkhijsen_prior.ipynb`** — committed with outputs. The Haslam
+  map, the region operators with the polar-imbalance comparison, section 3's circularity
+  measurement, the `tris_stage1` prior against Haslam (median ratio 1.027, 16–84%
+  [0.982, 1.084] in band — a real absolute cross-check), and a table of which `.npz` keys
+  stage 2 has supplied and which stage 3 still owes.
+- 📦 **`load_stage2()` / `Stage2Products`**, matching stage 1's loader contract, and
+  `run_pipeline.py --stage 2`.
+
+#### Stage 1 — TRIS maps
+
 - 🗺️ **Stage 1 — calibrated TRIS maps** (`moonrunes.stage1_tris_maps`). Reads the public
   TRIS rings at 600 and 820 MHz, builds the operator, noise and prior through
   `limTOD.tris.build_tris_mapmaking_inputs`, and solves the prior-regularized map with
@@ -68,6 +113,18 @@ resolve before running anything".
 
 ### Changed
 
+- 🔢 **`haslam.n_gain_regions` is 12, not 6.** The config's comment claimed 6 "matches the
+  six regions bayesian_skymap initialises" — but those six are the **spectral index**
+  regions (`BETA_REGIONS`); that repository's own generator uses `ngain = 12`. The gain is
+  meant to have more freedom than β. `n_beta_regions: 6` is now explicit and is validated
+  against the length of `assemble.beta_init`.
+- 📍 **`paths.haslam_map: null` no longer means "open decision".** It means "use the
+  reprocessed Remazeilles map that pygdsm already caches", which is the map the pipeline
+  document asks for. Set it to override with a local file.
+- ⚙️ `configs/run_config.yaml` gained `haslam.frame`, `haslam.remove_cmb_monopole`,
+  `haslam.region_geometry`, `haslam.n_beta_regions`, and the extra
+  `haslam.prior` keys (`out_of_band_frac_sigma`, `gain_frac_sigma`), with the prior
+  source's circularity written out in full next to the value that causes it.
 - ⚙️ `configs/run_config.yaml` gained the blocks stage 1 consumes: `tris.prior`
   (GSM2008 template, 10% relative and 0.3 K absolute width), `tris.solver`
   (method, tolerances, cross-check), `tris.nside_hires`, and `paths.limtod`.
@@ -97,5 +154,15 @@ resolve before running anything".
   degeneracy of ≈1. Read that offset as a model-mismatch amplitude, not as a measurement
   of the archive's zero point. This is the honest limit of one ring plus a template that
   is kelvins off, and it is what stage 2's prior work exists to fix.
-- 🧱 **Stages 2–5 are not implemented.** `src/moonrunes/stage2_haslam_prep.py` through
+- ⚠️ **The shipped prior is circular, by choice.** With `haslam.prior.source: gsm2008`,
+  stage 5's comparison of a recovered gain against the ~3% / ~0.91 K literature benchmark
+  tests the plumbing, not the sky. This is deliberate — it lets stages 3–5 be built and
+  exercised end to end — but a number that comes out of it is not a result. Use
+  `tris_stage1` for a genuinely independent prior over the band TRIS observed, and
+  `berkhuijsen_1972` once that survey is in hand.
+- 🚧 **Stage 2 implements `op_alm = 0` only.** The spherical-harmonic gain parametrisation
+  (`op_alm = 1`) builds no operator matrix — `bayesian_skymap` synthesises the gain from
+  alms internally — so there is nothing for this stage to produce; it raises rather than
+  writing a misleading product.
+- 🧱 **Stages 3–5 are not implemented.** `src/moonrunes/stage3_assemble.py` through
   `stage5_validate.py` are empty.
