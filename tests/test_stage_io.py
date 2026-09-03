@@ -21,6 +21,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from moonrunes.config import ConfigError, load_config  # noqa: E402
 from moonrunes import stage1_tris_maps as stage1  # noqa: E402
+from moonrunes import stage2_haslam_prep as stage2  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -213,3 +214,173 @@ def test_stage1_refuses_to_clobber(config, tmp_path):
     with pytest.raises(FileExistsError):
         stage1.run_stage1(**kwargs)
     stage1.run_stage1(overwrite=True, **kwargs)  # explicit override is fine
+
+
+# ===========================================================================
+# stage 2
+# ===========================================================================
+def _stage2_config(tmp_name, **haslam_overrides):
+    """A stage 2 config at a coarse nside so tests are seconds, not minutes."""
+    config = load_config()
+    config._data["run"]["name"] = tmp_name
+    config._data["haslam"]["nside"] = 32
+    for key, value in haslam_overrides.items():
+        node = config._data["haslam"]
+        parts = key.split(".")
+        for part in parts[:-1]:
+            node = node[part]
+        node[parts[-1]] = value
+    return config
+
+
+def test_region_operator_matches_bayesian_skymap(config):
+    """Our theta bands are bayesian_skymap's own, not a lookalike."""
+    stage1.import_bayesian_func(config)
+    sys.path.insert(0, str(config.resolve_path("paths.bayesian_skymap") / "tests"))
+    import make_test_data  # noqa: E402
+
+    for nside, nregions in ((16, 6), (32, 12)):
+        theirs = make_test_data.region_operator(nside, nregions)
+        ours = stage2.region_operator(nside, nregions, "theta_bands")
+        np.testing.assert_array_equal(ours, theirs)
+
+
+def test_region_operator_is_a_partition():
+    for geometry in ("theta_bands", "equal_area"):
+        operator = stage2.region_operator(16, 7, geometry)
+        np.testing.assert_array_equal(operator.sum(axis=1), np.ones(operator.shape[0]))
+        assert set(np.unique(operator)) <= {0.0, 1.0}
+        assert operator.sum(axis=0).min() > 0
+
+
+def test_equal_area_regions_are_far_more_balanced_than_theta_bands():
+    """The reason equal_area exists: theta bands leave tiny polar regions."""
+    def imbalance(geometry):
+        counts = stage2.region_operator(32, 12, geometry).sum(axis=0)
+        return counts.max() / counts.min()
+
+    assert imbalance("theta_bands") > 5.0
+    assert imbalance("equal_area") < 1.2
+
+
+def test_region_operator_rejects_nonsense():
+    with pytest.raises(ValueError, match="region geometry"):
+        stage2.region_operator(8, 4, "spirals")
+    with pytest.raises(ValueError, match="nregions"):
+        stage2.region_operator(8, 0)
+
+
+def test_stage2_refuses_the_alm_gain_parametrisation():
+    config = _stage2_config("pytest_alm")
+    config._data["haslam"]["op_alm"] = 1
+    with pytest.raises(ConfigError, match="op_alm"):
+        stage2.run_stage2(config, verbose=False)
+
+
+def test_stage2_catches_a_beta_region_mismatch(tmp_path):
+    config = _stage2_config("pytest_beta")
+    config._data["haslam"]["n_beta_regions"] = 5   # beta_init still has 6
+    with pytest.raises(ConfigError, match="beta_init"):
+        stage2.run_stage2(config, output_dir=tmp_path, verbose=False)
+
+
+def test_berkhuijsen_prior_says_what_is_missing():
+    config = _stage2_config("pytest_berk", **{"prior.source": "berkhuijsen_1972"})
+    with pytest.raises(ConfigError, match="paths.berkhuijsen_map is null"):
+        stage2.build_prior(config, np.ones(12 * 32**2))
+
+
+def test_unknown_prior_source_is_refused():
+    config = _stage2_config("pytest_bad", **{"prior.source": "haslam_itself"})
+    with pytest.raises(ConfigError, match="haslam.prior.source"):
+        stage2.build_prior(config, np.ones(12 * 32**2))
+
+
+def _haslam_or_skip():
+    from astropy.utils.data import download_file
+
+    try:
+        download_file(stage2.HASLAM_URL, cache=True, show_progress=False)
+    except Exception:
+        pytest.skip("the reprocessed Haslam map is not in the astropy cache")
+
+
+def test_stage2_end_to_end_writes_the_expected_product(tmp_path):
+    _haslam_or_skip()
+    pytest.importorskip("pygdsm")
+    config = _stage2_config("pytest2")
+
+    manifest = stage2.run_stage2(config, output_dir=tmp_path, verbose=False)
+    products_path = tmp_path / "haslam_prep_pytest2.npz"
+    assert products_path.exists()
+    assert (tmp_path / "stage2_manifest.json").exists()
+
+    npix = 12 * 32**2
+    with np.load(products_path) as bundle:
+        assert int(bundle["nside"]) == 32
+        assert str(bundle["frame"]) == "galactic"
+        assert bundle["sky_gain"].shape == (npix,)
+        # covA is inverted per pixel by the sampler, so a zero is fatal.
+        assert np.all(bundle["sky_gain"] > 0)
+        assert np.all(bundle["covA"] > 0)
+        assert bundle["operator"].shape == (npix, 12)
+        assert bundle["operator_spect"].shape == (npix, 6)
+        assert bundle["covG_diag"].shape == (12,)
+        np.testing.assert_allclose(bundle["covG_diag"], 0.15**2)
+        assert bundle["s0_init_k"].shape == (npix,)
+        # beta_init_map must be the region operator applied to the six values
+        np.testing.assert_allclose(
+            bundle["beta_init_map"], bundle["operator_spect"] @ bundle["beta_init"]
+        )
+        # the CMB monopole really came off
+        np.testing.assert_allclose(
+            bundle["covA"], bundle["prior_sigma_k"] ** 2, rtol=1e-12
+        )
+
+    assert manifest["haslam"]["cmb_monopole_removed_k"] == pytest.approx(2.7157, abs=1e-3)
+    assert manifest["prior_is_haslam_derived"] is True   # gsm2008 default
+    assert "not Haslam-independent" in manifest["blocker_2_status"].replace("NOT", "not")
+
+    products = stage2.load_stage2(
+        config,
+        products_path=products_path,
+        manifest_path=tmp_path / "stage2_manifest.json",
+    )
+    assert products.nside == 32
+    assert products.frame == "galactic"
+    assert products.prior_is_haslam_derived is True
+    assert products["operator"].shape == (npix, 12)
+
+
+def test_tris_prior_is_flagged_independent_and_covers_the_band(tmp_path):
+    _haslam_or_skip()
+    pytest.importorskip("pygdsm")
+    # The TRIS prior reads stage 1's product for THIS run, so the run name has
+    # to stay the real one -- products of a run belong together.
+    config = load_config()
+    config._data["haslam"]["nside"] = 32
+    config._data["haslam"]["prior"]["source"] = "tris_stage1"
+    try:
+        manifest = stage2.run_stage2(config, output_dir=tmp_path, verbose=False)
+    except FileNotFoundError:
+        pytest.skip("stage 1 has not been run for this run name")
+
+    assert manifest["prior_is_haslam_derived"] is False
+    # The TRIS ring is a +-45 deg declination band: about half the sky.
+    assert 0.4 < manifest["prior"]["band_sky_fraction"] < 0.65
+
+
+def test_stage2_refuses_to_clobber(tmp_path):
+    _haslam_or_skip()
+    pytest.importorskip("pygdsm")
+    config = _stage2_config("pytest2clobber")
+    stage2.run_stage2(config, output_dir=tmp_path, verbose=False)
+    with pytest.raises(FileExistsError):
+        stage2.run_stage2(config, output_dir=tmp_path, verbose=False)
+    stage2.run_stage2(config, output_dir=tmp_path, overwrite=True, verbose=False)
+
+
+def test_load_stage2_says_what_to_run_when_nothing_is_there(tmp_path):
+    config = load_config()
+    with pytest.raises(FileNotFoundError, match="run_pipeline.py --stage 2"):
+        stage2.load_stage2(config, products_path=tmp_path / "absent.npz")
