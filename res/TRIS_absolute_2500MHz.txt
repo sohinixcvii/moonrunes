@@ -1,0 +1,11 @@
+# TRIS Absolute Sky Temperature at 2.5 GHz
+# Reference1 = Zannoni et al. 2008 ApJ 688, 12-23
+# Column 1 = RA in hours, minutes, seconds
+# Column 2 = Sky Temperature in K
+# Column 3 = Zero Level uncertainty in K
+
+11h26m04s 2.329 0.284 13h42m32s 2.331 0.284  
+14h39m01s 2.503 0.284
+15h31m06s 2.886 0.284
+17h09m34s 2.800 0.284
+19h08m35s 2.840 0.284
