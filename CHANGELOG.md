@@ -12,6 +12,31 @@ resolve before running anything".
 
 ### Added
 
+#### Documentation
+
+- 🔬 **`TRIS_MAP_PROVENANCE.md`** — a collaborator-facing record of exactly what produced
+  `outputs/stage1/tris_maps_tris_haslam_v0.npz`: the limTOD commit (`dbe720b`, with the dirty
+  files enumerated and shown to be outside the map-making path), the five `limTOD.tris` entry
+  points in call order, and every setting tagged as archive-stated, our decision, or a limTOD
+  default we did not pass. Records the convergence and per-frequency results, and three gaps
+  found while writing it: the manifest pins limTOD's path but not its commit,
+  `beam.selfrot_deg` is never read, and the E/H HPBWs are never checked against the cut table
+  limTOD measures them from.
+- 📓 **`notebooks/01_explore_tris_data.ipynb` → `01_explore_data.ipynb`**, now three
+  sections rather than one: the TRIS products stage 1 consumes (unchanged), a first look
+  at ARCADE 2 at 3.15/3.41 GHz, and the Haslam 408 MHz download. The ARCADE 2 section
+  establishes the three properties Step 0 of the SED design turns on — `NESTED` at
+  nside 16, no `COORDSYS` in the header, and the unobserved ~93% of the sky stored as
+  exact zero instead of `hp.UNSEEN`, which is what the mask-before-smoothing procedure
+  exists to handle. Re-executed end to end; every stage 1 number in it is byte-identical
+  to the previous run.
+- 📡 **`DATA_SOURCES.md`** — the download list. Every external dataset, its LAMBDA archive
+  page, the config key that points at it, and the stage that reads it: the TRIS product
+  table (stage 1), the reprocessed Haslam 408 MHz map (stage 2), and ARCADE 2, whose two
+  lowest bands are trusted points 3 and 4 of the SED design. Also states
+  where the two non-LAMBDA inputs come from — Berkhuijsen (1972), still missing, and
+  GSM2008, which `pygdsm` generates rather than downloads.
+
 #### Stage 2 — Haslam prep
 
 - 🌌 **Stage 2 — Haslam, the gain operator, and the prior covariance**

@@ -5,7 +5,7 @@
 
 Every stage reads ``configs/run_config.yaml``, writes under ``outputs/<stage>/``
 and records the config block it used in a JSON manifest next to its products.
-Stages 2-5 are not implemented yet and say so rather than half-running.
+Stages 3-5 are not implemented yet and say so rather than half-running.
 """
 
 from __future__ import annotations
@@ -17,11 +17,11 @@ from typing import Optional, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
-from moonrunes import stage1_tris_maps, stage2_haslam_prep  # noqa: E402
+from moonrunes import stage1_tris_maps, stage2_beam_matching  # noqa: E402
 
 _UNIMPLEMENTED = {
-    3: "stage 3 -- assemble the bayesian_skymap .npz",
-    4: "stage 4 -- run the Gibbs sampler",
+    3: "stage 3 -- assemble per-pixel SEDs and fit",
+    4: "stage 4 -- derive and apply the calibration correction",
     5: "stage 5 -- validate",
 }
 
@@ -50,7 +50,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.stage == 1:
         stage1_tris_maps.run_stage1(archive_dir=args.archive_dir, **common)
     else:
-        stage2_haslam_prep.run_stage2(**common)
+        # Beam-matching writes no products yet -- it returns them.  Once it
+        # does, this grows the same manifest contract stage 1 has.
+        stage2_beam_matching.beam_match(
+            config_path=args.config, verbose=not args.quiet
+        )
     return 0
 
 

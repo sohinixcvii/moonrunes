@@ -18,6 +18,9 @@ run:
   overwrite: false                # stages refuse to clobber existing products
 
 paths:
+  # DATA_SOURCES.md is the download list for everything below: the archive page
+  # for each product, and which stage reads it.
+  #
   # Raw TRIS archive products (the four public LAMBDA text files).  Point this
   # at the local download; nothing here touches the network.
   tris_archive_dir: ../limTOD/downloads/TRIS
@@ -29,6 +32,13 @@ paths:
   # Berkhuijsen (1972) 820 MHz survey, the only genuinely Haslam-independent
   # prior basis.  Required only when haslam.prior.source = berkhuijsen_1972.
   berkhuijsen_map: null
+  # Haslam 408 MHz as a local FITS download, used by stage 2 beam-matching.
+  # Distinct from haslam_map above, which is null = "take pygdsm's cached copy":
+  # the beam-matching stage needs the file itself, to read BEAMSIZE from it.
+  haslam_map_fits: res/HASLAM.fits
+  # ARCADE 2, the two lowest bands -- trusted points 3 and 4 of the SED.
+  arcade2_map_3150: res/ARCADE2_315.fits
+  arcade2_map_3410: res/ARCADE2_341.fits
   # bayesian_skymap checkout (the patched fork, as a submodule).
   bayesian_skymap: external/bayesian_skymap
   # limTOD checkout.  limTOD is a normal pip dependency (pyproject), but the
@@ -144,6 +154,39 @@ tris:
     # either matters or does not.  gmres at rtol 1e-12 lands at ~5e-7.
     cross_check_max_sigma: 1.0e-4
 
+
+# -----------------------------------------------------------------------------
+# Stage 2 -- beam matching (Step 0 of tris_haslam_pipeline.md).  LIVE.
+#
+# The three surveys are at three native resolutions and an SED is only
+# meaningful if every point in it came through the same beam.  TRIS is the
+# coarsest, so it sets the target and the other two are smoothed down to it.
+# -----------------------------------------------------------------------------
+beam_matching:
+  # DECISION -- the larger of TRIS's two axes (19.155 E / 23.366 H).  healpy
+  # smooths with one symmetric FWHM, so the elliptical beam cannot be carried
+  # exactly; the larger axis is conservative, leaving nothing under-smoothed in
+  # the narrow direction.  Deliberate simplification, not an oversight.
+  target_fwhm_deg: 23.366
+  # Haslam: BEAMSIZE = 56.0 in HDU 1 of the FITS file, in ARCMINUTES.
+  haslam_native_fwhm_deg: 0.93333
+  # OPEN -- ARCADE 2's native beam is NOT in either FITS header, so this is an
+  # external number with no citation recorded.  12.0 is what the beam-matching
+  # work has been using.  Pin it to the instrument paper before a recovered
+  # gain means anything: it sets the kernel for two of the four trusted points.
+  arcade2_native_fwhm_deg: 12.0
+  # Step 0.3 -- below this smoothed weight a pixel is mask boundary, not data.
+  weight_floor: 0.5
+
+# =============================================================================
+# SUPERSEDED BY THE SED REDESIGN -- kept, not deleted, like the old blockers in
+# tris_haslam_pipeline.md.  The module that read the blocks below
+# (stage2_haslam_prep.py) is gone: the pixel-by-pixel SED fit needs no prior on
+# the true sky, no gain/beta region operators and no Gibbs sampler.  Nothing
+# reads any of this today.  It is here because the Berkhuijsen prior remains a
+# good independent cross-check if that thread is picked back up, and because
+# the reasoning next to each decision is worth more than the keys are.
+# =============================================================================
 # -----------------------------------------------------------------------------
 # Stage 2 -- Haslam prep + gain operator + prior
 # -----------------------------------------------------------------------------
@@ -235,6 +278,7 @@ haslam:
   # tiny polar band.
   region_geometry: theta_bands    # DECISION -- theta_bands | equal_area
 
+# SUPERSEDED -- see the banner above the `haslam:` block.
 # -----------------------------------------------------------------------------
 # Stage 3 -- assembled .npz
 # -----------------------------------------------------------------------------
@@ -250,6 +294,7 @@ assemble:
   # Initial beta per region, the range bayesian_skymap itself initialises.
   beta_init: [-2.5, -2.6, -2.7, -2.8, -2.9, -3.0]
 
+# SUPERSEDED -- see the banner above the `haslam:` block.
 # -----------------------------------------------------------------------------
 # Stage 4 -- Gibbs run
 # -----------------------------------------------------------------------------

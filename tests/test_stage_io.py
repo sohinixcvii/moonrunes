@@ -1,6 +1,6 @@
-"""Stage 1 tests.
+"""Stage 1 and stage 2 tests.
 
-The expensive things (the archive, pyGDSM's data cache) are skipped when they
+The expensive things (the archive, the FITS downloads) are skipped when they
 are absent, so the algebra tests still run anywhere.  The algebra is the part
 worth pinning: the Krylov solve, its preconditioner convention, and the
 Woodbury posterior all have to agree with a dense reference, because a solve
@@ -21,7 +21,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from moonrunes.config import ConfigError, load_config  # noqa: E402
 from moonrunes import stage1_tris_maps as stage1  # noqa: E402
-from moonrunes import stage2_haslam_prep as stage2  # noqa: E402
+from moonrunes import stage2_beam_matching as stage2  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -215,172 +215,215 @@ def test_stage1_refuses_to_clobber(config, tmp_path):
         stage1.run_stage1(**kwargs)
     stage1.run_stage1(overwrite=True, **kwargs)  # explicit override is fine
 
-
 # ===========================================================================
-# stage 2
+# stage 2 -- beam matching
 # ===========================================================================
-def _stage2_config(tmp_name, **haslam_overrides):
-    """A stage 2 config at a coarse nside so tests are seconds, not minutes."""
-    config = load_config()
-    config._data["run"]["name"] = tmp_name
-    config._data["haslam"]["nside"] = 32
-    for key, value in haslam_overrides.items():
-        node = config._data["haslam"]
-        parts = key.split(".")
-        for part in parts[:-1]:
-            node = node[part]
-        node[parts[-1]] = value
-    return config
+def test_extra_fwhm_subtracts_in_quadrature():
+    """The kernel is sqrt(target^2 - native^2), not the target itself."""
+    assert stage2.extra_fwhm_deg(3.0, 5.0) == pytest.approx(4.0)
+    # Smoothing an already-matched map is a no-op, not an error.
+    assert stage2.extra_fwhm_deg(5.0, 5.0) == pytest.approx(0.0)
 
 
-def test_region_operator_matches_bayesian_skymap(config):
-    """Our theta bands are bayesian_skymap's own, not a lookalike."""
-    stage1.import_bayesian_func(config)
-    sys.path.insert(0, str(config.resolve_path("paths.bayesian_skymap") / "tests"))
-    import make_test_data  # noqa: E402
+def test_extra_fwhm_refuses_to_sharpen():
+    """A native beam coarser than the target is a bookkeeping error.
 
-    for nside, nregions in ((16, 6), (32, 12)):
-        theirs = make_test_data.region_operator(nside, nregions)
-        ours = stage2.region_operator(nside, nregions, "theta_bands")
-        np.testing.assert_array_equal(ours, theirs)
+    np.sqrt of a negative returns NaN, which would propagate through
+    hp.smoothing into an all-NaN map with no exception anywhere.
+    """
+    with pytest.raises(ValueError, match="coarsest resolution"):
+        stage2.extra_fwhm_deg(30.0, stage2.TARGET_FWHM_DEG)
 
 
-def test_region_operator_is_a_partition():
-    for geometry in ("theta_bands", "equal_area"):
-        operator = stage2.region_operator(16, 7, geometry)
-        np.testing.assert_array_equal(operator.sum(axis=1), np.ones(operator.shape[0]))
-        assert set(np.unique(operator)) <= {0.0, 1.0}
-        assert operator.sum(axis=0).min() > 0
+def test_target_is_the_larger_tris_axis():
+    """Step 0.1: the conservative choice, so nothing stays under-smoothed."""
+    assert stage2.TARGET_FWHM_DEG == stage2.TRIS_HPBW_H_DEG
+    assert stage2.TARGET_FWHM_DEG > stage2.TRIS_HPBW_E_DEG
 
 
-def test_equal_area_regions_are_far_more_balanced_than_theta_bands():
-    """The reason equal_area exists: theta bands leave tiny polar regions."""
-    def imbalance(geometry):
-        counts = stage2.region_operator(32, 12, geometry).sum(axis=0)
-        return counts.max() / counts.min()
-
-    assert imbalance("theta_bands") > 5.0
-    assert imbalance("equal_area") < 1.2
+def test_haslam_beam_is_configured_in_degrees_not_arcminutes(config):
+    """BEAMSIZE = 56.0 is in arcmin; as degrees it would be 60x too coarse."""
+    haslam_fwhm = float(config.require("beam_matching.haslam_native_fwhm_deg"))
+    assert haslam_fwhm == pytest.approx(56.0 / 60.0, rel=1e-4)
+    assert haslam_fwhm < 1.0
 
 
-def test_region_operator_rejects_nonsense():
-    with pytest.raises(ValueError, match="region geometry"):
-        stage2.region_operator(8, 4, "spirals")
-    with pytest.raises(ValueError, match="nregions"):
-        stage2.region_operator(8, 0)
+def test_beam_matching_decisions_are_the_recorded_ones(config):
+    """The config is the source of truth; the module may not re-derive it."""
+    target = float(config.require("beam_matching.target_fwhm_deg"))
+    assert target == pytest.approx(stage2.TRIS_HPBW_H_DEG)
+    assert float(config.require("beam_matching.weight_floor")) == 0.5
+    # Every dataset's beam comes from a config key, not a literal.
+    for dataset in stage2.DATASETS:
+        assert float(config.require(dataset.fwhm_key)) > 0.0
 
 
-def test_stage2_refuses_the_alm_gain_parametrisation():
-    config = _stage2_config("pytest_alm")
-    config._data["haslam"]["op_alm"] = 1
-    with pytest.raises(ConfigError, match="op_alm"):
-        stage2.run_stage2(config, verbose=False)
+def test_observed_mask_knows_each_datasets_convention():
+    """Three datasets, three conventions, none of them hp.UNSEEN on disk."""
+    hp = pytest.importorskip("healpy")
+    sky = np.array([1.0, 0.0, 2.0, np.nan, hp.UNSEEN])
+
+    zeros = stage2.observed_mask(sky, "zeros")      # ARCADE 2
+    assert list(zeros) == [True, False, True, False, False]
+
+    nans = stage2.observed_mask(sky, "nan")         # stage 1 TRIS maps
+    assert list(nans) == [True, True, True, False, False]
+
+    # A NaN is unobserved under every convention, including ARCADE 2's.
+    assert not stage2.observed_mask(np.array([np.nan]), "zeros")[0]
+
+    full = stage2.observed_mask(np.array([1.0, 0.0, 2.0]), "full")   # Haslam
+    assert full.all()
 
 
-def test_stage2_catches_a_beta_region_mismatch(tmp_path):
-    config = _stage2_config("pytest_beta")
-    config._data["haslam"]["n_beta_regions"] = 5   # beta_init still has 6
-    with pytest.raises(ConfigError, match="beta_init"):
-        stage2.run_stage2(config, output_dir=tmp_path, verbose=False)
+def test_observed_mask_rejects_an_unknown_convention():
+    with pytest.raises(ValueError, match="unknown mask convention"):
+        stage2.observed_mask(np.zeros(12), "sentinel")
 
 
-def test_berkhuijsen_prior_says_what_is_missing():
-    config = _stage2_config("pytest_berk", **{"prior.source": "berkhuijsen_1972"})
-    with pytest.raises(ConfigError, match="paths.berkhuijsen_map is null"):
-        stage2.build_prior(config, np.ones(12 * 32**2))
+def test_smoothing_conserves_the_mean_of_a_full_sky_map():
+    """A convolution redistributes power, it does not create or destroy it."""
+    hp = pytest.importorskip("healpy")
+    rng = np.random.default_rng(0)
+    sky = rng.normal(10.0, 1.0, size=hp.nside2npix(32))
+
+    smoothed = stage2.smooth_to_target(sky, 1.0, 20.0)
+
+    # Not exact: map2alm's quadrature leaves a few parts in 1e6 at nside 32.
+    assert smoothed.mean() == pytest.approx(sky.mean(), rel=1e-4)
+    assert smoothed.std() < sky.std()      # and it really did smooth
 
 
-def test_unknown_prior_source_is_refused():
-    config = _stage2_config("pytest_bad", **{"prior.source": "haslam_itself"})
-    with pytest.raises(ConfigError, match="haslam.prior.source"):
-        stage2.build_prior(config, np.ones(12 * 32**2))
+def test_smoothing_does_not_modify_its_input():
+    """The old script mutated the arrays hp.read_map handed it."""
+    hp = pytest.importorskip("healpy")
+    sky = np.linspace(1.0, 2.0, hp.nside2npix(16))
+    mask = np.ones_like(sky, dtype=bool)
+    mask[:100] = False
+    before = sky.copy()
+
+    stage2.smooth_to_target(sky, 5.0, 20.0, weight_mask=mask)
+
+    assert np.array_equal(sky, before)
 
 
-def _haslam_or_skip():
-    from astropy.utils.data import download_file
+def test_masked_smoothing_does_not_drag_the_mask_into_the_data():
+    """Step 0.3: the weight-map division is what makes this correct.
 
-    try:
-        download_file(stage2.HASLAM_URL, cache=True, show_progress=False)
-    except Exception:
-        pytest.skip("the reprocessed Haslam map is not in the astropy cache")
+    A constant sky over a partial mask must smooth back to that constant.
+    Without the division the unobserved zeros dilute every pixel near the
+    boundary, which is exactly the bleed the procedure exists to prevent.
+    """
+    hp = pytest.importorskip("healpy")
+    npix = hp.nside2npix(32)
+    theta = hp.pix2ang(32, np.arange(npix))[0]
+    mask = theta < np.radians(90)          # one hemisphere observed
+    sky = np.where(mask, 5.0, 0.0)
+
+    corrected = stage2.smooth_to_target(sky, 5.0, 20.0, weight_mask=mask)
+    naive = stage2.smooth_to_target(sky, 5.0, 20.0)
+
+    survived = corrected != hp.UNSEEN
+    assert survived.sum() > 0
+    assert corrected[survived] == pytest.approx(5.0, abs=1e-3)
+    # The uncorrected version sags towards zero across the boundary.
+    assert naive[mask].min() < 4.0
 
 
-def test_stage2_end_to_end_writes_the_expected_product(tmp_path):
-    _haslam_or_skip()
-    pytest.importorskip("pygdsm")
-    config = _stage2_config("pytest2")
+def test_a_feature_narrower_than_the_kernel_cannot_survive():
+    """The weight floor is what stops a thin sliver being smoothed into data.
 
-    manifest = stage2.run_stage2(config, output_dir=tmp_path, verbose=False)
-    products_path = tmp_path / "haslam_prep_pytest2.npz"
-    assert products_path.exists()
-    assert (tmp_path / "stage2_manifest.json").exists()
+    A band 10 deg wide, smoothed with a 20 deg kernel, never accumulates half
+    its own weight anywhere -- so every pixel of it is dropped rather than
+    handed on as a diluted temperature.  This is the protection Step 0.3's
+    threshold exists to give.
+    """
+    hp = pytest.importorskip("healpy")
+    theta = hp.pix2ang(32, np.arange(hp.nside2npix(32)))[0]
+    mask = np.abs(np.degrees(theta) - 90) < 5.0
+    sky = np.where(mask, 3.0, 0.0)
 
-    npix = 12 * 32**2
-    with np.load(products_path) as bundle:
-        assert int(bundle["nside"]) == 32
-        assert str(bundle["frame"]) == "galactic"
-        assert bundle["sky_gain"].shape == (npix,)
-        # covA is inverted per pixel by the sampler, so a zero is fatal.
-        assert np.all(bundle["sky_gain"] > 0)
-        assert np.all(bundle["covA"] > 0)
-        assert bundle["operator"].shape == (npix, 12)
-        assert bundle["operator_spect"].shape == (npix, 6)
-        assert bundle["covG_diag"].shape == (12,)
-        np.testing.assert_allclose(bundle["covG_diag"], 0.15**2)
-        assert bundle["s0_init_k"].shape == (npix,)
-        # beta_init_map must be the region operator applied to the six values
-        np.testing.assert_allclose(
-            bundle["beta_init_map"], bundle["operator_spect"] @ bundle["beta_init"]
+    corrected = stage2.smooth_to_target(sky, 5.0, 20.0, weight_mask=mask)
+
+    assert np.all(corrected == hp.UNSEEN)
+
+
+def test_a_mask_wider_than_the_kernel_is_not_eroded():
+    """The flip side: no spurious loss where the weight is genuinely high.
+
+    The cut sits at weight 0.5, which for a symmetric kernel is the mask
+    boundary itself, so a region comfortably wider than the kernel comes back
+    with its footprint intact.  Erosion is a statement about the mask's shape,
+    not an unavoidable tax on every smoothing.
+    """
+    hp = pytest.importorskip("healpy")
+    theta = hp.pix2ang(32, np.arange(hp.nside2npix(32)))[0]
+    mask = np.abs(np.degrees(theta) - 90) < 30.0
+    sky = np.where(mask, 3.0, 0.0)
+
+    corrected = stage2.smooth_to_target(sky, 5.0, 20.0, weight_mask=mask)
+
+    assert np.array_equal(corrected != hp.UNSEEN, mask)
+    assert corrected[mask] == pytest.approx(3.0, abs=1e-3)
+
+
+def test_weight_mask_shape_is_checked():
+    hp = pytest.importorskip("healpy")
+    sky = np.zeros(hp.nside2npix(16))
+    with pytest.raises(ValueError, match="weight_mask has shape"):
+        stage2.smooth_to_target(sky, 1.0, 20.0, weight_mask=np.ones(5, dtype=bool))
+
+
+# ---------------------------------------------------------------------------
+# stage 2 end to end -- needs the FITS downloads
+# ---------------------------------------------------------------------------
+def _maps_or_skip(config):
+    missing = [
+        dataset.path_key
+        for dataset in stage2.DATASETS
+        if not config.resolve_path(dataset.path_key).exists()
+    ]
+    if missing:
+        pytest.skip("no local maps for {} -- see DATA_SOURCES.md".format(missing))
+
+
+def test_beam_match_runs_over_every_dataset(config):
+    hp = pytest.importorskip("healpy")
+    _maps_or_skip(config)
+
+    results = stage2.beam_match(config, verbose=False)
+
+    assert set(results) == {d.name for d in stage2.DATASETS}
+    for name, entry in results.items():
+        smoothed = entry["map"]
+        good = smoothed != hp.UNSEEN
+        assert good.any(), name
+        assert np.isfinite(smoothed[good]).all(), name
+        # Every kernel is the quadrature difference, never the raw target.
+        assert entry["extra_fwhm_deg"] < stage2.TARGET_FWHM_DEG
+        assert entry["extra_fwhm_deg"] == pytest.approx(
+            stage2.extra_fwhm_deg(entry["native_fwhm_deg"], stage2.TARGET_FWHM_DEG)
         )
-        # the CMB monopole really came off
-        np.testing.assert_allclose(
-            bundle["covA"], bundle["prior_sigma_k"] ** 2, rtol=1e-12
-        )
-
-    assert manifest["haslam"]["cmb_monopole_removed_k"] == pytest.approx(2.7157, abs=1e-3)
-    assert manifest["prior_is_haslam_derived"] is True   # gsm2008 default
-    assert "not Haslam-independent" in manifest["blocker_2_status"].replace("NOT", "not")
-
-    products = stage2.load_stage2(
-        config,
-        products_path=products_path,
-        manifest_path=tmp_path / "stage2_manifest.json",
-    )
-    assert products.nside == 32
-    assert products.frame == "galactic"
-    assert products.prior_is_haslam_derived is True
-    assert products["operator"].shape == (npix, 12)
 
 
-def test_tris_prior_is_flagged_independent_and_covers_the_band(tmp_path):
-    _haslam_or_skip()
-    pytest.importorskip("pygdsm")
-    # The TRIS prior reads stage 1's product for THIS run, so the run name has
-    # to stay the real one -- products of a run belong together.
+def test_beam_match_erodes_only_the_masked_datasets(config):
+    """Haslam is full sky and must keep every pixel; ARCADE 2 loses its edge."""
+    pytest.importorskip("healpy")
+    _maps_or_skip(config)
+
+    results = stage2.beam_match(config, verbose=False)
+
+    haslam = results["haslam_408"]
+    assert haslam["observed_after"] == haslam["observed_before"]
+    for name in ("arcade2_3150", "arcade2_3410"):
+        entry = results[name]
+        assert entry["observed_after"] < entry["observed_before"]
+
+
+def test_beam_match_says_when_a_map_is_missing(config, tmp_path):
+    """The error names the config key to set, not just the path."""
+    pytest.importorskip("healpy")
     config = load_config()
-    config._data["haslam"]["nside"] = 32
-    config._data["haslam"]["prior"]["source"] = "tris_stage1"
-    try:
-        manifest = stage2.run_stage2(config, output_dir=tmp_path, verbose=False)
-    except FileNotFoundError:
-        pytest.skip("stage 1 has not been run for this run name")
-
-    assert manifest["prior_is_haslam_derived"] is False
-    # The TRIS ring is a +-45 deg declination band: about half the sky.
-    assert 0.4 < manifest["prior"]["band_sky_fraction"] < 0.65
-
-
-def test_stage2_refuses_to_clobber(tmp_path):
-    _haslam_or_skip()
-    pytest.importorskip("pygdsm")
-    config = _stage2_config("pytest2clobber")
-    stage2.run_stage2(config, output_dir=tmp_path, verbose=False)
-    with pytest.raises(FileExistsError):
-        stage2.run_stage2(config, output_dir=tmp_path, verbose=False)
-    stage2.run_stage2(config, output_dir=tmp_path, overwrite=True, verbose=False)
-
-
-def test_load_stage2_says_what_to_run_when_nothing_is_there(tmp_path):
-    config = load_config()
-    with pytest.raises(FileNotFoundError, match="run_pipeline.py --stage 2"):
-        stage2.load_stage2(config, products_path=tmp_path / "absent.npz")
+    config._data["paths"]["arcade2_map_3150"] = str(tmp_path / "absent.fits")
+    with pytest.raises(FileNotFoundError, match="paths.arcade2_map_3150"):
+        stage2.beam_match(config, verbose=False)
