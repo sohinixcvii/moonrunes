@@ -1,166 +1,218 @@
 # TRIS → Haslam Calibration: Literal Pipeline
-### Combining `limTOD.tris` (map-making) with `bayesian_skymap` (recalibration)
+### Pixel-by-pixel SED fitting using TRIS + ARCADE2 to calibrate Haslam
+### (supersedes the earlier `bayesian_skymap` Gibbs-sampler design)
 
-**Primary aim:** make maps from TRIS TOD data, use them to calibrate the
-Haslam maps. This document is the concrete algorithm, stage by stage,
-using the actual functions/keys from both repos — not a restatement of
-the READMEs.
+**Primary aim:** make maps from TRIS TOD data, use them (plus ARCADE2) to
+calibrate the Haslam map, via a per-pixel SED fit rather than a joint
+Gibbs sampler.
+
+**Why this replaced the original plan:** the `bayesian_skymap` Gibbs
+approach hit three real blockers (beam-width hardcoding, no real-data
+prior, a documented Woodbury solver bug at low channel count). A
+pixel-by-pixel least-squares SED fit sidesteps all three at once — no
+truth-informed prior needed, no Woodbury solver, and the beam mismatch
+becomes a smoothing/regridding problem rather than a code-patching one.
+The old blockers are kept below, marked resolved-by-redesign, so the
+reasoning isn't lost.
 
 ---
 
-## The core insight tying the two repos together
+## The core idea
 
-`bayesian_skymap`'s data model needs exactly two things: a high-res,
-badly-calibrated map (`data2`/`sky_gain` — Haslam) and a low-res but
-**absolutely calibrated** map (`data1`/`sky_lowres`). TRIS *is* an
-absolute radiometer. So:
+At each low-resolution sky pixel, assemble a small spectral energy
+distribution (SED) — brightness temperature vs. frequency — from every
+dataset available at that pixel:
 
+| Frequency | Source | Trusted (absolutely calibrated)? |
+|---|---|---|
+| 408 MHz | Haslam | **No** — this is what's being calibrated |
+| 600 MHz | TRIS | Yes |
+| 820 MHz | TRIS | Yes |
+| 3150 MHz | ARCADE2 | Yes (real spatial map, confirmed) |
+| 3410 MHz | ARCADE2 | Yes (real spatial map, confirmed) |
+
+Fit a power law $T(\nu) = A(\nu/\nu_0)^\beta$ to the **4 trusted points
+only**, evaluate the fit at 408 MHz to get a predicted "true" Haslam
+value at that pixel, and compare against Haslam's actual raw value to
+derive a per-pixel gain/offset correction.
+
+**Why ARCADE2's bands matter beyond "more data":** with only TRIS's 2
+bands, a 2-parameter power law fit to 2 points is exactly determined —
+zero residual, no way to check the power-law assumption itself. With
+ARCADE2's 2 bands added, the fit is over-determined (4 points, 2
+parameters), giving a genuine per-pixel chi-square goodness-of-fit check.
+
+**Physical caveat to keep in view:** 408 MHz–3.41 GHz spans nearly a
+decade; free-free emission's relative contribution rises with frequency,
+which can introduce real curvature a pure power law won't capture. If
+per-pixel chi-square is poor across many pixels, that's evidence the
+single power-law model is too simple, not a fitting failure to force
+through.
+
+---
+
+## Open TODO — coordinate system mismatch (confirmed real)
+
+Haslam ships in **Galactic** coordinates; TRIS work to date has been in
+**Equatorial** (RA/Dec, LST-based). **This mismatch is real and
+unresolved.** Needs a proper reprojection (not just a rotation guess)
+before any pixel-by-pixel comparison is trustworthy — check ARCADE2's
+native coordinate system too, not just Haslam vs. TRIS, since it hasn't
+been confirmed either way yet.
+
+---
+
+## Old blockers — resolved by the architecture change, not deleted
+
+### Former Blocker 1 — beam width mismatch -> now a smoothing/regridding problem
+No longer about patching `bayesian_skymap`'s hardcoded `beam_deg`. See
+**Step 0** below for the actual beam-matching procedure.
+
+### Former Blocker 2 — no "truth" for a real-data prior -> moot
+The SED fit needs no prior at all — it's anchored directly by TRIS/ARCADE2
+data at each pixel. The Berkhuijsen-prior research is no longer a blocking
+dependency, though it remains a good independent validation cross-check.
+
+### Former Blocker 3 — Woodbury solver bug at low channel count -> moot
+No Gibbs sampler, no Woodbury solver, in this design at all.
+
+---
+
+## Step 0 — Beam-matching (new, real requirement)
+
+Three datasets, three native resolutions: Haslam (~1 deg), ARCADE2 (a few
+degrees — confirm exact native FWHM before computing the numbers below),
+TRIS (~19-23 deg, asymmetric). **TRIS is the coarsest — smooth the other
+two down to match it, never the reverse.**
+
+1. **Pick a common target FWHM.** TRIS's beam is asymmetric (19.155 deg E /
+   23.366 deg H); `healpy`'s smoothing only takes one symmetric FWHM. Use
+   the **larger axis (23.366 deg)** as the common target — conservative,
+   so nothing ends up under-smoothed in either direction. (A proper
+   elliptical-beam convolution is more correct but substantially more
+   work; flag this as a deliberate simplification, not an oversight.)
+
+2. **Compute the *additional* smoothing needed, not the raw target FWHM.**
+   Gaussian beams add in quadrature: if a map already has native
+   resolution FWHM_native and the target is FWHM_target, the extra kernel
+   needed is
+   ```
+   FWHM_extra = sqrt(FWHM_target^2 - FWHM_native^2)
+   ```
+   Smoothing directly to the target FWHM without this correction
+   over-smooths.
+
+3. **Handle ARCADE2's mask *before* smoothing, not after.** This is the
+   most important practical gotcha given the masking issue just found and
+   fixed: `hp.smoothing` doesn't know about `UNSEEN` — the spherical
+   harmonic transform is global, so naively smoothing a masked map bleeds
+   incorrect values across the mask boundary into the ring itself.
+   Standard fix:
+   - Set `UNSEEN` pixels to `0` (not left as `UNSEEN`) before smoothing.
+   - Separately smooth a **binary weight map** (1 where observed, 0 where
+     masked) with the *same* kernel.
+   - Divide the smoothed data map by the smoothed weight map to correct
+     for the boundary leakage.
+   - Re-mask any pixel where the smoothed weight falls below some
+     threshold (e.g. 0.5) — these are unreliable edge pixels, not
+     recoverable by the division above.
+
+4. **Smooth before regridding, never after.** Smoothing on an
+   already-downgraded (coarse) map risks aliasing. Order: smooth each map
+   at a sufficiently fine native `nside` first, *then* `ud_grade` down to
+   the common coarse grid.
+
+5. **Regrid all three to TRIS's own map-making pixelization** (nside=8,
+   ~7.33 deg pixels, per your walkthrough's "~3 pixels per beam FWHM"
+   convention) — so Step 1's per-pixel SEDs are being assembled on a grid
+   that actually matches the physical resolution of the trusted
+   calibrators, not an arbitrarily finer one.
+
+```python
+import healpy as hp
+import numpy as np
+
+def smooth_to_target(m, native_fwhm_deg, target_fwhm_deg, weight_mask=None):
+    """
+    Smooth a map from its native resolution to a coarser target FWHM,
+    correctly handling a binary observed/unobserved mask if given.
+    """
+    extra_fwhm_rad = np.radians(
+        np.sqrt(target_fwhm_deg**2 - native_fwhm_deg**2)
+    )
+
+    if weight_mask is None:
+        return hp.smoothing(m, fwhm=extra_fwhm_rad)
+
+    m_zeroed = np.where(weight_mask, m, 0.0)
+    m_smooth = hp.smoothing(m_zeroed, fwhm=extra_fwhm_rad)
+    w_smooth = hp.smoothing(weight_mask.astype(float), fwhm=extra_fwhm_rad)
+
+    with np.errstate(invalid='ignore', divide='ignore'):
+        corrected = m_smooth / w_smooth
+    corrected[w_smooth < 0.5] = hp.UNSEEN
+    return corrected
 ```
-limTOD.tris  (Stage 1)  produces  →  calibrated TRIS sky map(s)
-                                       ↓
-                              becomes bayesian_skymap's `data1`/`sky_lowres`
-                                       ↓
-bayesian_skymap (Stage 2-4)  jointly infers  →  true sky (s), Haslam gain
-                                                  corrections (g), spectral
-                                                  index (β)
-```
-
----
-
-## ⚠️ Three blockers to resolve BEFORE running anything
-
-These aren't implementation detail — each one changes what the pipeline
-actually does if left unresolved.
-
-### Blocker 1 — beam width mismatch -- NOW RESOLVED
-`bayesian_skymap` hard-codes `beam_deg ∈ {10, 30}` only (any other value
-now raises immediately, per the recent fix). TRIS's real beam is
-**19.155° (E) / 23.366° (H)** — neither value. **This needs a decision:**
-extend `bayesian_skymap` to accept a `beam_deg≈20` → new `nside_new`
-mapping (real code change, needs care since `nside_new` propagates through
-the Woodbury solver's shapes), or approximate TRIS's beam as the nearer
-of the two fixed options (30°, accepting a real mismatch between the
-beam actually used to make the TRIS map and the beam `bayesian_skymap`
-assumes when forward-modelling it).
-
-### Blocker 2 — no "truth" exists for real data
-`bayesian_skymap`'s scripts expect `nstart=0` to **"initialise `s0` at the
-true sky"** — fine for the paper's synthetic validation, meaningless for
-real TRIS+Haslam data, since there is no true sky to initialise from.
-Likewise the fixed prior `covA = (0.1 * true_s)**2` is truth-informed by
-construction. **Both need a real-data substitute before this can run on
-anything but synthetic data:**
-- `s0` initialisation: use Haslam itself (crude but not circular for
-  *initialisation*, only for the *prior* — see next point), or the
-  TRIS map extrapolated across pixels.
-- The prior `covA`: **this is exactly what the Sky Map Priors research
-  already solved** — use Berkhuijsen (1972, 820 MHz) as the
-  Haslam-independent basis for a real prior covariance, not
-  `0.1 * true_s`. This is the single most important connection between
-  your two active research threads right now — the prior-sourcing
-  problem `bayesian_skymap` has is the exact problem that research
-  answered.
-
-### Blocker 3 — Woodbury fast path is documented-broken at low channel count
-The Woodbury acceleration (`solve_ally_parallel` etc.) is verified correct
-with ~20 low-res channels but **wrong by 8 orders of magnitude with 2
-channels** (cross-frequency coupling dropped). TRIS realistically gives
-**2-3 usable frequencies** (600, 820 MHz; 2.5 GHz flagged as poor quality
-in your own TRIS literature review). **Decision: do not use the Woodbury
-fast path for this application — use the direct/brute Krylov solve
-instead.** Compute cost isn't a real concern at 2-3 channels anyway, so
-there's no reason to use the accelerated path that's documented wrong in
-exactly this regime.
-
----
 
 ## Stage 1 — Produce calibrated TRIS maps (`limTOD.tris`)
 
-1. Read raw TRIS archive data via `limTOD.tris`'s strict readers, for
-   600 MHz and 820 MHz (drop 2.5 GHz per the known quality issue, unless
-   there's a specific reason to include it).
-2. Build the beam from the archive's own E/H cuts (already verified in
-   your walkthrough: HPBW 19.155°/23.366°, `selfrot=-7°`).
-3. Apply the verified zenith/roll geometry (`RA=LST`, `dec=lat=42°26′`).
-4. Run map-making. Two real options, worth deciding rather than
-   defaulting: `limTOD.tris`'s own prior-regularized map-maker (the one
-   from your walkthrough notebook — has the known zero-level/monopole
-   degeneracy), or the simplified beam-width scheme already implemented.
-   **Given Blocker 2's prior problem, the prior-regularized map-maker is
-   probably the right choice here** — it's the one built to consume an
-   external prior, which is exactly what the Berkhuijsen-based prior from
-   Blocker 2 is for.
-5. **Output:** calibrated TRIS maps at each frequency, at whatever
-   `nside` Stage 1 produces (needs reconciling against Blocker 1's
-   `nside_new` decision — these must match before Stage 3).
+Unchanged from the original plan:
+1. Read raw TRIS archive data for 600 MHz and 820 MHz (2.5 GHz dropped —
+   known quality issue).
+2. Build the beam from the archive's own E/H cuts (HPBW 19.155/23.366 deg,
+   `selfrot=-7 deg`).
+3. Apply the verified zenith/roll geometry (`RA=LST`, `dec=lat=42d26m`).
+4. Run map-making (the simplified beam-width scheme, or the
+   prior-regularized map-maker if the Berkhuijsen-based prior is wanted
+   as an independent cross-check even though it's no longer required).
+5. Output: calibrated TRIS maps at each frequency.
 
-## Stage 2 — Prepare Haslam (`bayesian_skymap`'s `data2`)
+## Stage 2 — Beam-match and regrid (Step 0's procedure, applied)
 
-1. Load the Jodrell Bank reprocessed Haslam map, regrid to `nside=128`
-   if not already (this is `bayesian_skymap`'s fixed full-resolution
-   grid).
-2. Build the `operator` matrix (gain-parameter → pixel mapping). Decide
-   `op_alm=0` (region-based) vs `op_alm=1` (spherical harmonic,
-   `lmax_gain=5`) — genuinely different parametrisations of the same
-   unknown, worth picking deliberately rather than defaulting.
-3. Build the Berkhuijsen-based prior covariance (resolves Blocker 2).
+Apply Step 0 to Haslam and both ARCADE2 bands, regridding everything
+(including TRIS's own maps) onto the common nside=8 grid, in a common
+coordinate system (resolves the Open TODO above — do this *before*
+Stage 3, not after).
 
-## Stage 3 — Assemble `bayesian_skymap` inputs
+## Stage 3 — Assemble per-pixel SEDs and fit
 
-Build the `.npz` with the required keys, substituting real TRIS/Haslam
-data for the synthetic-test keys the repo's own data-generation script
-would normally produce (that script isn't in the repo — you're building
-this file by hand):
-- `sky_lowres` ← Stage 1's TRIS maps, shape `(Nfreq-1, npix_new)`
-- `sky_gain` ← Stage 2's Haslam map
-- `operator` ← Stage 2's gain-parameter mapping
-- `freq`, `ref_freq`, `freq_beam` ← TRIS's actual frequencies (ref_freq
-  likely 600 or 820 MHz, whichever has the better-quantified absolute
-  calibration per your TRIS literature review)
-- No `sky_haslam` "truth" key available — see Blocker 2 for the
-  initialisation substitute
+1. At each common-grid pixel, build the 5-point SED (408, 600, 820, 3150,
+   3410 MHz).
+2. Fit the power law to the 4 trusted points (600-3410 MHz).
+3. Evaluate the fit at 408 MHz -> predicted true Haslam value.
+4. Record the per-pixel chi-square of the fit — this is the diagnostic
+   for where the power-law assumption breaks down.
 
-## Stage 4 — Run the Gibbs sampler
+## Stage 4 — Derive and apply the calibration correction
 
-1. Use `gibbs_nside.py` if fixing β, or `gibbs_spectral_nside.py` if
-   jointly inferring the spectral index too (recommended, given
-   synchrotron β is genuinely uncertain, not a nuisance to fix).
-2. Set `sig1` (TRIS map noise) from your literature review's quoted
-   TRIS precision (66 mK systematic + 18 mK statistical at 600 MHz).
-   Set `sig2` (Haslam) from a real calibration-uncertainty estimate
-   (your Sky Map Priors page already has one: Haslam's temperature scale
-   uncertain at ~3%, zero-level at ~0.91 K per the EDGES-based analysis
-   quoted there).
-3. Apply the two easy, already-documented fixes before running: pass
-   `iter=0` to both `hp.smoothing` calls (fixes the asymmetry causing
-   `cgs` to diverge), and force `gmres` (or `cg` with `iter=0`) rather
-   than the default `cgs`, which is documented to diverge on exactly this
-   operator.
-4. Do **not** use the Woodbury fast path (Blocker 3).
+1. Decide the error model explicitly: multiplicative gain g, additive
+   offset c, or both jointly (the literature — your own TRIS/Sky Map
+   Priors research — suggests Haslam has *both* a scale uncertainty
+   (~3%) and a real zero-level offset, so a joint fit is likely the more
+   physically honest choice).
+2. Apply the resulting per-pixel correction back onto full-resolution
+   Haslam — uniformly within each low-res patch as a first pass; smoothing
+   the correction across patches is a natural refinement to avoid blocky
+   artifacts at patch boundaries.
 
 ## Stage 5 — Validate
 
-1. Check the log-posterior trace and per-pixel χ² for convergence — not
-   just "did it finish," given `bayesian_skymap`'s own documented history
-   of silently-divergent solves being accepted as valid samples.
-2. Compare recovered Haslam gain corrections `g` against the literature
-   benchmark already in hand (~3% temperature scale, ~0.91 K zero-level,
-   from the Sky Map Priors page) — this is your actual sanity check that
-   the pipeline is doing something real, not just running.
-3. Sanity-check recovered β against the expected Galactic synchrotron
-   range (~−2.5 to −3.0) — `bayesian_skymap` itself initialises 6 regions
-   spanning exactly this range, so a wildly different recovered value is
-   a red flag, not a discovery.
+1. Check the per-pixel chi-square distribution from Stage 3 — flags where
+   the power-law SED assumption is failing, not just whether the fit ran.
+2. Compare recovered g/c against the literature benchmarks already in
+   hand (~3% scale, ~0.91 K zero-level) — same sanity check as before,
+   still valid.
+3. Sanity-check the fitted spectral index beta against the expected
+   Galactic synchrotron range (~-2.5 to -3.0).
 
 ---
 
-## What to actually decide before Stage 1 starts
+## What to actually decide, in order
 
-In order of how much they block everything downstream:
-1. Beam-width handling (Blocker 1) — this affects which frequencies and
-   what `nside_new` are even valid.
-2. Prior source (Blocker 2) — Berkhuijsen-based, but the actual
-   covariance construction still needs building.
-3. `op_alm` parametrisation choice (Stage 2.2) — affects the whole gain
-   model, not a detail.
-4. Whether to fix or jointly infer β (Stage 4.1).
+1. **Coordinate system reprojection** (Open TODO) — blocks everything
+   downstream if wrong.
+2. **Common target FWHM and mask-handling in Step 0** — the beam-matching
+   choices propagate into every later pixel value.
+3. **Error model** (Stage 4.1) — multiplicative, additive, or both.
+4. Confirm ARCADE2's actual native beam FWHM before computing Step 0's
+   quadrature-difference smoothing kernel precisely.

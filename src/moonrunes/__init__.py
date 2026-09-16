@@ -1,4 +1,4 @@
-"""TRIS map-making (limTOD) feeding a Gibbs recalibration of Haslam.
+"""TRIS map-making (limTOD) feeding a pixel-by-pixel SED calibration of Haslam.
 
 The stages are deliberately importable one at a time: each one reads
 ``configs/run_config.yaml``, writes its products under ``outputs/<stage>/`` and

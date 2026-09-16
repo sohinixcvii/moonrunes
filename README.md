@@ -16,12 +16,18 @@ flags as "decide rather than default".
 
 ## Status
 
+> **The design changed.** `tris_haslam_pipeline.md` now specifies a **pixel-by-pixel SED
+> fit** using TRIS + ARCADE 2 to calibrate Haslam, superseding the `bayesian_skymap` Gibbs
+> sampler this README was written around. Stage 1 carries over unchanged; stage 2 has been
+> replaced; the sections below that describe the Gibbs design, its three blockers and its
+> prior sourcing are **out of date** and are kept until the rewrite catches up.
+
 | Stage | What it does | State |
 |---|---|---|
 | **1** | Calibrated TRIS maps from the public archive (`limTOD.tris`) | **implemented** |
-| **2** | Haslam, the gain operator, and the prior covariance | **implemented** |
-| 3 | Assemble the `bayesian_skymap` `.npz` | not started |
-| 4 | Run the Gibbs sampler | not started |
+| **2** | Beam-match the three surveys onto TRIS's resolution (Step 0) | **implemented**, minus the regrid |
+| 3 | Assemble per-pixel SEDs and fit | not started |
+| 4 | Derive and apply the calibration correction | not started |
 | 5 | Validate | not started |
 
 ---
@@ -34,6 +40,9 @@ conda activate tris-haslam-cal
 pip install -e .
 git submodule update --init             # external/bayesian_skymap
 ```
+
+`DATA_SOURCES.md` is the download list: every external dataset, its LAMBDA page, and
+which stage reads it.
 
 Stage 1 additionally needs:
 
@@ -121,27 +130,45 @@ degeneracy is ≈1, so with a per-pixel prior this tight the nuisance offset is 
 place a template error can go. This is the honest limit of one absolutely-calibrated ring
 plus a template that is kelvins off, not a defect in the map-maker.
 
-### Stage 2
+### Stage 2 — beam matching
 
-About 20 s. Products land in `outputs/stage2/`:
-
-* `haslam_prep_<run name>.npz` — `sky_gain` (Haslam at nside 128, galactic, CMB monopole
-  removed), `operator` and `operator_spect` (the region indicator matrices), `covA` and
-  its prior mean/σ, the `covG` substitute, `s0_init_k`, and the initial β map.
-* `stage2_manifest.json` — including `prior_is_haslam_derived`, the flag that decides
-  whether anything downstream means what it appears to mean.
+Step 0 of `tris_haslam_pipeline.md`: Haslam and both ARCADE 2 bands smoothed down to
+TRIS's beam, because an SED is only meaningful if every point in it came through the same
+beam. It returns its maps rather than writing products, so there is no manifest yet.
 
 ```python
-from moonrunes.stage2_haslam_prep import load_stage2
-haslam = load_stage2()
-haslam["sky_gain"]                  # (npix,)  galactic, nside 128
-haslam["operator"].shape            # (npix, 12)
-haslam.prior_is_haslam_derived      # True with the shipped default -- read on
+from moonrunes.stage2_beam_matching import beam_match
+results = beam_match()
+results["haslam_408"]["map"]              # smoothed, hp.UNSEEN where unusable
+results["arcade2_3150"]["extra_fwhm_deg"] # sqrt(target^2 - native^2), not the target
 ```
+
+```
+haslam_408     nside 512  native  0.9333° -> extra kernel 23.3474°
+               observed 3145728 -> 3145728 pixels (+0 at the mask edge), frame galactic
+arcade2_3150   nside 16   native 12.0000° -> extra kernel 20.0492°
+               observed 220 -> 168 pixels (-52 at the mask edge), frame unstated
+arcade2_3410   nside 16   native 12.0000° -> extra kernel 20.0492°
+               observed 232 -> 195 pixels (-37 at the mask edge), frame unstated
+```
+
+Haslam is full-sky and keeps every pixel; ARCADE 2 loses its mask edge, where the smoothed
+weight falls below 0.5 and the weight division cannot rescue the pixel.
+
+**Two things it does not do.** The regrid onto a common `nside` and the coordinate-frame
+reconciliation (Step 0.4–0.5) — Haslam is galactic, stage 1's TRIS maps are equatorial,
+and ARCADE 2's headers state no frame at all. Smoothing is frame-independent, so what is
+implemented is correct as far as it goes; assembling SEDs across these maps is not, until
+that is resolved. And `beam_matching.arcade2_native_fwhm_deg` is an external number with
+no citation recorded — no beam keyword exists in either ARCADE 2 file.
 
 ---
 
-## What stage 2 actually does
+## What the old stage 2 did *(superseded)*
+
+> This section describes `stage2_haslam_prep`, the Gibbs-design stage 2, which has been
+> deleted. Its config blocks are kept in `configs/run_config.yaml` under a SUPERSEDED
+> banner, and its circularity measurement is still worth reading in `notebooks/02`.
 
 **The frame is galactic** and everything from here on lives in it. Haslam is native there,
 so the high-resolution map is never rotated, and the gain and β regions become galactic
@@ -188,8 +215,8 @@ Both are committed **with their outputs**, so they can be read without re-runnin
 
 | Notebook | Contents |
 |---|---|
-| `01_explore_tris_data.ipynb` | The inputs: the four products, the beam, the temperature convention, the GSM2008 template — and where `zero_level_sigma_k`, `uncertainty_floor_k` and `nside_new` come from. |
-| `02_build_berkhijsen_prior.ipynb` | The stage 2 products: the Haslam map, the region operators, the three prior sources compared — and section 3, which *measures* the GSM2008/Haslam circularity instead of asserting it. |
+| `01_explore_data.ipynb` | The inputs, one section per dataset. **01** the four TRIS products, the beam, the temperature convention, the GSM2008 template — and where `zero_level_sigma_k`, `uncertainty_floor_k` and `nside_new` come from. **02** a first look at ARCADE 2 (3.15/3.41 GHz), which nothing reads yet. **03** the Haslam 408 MHz download. |
+| `02_build_berkhijsen_prior.ipynb` | **Superseded, does not run** — imports the deleted `stage2_haslam_prep`. Kept for section 3's circularity measurement. The stage 2 products: the Haslam map, the region operators, the three prior sources compared — and section 3, which *measures* the GSM2008/Haslam circularity instead of asserting it. |
 | `03_diagnostics.ipynb` | The stage 1 results: convergence, χ² and residuals, the zero level against the template deficit, prior→posterior shrinkage and z-scores, the band maps, β between the two solved maps, and a preview of the degrade to `nside_new`. |
 
 ---
@@ -208,12 +235,14 @@ Both are committed **with their outputs**, so they can be read without re-runnin
 
 ```
 TODO.md                     open items from stages 1 and 2, ordered by what they block
+DATA_SOURCES.md             every external dataset, its archive page, and what reads it
+TRIS_MAP_PROVENANCE.md      the limTOD code, settings and conventions behind the stage 1 maps
 configs/run_config.yaml     every flagged decision, with the reason next to it
 run_pipeline.py             the single entry point (--stage N)
 src/moonrunes/
     config.py               loader; `require()` raises on null = "still an open decision"
     stage1_tris_maps.py     stage 1 + its product loader
-    stage2_haslam_prep.py   stage 2 + its product loader
+    stage2_beam_matching.py stage 2 -- Step 0 beam matching
     stage3..stage5          empty
 notebooks/                  analysis and plotting, committed with outputs
 external/bayesian_skymap    submodule (patched fork)
@@ -233,11 +262,11 @@ consumed in its manifest.
 pytest
 ```
 
-26 tests. The algebra ones — the Krylov solve against a dense reference, the Jacobi
+30 tests. The algebra ones — the Krylov solve against a dense reference, the Jacobi
 diagonal against `bayesian_func.estimate_diag_precond`, the Woodbury posterior against a
-dense inverse, and stage 2's `region_operator` against `bayesian_skymap`'s own — run
-anywhere. The end-to-end tests skip themselves when the TRIS archive, the cached Haslam
-map, or `pygdsm` is absent.
+dense inverse, and stage 2's beam quadrature and masked-smoothing behaviour — run
+anywhere. The end-to-end tests skip themselves when the TRIS archive, the FITS downloads,
+or `pygdsm` is absent.
 
 ---
 
