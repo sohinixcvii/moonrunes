@@ -10,6 +10,36 @@ resolve before running anything".
 
 ## [Unreleased]
 
+### Changed
+
+#### Stage 1 — solver, resolution, and pixel selection
+
+- 🔁 **The solve is now limTOD's own** — `TRISMapMakingInputs.solve`, wrapping
+  `limTOD.wiener_filter_map` (dense, direct). The in-repo matrix-free `krylov_map_solve`
+  stays as the test suite's reference implementation but no longer makes the maps. The
+  Woodbury cross-check is retained and repointed at limTOD's answer: a dense factorisation
+  with `εI` on the diagonal can return a biased result without raising. New key
+  `tris.solver.regularization`; the Krylov keys and stage 5's `require_solver_info_zero`
+  are marked unused.
+- 📉 **`tris.nside` 64 → 16.** This is supposed to be a coarse map: the beam is 19–23°, so
+  nside 16 is already ~6× finer than the resolution behind it, and stage 3 degrades to
+  `beam.nside_new = 8` regardless. It also puts the dense solve back in reach — at nside 64
+  the 25,705-parameter normal matrix needs ~25 GB and did not complete on 16 GB of RAM.
+- 🎯 **Pixel selection is now on beam response, not a declination band.** A pixel is
+  retained if the beam response exceeds `tris.beam_response_threshold` (0.01) of the peak
+  for at least one observation — the collaborator's criterion, and the physical statement,
+  where the old `dec_half_width_deg` cut was only a geometric proxy. 1272 pixels, 41.4% of
+  sky, 99.60% of beam power retained.
+- 📐 **Threshold convergence checked at 0.003 / 0.01 / 0.03.** The maps agree to within
+  **0.40 σ** (max, on the common pixel set) — immaterial, as expected. The **fitted zero
+  level does not converge**: it moves +0.112 K at 600 MHz and +0.065 K at 820 MHz across the
+  decade, monotonically, which is 2.6 σ / 2.4 σ of its own fitted error though only 22% /
+  13% of the 0.5 K prior width. Recorded as a ~0.1 K pixel-selection systematic on the zero
+  level; the maps are unaffected.
+- 📊 Products regenerated. Reduced χ² falls from 33.6 / 13.3 to **3.09 / 3.22**, and the
+  posterior σ now beats the prior by >5% for **388 / 201** of 1272 pixels rather than 2 of
+  25,704 — coarsening the grid is what bought that.
+
 ### Added
 
 #### Documentation

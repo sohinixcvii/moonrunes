@@ -126,6 +126,75 @@ def test_krylov_solve_rejects_an_unknown_method():
 # ---------------------------------------------------------------------------
 # end to end, when the data is there
 # ---------------------------------------------------------------------------
+def test_beam_response_selection_is_per_observation_peak():
+    """A pixel is kept if it clears the threshold at ANY one observation.
+
+    Row 0 peaks at 10.0, so at threshold 0.1 its pixels must clear 1.0; row 1
+    peaks at 1.0 and clears at 0.1.  Pixel 3 fails row 0 but passes row 1 --
+    "at least one observation" is what keeps it.
+    """
+    operator = np.array([
+        [10.0, 2.0, 0.5, 0.05],
+        [ 0.1, 0.0, 0.0, 0.50],
+    ])
+    keep, info = stage1.beam_response_pixels(operator, 0.1)
+
+    assert list(keep) == [0, 1, 3]
+    assert info["n_pixels"] == 3
+    assert info["threshold"] == 0.1
+    assert info["sky_fraction"] == pytest.approx(3 / 4)
+
+
+def test_beam_response_selection_tightens_monotonically():
+    """A larger threshold can only ever keep fewer pixels."""
+    rng = np.random.default_rng(0)
+    operator = rng.uniform(0.0, 1.0, size=(20, 400))
+
+    sizes = [stage1.beam_response_pixels(operator, t)[0].size
+             for t in (0.003, 0.01, 0.03, 0.3)]
+
+    assert sizes == sorted(sizes, reverse=True)
+
+
+def test_beam_response_selection_reports_the_power_it_dropped():
+    """The diagnostic that says whether the cut threw away real signal."""
+    operator = np.array([[1.0, 0.5, 0.001]])
+
+    keep, info = stage1.beam_response_pixels(operator, 0.01)
+
+    assert list(keep) == [0, 1]
+    assert info["beam_power_retained"] == pytest.approx(1.5 / 1.501)
+
+
+def test_beam_response_selection_rejects_a_nonsense_threshold():
+    operator = np.ones((2, 8))
+    for bad in (0.0, 1.0, -0.1, 3.0):
+        with pytest.raises(ValueError, match="beam_response_threshold"):
+            stage1.beam_response_pixels(operator, bad)
+
+
+def test_beam_response_selection_always_keeps_each_observation_peak():
+    """The selection can never come back empty.
+
+    Each row's own maximum clears any threshold below 1 by definition, so
+    every observation contributes at least its peak pixel however severe the
+    cut. That is why there is no empty-selection error to raise.
+    """
+    operator = np.array([[1.0, 1e-9], [1e-9, 2.0]])
+
+    for threshold in (0.003, 0.01, 0.03, 0.9, 0.999):
+        keep, info = stage1.beam_response_pixels(operator, threshold)
+        assert list(keep) == [0, 1], threshold
+        assert info["n_pixels"] == 2
+
+
+def test_beam_response_selection_needs_a_positive_peak():
+    """An all-zero observation means the geometry or mask is wrong."""
+    operator = np.array([[1.0, 0.5], [0.0, 0.0]])
+    with pytest.raises(RuntimeError, match="no positive beam response"):
+        stage1.beam_response_pixels(operator, 0.01)
+
+
 def _archive_or_skip(config):
     try:
         archive = config.resolve_path("paths.tris_archive_dir")
@@ -175,8 +244,10 @@ def test_stage1_end_to_end_writes_the_expected_product(config, tmp_path):
         assert np.isnan(bundle["sky_full_k"][:, ~bundle["band_mask"]]).all()
 
     for entry in manifest["frequencies"].values():
-        assert entry["solver"]["info"] == 0
-        assert entry["solver"]["krylov_vs_woodbury_sigma"] < 1e-4
+        # limTOD's dense solve has no iteration count to check; the Woodbury
+        # cross-check is the whole convergence statement now.
+        assert entry["solver"]["backend"] == "limtod"
+        assert entry["solver"]["solver_vs_woodbury_sigma"] < 1e-4
     assert manifest["blocker_2_substitute"]["prior_equals_truth"] is True
 
     # The loader the notebooks and stages 3/5 read products through.
@@ -186,7 +257,7 @@ def test_stage1_end_to_end_writes_the_expected_product(config, tmp_path):
     assert products.nside == 8
     assert list(products.frequencies_mhz) == [600.0, 820.0]
     assert products.index(820) == 1
-    assert products.diagnostics(600)["solver"]["info"] == 0
+    assert products.diagnostics(600)["solver"]["backend"] == "limtod"
     np.testing.assert_allclose(
         products.band_map("sky_k", 600)[products.pixel_indices],
         products["sky_k"][0],

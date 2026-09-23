@@ -23,20 +23,32 @@ and the noise; the zero level is carried as an explicit nuisance parameter with
 a Gaussian prior, which is exactly equivalent to the rank-1 noise term and also
 hands back the fitted offset.
 
-The solve (Blocker 3)
----------------------
-The map is *not* solved with a dense factorisation and *not* with the Woodbury
-fast path the pipeline document forbids.  It uses the same machinery as
-``bayesian_skymap``'s amplitude step -- a ``scipy.sparse.linalg.LinearOperator``
-wrapping the MAP normal-equation matvec plus a Krylov solve (gmres by default,
-Jacobi-preconditioned) -- so stage 1 and stage 4 fail the same way if they fail
-at all.  ``bayesian_skymap.bayesian_func`` is imported for real: its
-``nside_for_beam`` is what validates the pinned ``beam.nside_new`` against the
-TRIS beam width (Blocker 1), and its ``estimate_diag_precond`` defines the
+The solve
+---------
+**The solve is limTOD's own.**  ``TRISMapMakingInputs.solve`` wraps
+``limTOD.wiener_filter_map``, which forms the dense normal matrix
+``A^T N^-1 A + S^-1 + eps I`` and factorises it directly.  limTOD builds the
+prior from ``prior_map``/``prior_sigma_k`` and takes the zero-level column's
+width from the ``zero_level_sigma_k`` handed to
+``build_tris_mapmaking_inputs``, so nothing is stacked by hand here.
+
+That path is dense in the number of parameters, and the cost is not academic:
+at ``tris.nside = 64`` the band carries 25705 parameters, so each of the
+several ``n x n`` float64 arrays it allocates is ~4.9 GB and the peak is
+~25 GB.  It runs comfortably at nside 32 and below.  See
+``TRIS_MAP_PROVENANCE.md``.
+
+:func:`krylov_map_solve` is retained as the matrix-free reference
+implementation the test suite pins against a dense solve; it is no longer what
+makes the maps.  ``bayesian_skymap.bayesian_func`` is still imported for real:
+its ``nside_for_beam`` validates the pinned ``beam.nside_new`` against the TRIS
+beam width (Blocker 1), and its ``estimate_diag_precond`` defines the
 preconditioner convention that :func:`lhs_diagonal` reproduces analytically.
 
-Because "it finished" is not "it converged", every solve is cross-checked
-against the exact Woodbury identity
+Because "it returned an array" is not "it solved the system" -- a dense
+factorisation with a regularizer added to the diagonal can come back biased
+without raising -- every solve is cross-checked against the exact Woodbury
+identity
 
     (A^T N^-1 A + P^-1)^-1 = P - P A^T (N + A P A^T)^-1 A P,
 
@@ -351,6 +363,52 @@ class TRISFrequencyMap:
         return full
 
 
+def beam_response_pixels(
+    operator: np.ndarray, threshold: float
+) -> Tuple[np.ndarray, Dict[str, Any]]:
+    """Pixels the beam actually saw, per the collaborator's criterion.
+
+    A pixel is retained when the beam response at it exceeds ``threshold`` of
+    the peak response **for at least one observation**.  ``operator`` is the
+    full-sky sky-to-sample projection: row ``t`` holds the (normalized) beam
+    weight of every pixel at pointing ``t``, so its own maximum is that
+    observation's peak response and the comparison is per observation, not
+    against a global maximum.
+
+    This replaces the declination-band cut, which selected on geometry alone
+    and so kept pixels the beam never illuminated and cut pixels in the wings
+    that it did.  The returned diagnostics record what the threshold cost.
+
+    Returns ``(pixel_indices, diagnostics)``, indices sorted ascending.
+    """
+    if not 0.0 < float(threshold) < 1.0:
+        raise ValueError(
+            "tris.beam_response_threshold must be in (0, 1), got {!r}".format(
+                threshold
+            )
+        )
+    operator = np.asarray(operator, dtype=float)
+    peak_per_sample = operator.max(axis=1, keepdims=True)
+    if not np.all(peak_per_sample > 0):
+        raise RuntimeError(
+            "an observation has no positive beam response anywhere on the sky"
+        )
+    # Every observation's own peak pixel clears any threshold below 1, so the
+    # selection is never empty once the peak check above has passed.
+    above = operator > (float(threshold) * peak_per_sample)
+    keep = np.flatnonzero(above.any(axis=0))
+    retained_power = float(
+        operator[:, keep].sum() / operator.sum()
+    )
+    return keep, {
+        "threshold": float(threshold),
+        "n_pixels": int(keep.size),
+        "sky_fraction": float(keep.size / operator.shape[1]),
+        "samples_per_pixel": float(operator.shape[0] / keep.size),
+        "beam_power_retained": retained_power,
+    }
+
+
 def solve_frequency(
     frequency_mhz: int,
     *,
@@ -394,15 +452,39 @@ def solve_frequency(
 
     zero_prior = float(config.require("tris.zero_level_sigma_k"))
 
-    inputs = tris.build_tris_mapmaking_inputs(
-        ring,
-        nside=nside,
+    # ---- pixel selection ---------------------------------------------------
+    # Two passes.  The first projects the beam onto the WHOLE sky so the
+    # response at every pixel is known; the second rebuilds the operator on
+    # just the pixels that pass the beam-response threshold.  Selecting on the
+    # beam rather than on a declination band is the collaborator's criterion
+    # and is the physical statement: keep what the horn actually saw.
+    #
+    # The full-sky pass is affordable only because this is a deliberately
+    # coarse map -- 768 pixels at nside 8, 3072 at nside 16.
+    common = dict(
         cuts=cuts,
-        dec_half_width_deg=float(config.require("tris.dec_half_width_deg")),
         uncertainty_floor_k=floor,
         zero_level_sigma_k=zero_prior,
         apply_horizon_mask=bool(config.require("beam.apply_horizon_mask")),
         nside_hires=nside_hires,
+    )
+    threshold = float(config.require("tris.beam_response_threshold"))
+    full_sky = tris.build_tris_mapmaking_inputs(
+        ring,
+        nside=nside,
+        pixel_indices=np.arange(hp.nside2npix(nside)),
+        **common,
+    )
+    # Drop the trailing zero-level column before thresholding: it is a
+    # nuisance parameter, not a pixel.
+    sky_columns = np.asarray(full_sky.operator)[:, : hp.nside2npix(nside)]
+    pixel_indices, selection = beam_response_pixels(sky_columns, threshold)
+
+    inputs = tris.build_tris_mapmaking_inputs(
+        ring,
+        nside=nside,
+        pixel_indices=pixel_indices,
+        **common,
     )
     n_sky = int(inputs.sky_parameter_count)
     if not inputs.has_zero_level:  # pragma: no cover - zero_level_sigma_k is required
@@ -424,32 +506,41 @@ def solve_frequency(
         floor_sigma_k=float(config.require("tris.prior.floor_sigma_k")),
     )
 
-    # The zero level is the trailing parameter: prior mean 0, prior width from
-    # the config.  Stacking it here keeps the solve one plain linear system.
+    # ---- solve -------------------------------------------------------------
+    # limTOD owns the solve: TRISMapMakingInputs.solve wraps
+    # limTOD.wiener_filter_map, which forms the dense normal matrix and
+    # factorises it directly.  It builds the prior itself from prior_map /
+    # prior_sigma_k and takes the zero-level column's width from the
+    # zero_level_sigma_k passed to build_tris_mapmaking_inputs, so nothing is
+    # stacked by hand here.
+    regularization = float(config.require("tris.solver.regularization"))
+    import time as _time
+
+    _start = _time.perf_counter()
+    solved = inputs.solve(
+        prior_map=prior_mean_sky,
+        prior_sigma_k=prior_sigma_sky,
+        regularization=regularization,
+    )
+    solver_seconds = _time.perf_counter() - _start
+
+    sky_k = np.asarray(solved.sky_k, dtype=float)
+    sky_sigma_k = np.asarray(solved.sky_uncertainty_k, dtype=float)
+    zero_level_k = float(solved.zero_level_k)
+    zero_level_sigma_k = float(solved.zero_level_uncertainty_k)
+    residual = np.asarray(solved.residual_k, dtype=float)
+    chi_square = float(solved.chi_square)
+    dof = int(solved.degrees_of_freedom)
+
+    # ---- verification ------------------------------------------------------
+    # "It returned an array" is not "it solved the system".  The dense path
+    # adds `regularization * I` to the normal matrix and inverts a
+    # 25k x 25k operator, so it can come back biased or ill-conditioned
+    # without raising.  The Woodbury identity is exact at a single frequency
+    # (the inner matrix is n_samples x n_samples) and is what says whether it
+    # did: same check the Krylov path carried, now pointed at limTOD's answer.
     prior_mean = np.concatenate([prior_mean_sky, [0.0]])
     prior_variance = np.concatenate([prior_sigma_sky**2, [zero_prior**2]])
-
-    # ---- solve -------------------------------------------------------------
-    solution = krylov_map_solve(
-        inputs.operator,
-        inputs.data_k,
-        inputs.noise.variance_k2,
-        prior_mean,
-        prior_variance,
-        method=str(config.require("tris.solver.method")),
-        rtol=float(config.require("tris.solver.rtol")),
-        maxiter=int(config.require("tris.solver.maxiter")),
-        restart=config.get_path("tris.solver.restart"),
-    )
-    if not solution.converged:
-        raise RuntimeError(
-            "{} did not converge at {} MHz (info={}, relative residual {:.3e}) "
-            "-- a finished solve is not a converged one; see Blocker 3".format(
-                solution.method, frequency_mhz, solution.info,
-                solution.relative_residual,
-            )
-        )
-
     reference_mean, posterior_variance = woodbury_reference(
         inputs.operator,
         inputs.data_k,
@@ -457,44 +548,31 @@ def solve_frequency(
         prior_mean,
         prior_variance,
     )
-    # The meaningful unit for "did the Krylov solve land in the right place" is
-    # the posterior width, not the residual norm: a Krylov residual of 1e-9
-    # buys only ~1e-3 posterior sigma on this operator, because the prior width
-    # spans an order of magnitude between the Galactic plane and the cold sky.
+    # The meaningful unit is the posterior width, not the residual norm: the
+    # prior width spans an order of magnitude between the Galactic plane and
+    # the cold sky, so an absolute difference means nothing on its own.
     posterior_sigma = np.sqrt(np.maximum(posterior_variance, 0.0))
-    difference = np.abs(solution.parameters - reference_mean)
-    krylov_vs_exact_sigma = float(
+    parameters = np.concatenate([sky_k, [zero_level_k]])
+    difference = np.abs(parameters - reference_mean)
+    solver_vs_exact_sigma = float(
         np.max(difference / np.maximum(posterior_sigma, 1e-300))
     )
-    krylov_vs_exact_rel = float(
+    solver_vs_exact_rel = float(
         difference.max() / max(float(np.max(np.abs(reference_mean))), 1e-300)
     )
     cross_check_max_sigma = float(config.require("tris.solver.cross_check_max_sigma"))
     if bool(config.require("tris.solver.cross_check")) and (
-        krylov_vs_exact_sigma > cross_check_max_sigma
+        solver_vs_exact_sigma > cross_check_max_sigma
     ):
         raise RuntimeError(
-            "the {} solution at {} MHz sits {:.3e} posterior sigma from the "
-            "exact Woodbury reference (tolerance {:.1e}); info was 0, which is "
-            "exactly the silently-divergent case stage 5 exists to catch -- "
-            "tighten tris.solver.rtol".format(
-                solution.method,
-                frequency_mhz,
-                krylov_vs_exact_sigma,
-                cross_check_max_sigma,
+            "limTOD's solve at {} MHz sits {:.3e} posterior sigma from the "
+            "exact Woodbury reference (tolerance {:.1e}); it raised nothing, "
+            "which is exactly the silently-wrong case stage 5 exists to catch "
+            "-- lower tris.solver.regularization or check the "
+            "conditioning".format(
+                frequency_mhz, solver_vs_exact_sigma, cross_check_max_sigma,
             )
         )
-
-    parameters = solution.parameters
-    sky_k = parameters[:n_sky]
-    sky_sigma_k = np.sqrt(posterior_variance[:n_sky])
-    zero_level_k = float(parameters[-1])
-    zero_level_sigma_k = float(np.sqrt(posterior_variance[-1]))
-
-    residual = inputs.data_k - inputs.operator @ parameters
-    whitened = inputs.noise.whiten(residual)
-    chi_square = float(whitened @ whitened)
-    dof = int(inputs.data_k.size)
 
     implied = float(inputs.implied_monopole_prior_sigma_k(prior_sigma_sky))
     shrinkage = sky_sigma_k / prior_sigma_sky
@@ -503,18 +581,17 @@ def solve_frequency(
     diagnostics: Dict[str, Any] = {
         "n_samples": dof,
         "n_sky_pixels": n_sky,
+        "pixel_selection": selection,
         "n_parameters": int(inputs.parameter_count),
         "uncertainty_floor_k": floor,
         "archive_zero_level_uncertainty_k": _describe_zero_level(ring),
         "solver": {
-            "method": solution.method,
-            "info": solution.info,
-            "iterations": solution.iterations,
-            "restart": solution.restart,
-            "relative_residual": solution.relative_residual,
-            "seconds": solution.seconds,
-            "krylov_vs_woodbury_sigma": krylov_vs_exact_sigma,
-            "krylov_vs_woodbury_rel": krylov_vs_exact_rel,
+            "backend": "limtod",
+            "method": "wiener_filter_map (dense, direct)",
+            "regularization": regularization,
+            "seconds": solver_seconds,
+            "solver_vs_woodbury_sigma": solver_vs_exact_sigma,
+            "solver_vs_woodbury_rel": solver_vs_exact_rel,
             "cross_check_max_sigma": cross_check_max_sigma,
         },
         "chi_square": chi_square,
@@ -570,17 +647,24 @@ def _describe_zero_level(ring) -> Any:
 
 def _report(frequency_mhz: float, effective_mhz: float, diagnostics: Dict) -> None:
     solver = diagnostics["solver"]
+    selection = diagnostics["pixel_selection"]
     print(
-        "  {:>4.0f} MHz (nu_eff {:.1f}): {} info={} iters={} rel.resid={:.2e} "
-        "vs exact {:.2e} sigma in {:.2f}s".format(
+        "  {:>4.0f} MHz (nu_eff {:.1f}): {} solve, vs exact {:.2e} sigma "
+        "in {:.2f}s".format(
             frequency_mhz,
             effective_mhz,
-            solver["method"],
-            solver["info"],
-            solver["iterations"],
-            solver["relative_residual"],
-            solver["krylov_vs_woodbury_sigma"],
+            solver["backend"],
+            solver["solver_vs_woodbury_sigma"],
             solver["seconds"],
+        )
+    )
+    print(
+        "            beam response > {:g} of peak: {} pixels ({:.1%} of sky), "
+        "{:.4%} of beam power kept".format(
+            selection["threshold"],
+            selection["n_pixels"],
+            selection["sky_fraction"],
+            selection["beam_power_retained"],
         )
     )
     print(
