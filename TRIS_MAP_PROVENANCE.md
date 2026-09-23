@@ -10,12 +10,12 @@ document is the annotated one, and it flags the places where a number is a *deci
 made rather than something the archive or limTOD told us.
 
 **The short version:** the maps are a prior-regularized MAP reconstruction of two
-120-sample drift rings, solved on a 25704-pixel declination band at nside 64, with GSM2008
-standing in as the prior. They are **prior-dominated by construction** — 120 samples
-carrying roughly 15 independent numbers against 25705 free parameters — and the fitted zero
-levels (+1.736 K and +0.515 K) are a measurement of GSM2008's offset, not of the TRIS
-archive's zero point. Read the [caveats](#what-to-check-before-you-trust-a-number) before
-quoting anything from them.
+120-sample drift rings, solved by **limTOD's own solver** on a deliberately coarse
+**nside 16** grid, over the **1272 pixels the beam actually saw**, with GSM2008 standing in
+as the prior. They remain **prior-dominated** — 120 samples carrying roughly 15 independent
+numbers — and the fitted zero levels (+1.744 K and +0.510 K) are a measurement of GSM2008's
+offset, not of the TRIS archive's zero point. Read the
+[caveats](#what-to-check-before-you-trust-a-number) before quoting anything from them.
 
 ---
 
@@ -25,7 +25,7 @@ quoting anything from them.
 |---|---|
 | **Product** | `outputs/stage1/tris_maps_tris_haslam_v0.npz` |
 | **Run name** | `tris_haslam_v0` |
-| **Written** | 2026-09-03 19:48:09 UTC |
+| **Written** | 2026-09-21 16:37 UTC |
 | **Config** | `configs/run_config.yaml` (the exact block used is copied into the manifest) |
 | **Input data** | the four LAMBDA TRIS text products — see `DATA_SOURCES.md` |
 | **Archive path at run time** | `../limTOD/downloads/TRIS` |
@@ -119,10 +119,45 @@ Krylov machinery as the recalibration step — see [§5](#5-the-solve).
 
 | setting | value | source |
 |---|---|---|
-| `tris.nside` | **64** (49152 pixels; 0.92°/pixel) | **decision** — the grid the map is *solved* on |
-| pixels in the band | **25704** (52.3% of sky) | derived from the band cut |
-| free parameters | **25705** (25704 sky + 1 zero level) | — |
+| `tris.nside` | **16** (3072 pixels; 3.66°/pixel) | **decision** — this is *supposed* to be a coarse map: the beam is 19–23°, so nside 16 is already ~6× finer than the resolution behind it, and stage 3 degrades to `beam.nside_new = 8` regardless |
+| `tris.beam_response_threshold` | **0.01** | **decision** — a pixel is retained if the beam response exceeds 1% of the peak for **at least one observation** |
+| pixels retained | **1272** (41.4% of sky) | measured, not geometric — see below |
+| beam power retained | **99.604%** | what the 1% cut costs |
+| free parameters | **1273** (1272 sky + 1 zero level) | — |
 | ordering / frame | RING, **equatorial** | verified in `notebooks/01_explore_data.ipynb` |
+
+### Pixel selection — on the beam, not on a declination band
+
+A pixel is retained when the beam response at it exceeds `tris.beam_response_threshold` of
+the peak response **for at least one observation**. The comparison is against that
+observation's own peak, not a global maximum.
+
+This replaced the earlier `dec_half_width_deg: 45.0` band cut, which selected on geometry
+alone: it kept pixels inside the band the beam never illuminated, and cut pixels in the
+beam's wings that it did. The criterion now matches the physical statement — keep what the
+horn actually saw.
+
+**Convergence over the threshold**, as the collaborator asked, at 0.003 / 0.01 / 0.03:
+
+| threshold | pixels | sky fraction | beam power kept | zero level 600 | zero level 820 | reduced χ² 600 / 820 |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0.003 | 1469 | 47.8% | 99.865% | +1.7127 K | +0.4921 K | 3.10 / 3.21 |
+| **0.01** | **1272** | **41.4%** | **99.604%** | **+1.7442 K** | **+0.5101 K** | **3.09 / 3.22** |
+| 0.03 | 1099 | 35.8% | 98.919% | +1.8245 K | +0.5569 K | 3.12 / 3.21 |
+
+**The map is converged; the zero level is not.** On the 1099 pixels common to all three
+selections, the temperatures agree to a maximum of **0.40 σ** (0.003 vs 0.03 against the
+0.01 posterior width), median |ΔT| of 0.013–0.027 K — immaterial, as expected.
+
+The fitted zero level is another matter: it moves **+0.112 K at 600 MHz** and **+0.065 K at
+820 MHz** across the decade of threshold, monotonically increasing as the cut tightens.
+That is **2.6 σ and 2.4 σ** of its own fitted uncertainty, though only 22% and 13% of the
+0.5 K prior width.
+
+The direction makes sense — a looser cut admits more wing pixels, the sky model absorbs
+more of the signal, and less is left for the offset to carry. Treat the fitted zero level
+as carrying a **systematic of order 0.1 K from the pixel-selection choice**, on top of its
+quoted statistical error. It does not affect the maps.
 
 ### Noise and the zero level
 
@@ -175,18 +210,32 @@ but it is an assumption we own, not a fact.
 
 ## 5. The solve
 
-Done in-repo (`moonrunes.stage1_tris_maps`), not by limTOD, and deliberately using the same
-machinery as the recalibration step so that both fail the same way if they fail at all:
-a `scipy.sparse.linalg.LinearOperator` around the MAP normal-equation matvec, plus a
-Jacobi-preconditioned Krylov solve.
+**Current code — limTOD's solver.** `TRISMapMakingInputs.solve` wraps
+`limTOD.wiener_filter_map`, which forms the dense normal matrix
+`AᵀN⁻¹A + S⁻¹ + εI` and factorises it directly. limTOD builds the prior itself from
+`prior_map` / `prior_sigma_k` and takes the zero-level column's width from the
+`zero_level_sigma_k` given to `build_tris_mapmaking_inputs`.
 
-| setting | value | why |
-|---|---|---|
-| method | `gmres` | **decision** |
-| `rtol` | **1e-12** | not the usual 1e-9: the prior width spans an order of magnitude across the band, so a 1e-9 residual still leaves the map ~1e-3 σ off |
-| `maxiter` | 1000 | |
-| restart | `null` → **160** | `n_samples + 40`; the data term has rank 120, so a restart longer than that terminates inside one cycle instead of stalling at the default 20 |
-| Woodbury fast path | **never** | it is documented wrong by ~8 orders of magnitude at low channel count, and TRIS gives 2 |
+| setting | value |
+|---|---|
+| `tris.solver.regularization` | `1e-12`, added to the diagonal before inversion — a bias on the answer as well as a numerical guard, so it stays as small as conditioning allows |
+| cross-check | unchanged: every solve is compared against the exact Woodbury identity and the product is refused if it misses by more than `cross_check_max_sigma` |
+
+**Measured cost.** The dense path scales as the cube of the parameter count. At the
+configured nside 16 it is effectively free:
+
+| `tris.nside` | parameters | solve time | peak memory |
+|---|---:|---:|---:|
+| **16 (configured)** | **1,273** | **0.06 s** | trivial |
+| 32 | 6,461 | 4.82 s | ~1.6 GB |
+| 64 | 25,705 | — | ~25 GB, did not complete on 16 GB |
+
+nside 64 is recorded here only to show where the ceiling is: `wiener_filter_map` allocates
+`S_inv`, `AtNA`, `regularization * np.eye(n)`, `covariance_inv` and the factorisation, each
+n² float64. At the coarse resolution this map is supposed to have, none of that binds.
+
+**The previous in-repo solver** (`krylov_map_solve`) is still present and still pinned by
+the test suite against a dense reference, but it no longer makes the maps.
 
 **Because "it finished" is not "it converged"**, every solve is cross-checked against the
 exact Woodbury identity at a single frequency — a 120×120 inner matrix, cheap, and *not*
@@ -194,24 +243,23 @@ the multi-frequency approximation above. The same identity supplies the posterio
 a Krylov solve alone cannot give. Stage 1 refuses to write a product that fails the check.
 
 | | 600 MHz | 820 MHz |
-|---|---|---|
-| gmres info / iterations | 0 / 114 | 0 / 72 |
-| relative residual | 7.9e-13 | 3.1e-14 |
-| agreement with exact solve | 1.6e-07 σ | 1.8e-09 σ |
+|---|---:|---:|
+| agreement with exact Woodbury | 3.96e-10 σ | 1.07e-10 σ |
 | tolerance | 1e-04 σ | 1e-04 σ |
+| solve time | 0.06 s | 0.06 s |
 
 ---
 
 ## 6. What came out
 
 | | 600 MHz (νeff 600.5) | 820 MHz (νeff 817.8) |
-|---|---|---|
-| fitted zero level | **+1.7361 ± 0.0108 K** | **+0.5148 ± 0.0069 K** |
-| reduced χ² (dof 120) | 33.62 | 13.25 |
-| residual RMS | 0.083 K | 0.075 K |
-| prior → posterior σ (median) | 1.1553 → 1.1550 K | 0.7044 → 0.7042 K |
-| pixels whose σ shrank >5% | **2** of 25704 | **2** of 25704 |
-| minimum beam coverage | 0.9993 | 0.9993 |
+|---|---:|---:|
+| fitted zero level | +1.7442 ± 0.0425 K | +0.5101 ± 0.0269 K |
+| reduced χ² (dof 120) | 3.09 | 3.22 |
+| residual RMS | 0.025 K | 0.036 K |
+| prior → posterior σ (median) | 1.1846 → 1.1559 K | 0.7162 → 0.7053 K |
+| pixels whose σ shrank >5% | **388 of 1272** | **201 of 1272** |
+| minimum beam coverage | 0.9958 | 0.9958 |
 | monopole degeneracy | ≈1.0 | ≈1.0 |
 
 Those fitted offsets reproduce the GSM2008 deficits measured independently in
@@ -222,19 +270,21 @@ geometry, beam and convention translation came through intact.
 
 ## What to check before you trust a number
 
-1. **The maps are prior-dominated.** The beam suppresses harmonics above *m* ≈ 8, so 120
-   samples carry roughly **15 independent numbers** — against 25705 free parameters. The
-   σ-shrinkage row above is the honest measure: the posterior σ is within 0.002% of the
-   prior σ for all but **2 pixels**. Structure you see between ring samples is the prior
-   interpolating, not TRIS measuring.
+1. **The maps are still prior-dominated, but much less so.** The beam suppresses harmonics
+   above *m* ≈ 8, so 120 samples carry roughly **15 independent numbers** — against 1,273
+   free parameters. At the old nside 64 the posterior σ beat the prior by >5% for just
+   **2** of 25,704 pixels; at nside 16 it does so for **388 of 1272** at 600 MHz and **201 of
+   1272** at 820 MHz. Coarsening the grid is what bought that.
 2. **The zero levels measure GSM2008, not the archive.** The monopole degeneracy is ≈1, so
    with a per-pixel prior this tight the nuisance offset is the only place a template error
    can go.
-3. **The reduced χ² of 33.6 is expected, not a failure.** It is the signature of a template
+3. **The reduced χ² of ~3.1 is expected, not a failure.** It is the signature of a template
    that is kelvins cold, forward-modelled against absolutely calibrated data.
-4. **Nothing here is Haslam-independent yet** — GSM2008 is built from surveys that include
+4. **The fitted zero level carries a ~0.1 K systematic from the pixel-selection
+   threshold**, on top of its quoted statistical error. See the convergence table.
+5. **Nothing here is Haslam-independent yet** — GSM2008 is built from surveys that include
    Haslam 408 MHz.
-5. **2.5 GHz is not in these maps** at all.
+6. **2.5 GHz is not in these maps** at all.
 
 ## Known gaps
 

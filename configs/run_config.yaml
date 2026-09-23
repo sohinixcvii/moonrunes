@@ -95,9 +95,28 @@ tris:
   # prior, which is exactly what the Berkhuijsen prior below is for.
   # Allowed: "prior_regularized" | "beamwidth_binning"
   mapmaker: prior_regularized
-  nside: 64                       # working nside for the TRIS ring solve; the
-                                  # map is degraded to beam.nside_new in stage 3
-  dec_half_width_deg: 45.0        # ring pixel selection half-width
+  # DECISION -- this is SUPPOSED to be a coarse map.  The beam is 19-23 deg,
+  # so nside 16 (3.7 deg pixels) is already ~6x finer than the resolution
+  # behind it, and stage 3 degrades to beam.nside_new = 8 regardless.  The
+  # earlier value of 64 (0.92 deg pixels) asked the solver for 25705 free
+  # parameters from 120 samples carrying ~15 independent numbers, and is also
+  # more than limTOD's dense solver can fit in memory.
+  nside: 8
+  # DECISION -- pixel selection is on BEAM RESPONSE, not on a declination
+  # band.  A pixel is retained if the beam response at it exceeds this
+  # fraction of the peak response for at least one observation.  That is the
+  # physical statement -- keep what the horn actually saw -- where a band cut
+  # is only a proxy for it, keeping pixels the beam never illuminated and
+  # cutting wing pixels it did.
+  #
+  # 0.01 is the collaborator's recommended starting point.  Convergence was
+  # checked at 0.003 / 0.01 / 0.03; see CHANGELOG and
+  # TRIS_MAP_PROVENANCE.md for the measured spread.
+  beam_response_threshold: 0.01
+  # UNUSED since pixel selection moved to the beam-response criterion above.
+  # Kept because limTOD's build_tris_mapmaking_inputs still takes it as the
+  # default when no explicit pixel_indices are passed.
+  dec_half_width_deg: 45.0
   # The prior-regularized map-maker has a known zero-level/monopole degeneracy.
   # A finite zero-level sigma is what breaks it; null leaves it degenerate.
   zero_level_sigma_k: 0.5         # DECISION -- K, see notebooks/01.  One value
@@ -110,7 +129,7 @@ tris:
   # Each published ring contains exactly one row with a 0.000 K statistical
   # error, so a floor is mandatory.  null -> use that ring's smallest strictly
   # positive statistical error (what the walkthrough notebook does).
-  uncertainty_floor_k: null
+  uncertainty_floor_k: 1e6
   # Resolution at which the beam is rotated before being sampled onto the
   # `nside` grid.  Must be >= nside; equal to it is correct here because the
   # cut-built beam is already well sampled at nside 64 (0.92 deg pixels for a
@@ -135,7 +154,18 @@ tris:
   # Stage 1's MAP operator (A^T N^-1 A + P^-1) is SPD, so cg is also valid; the
   # recorded decision is gmres, matching stage 4.
   solver:
-    method: gmres                 # DECISION -- gmres | cg | bicgstab
+    # DECISION -- the solve is limTOD's own: TRISMapMakingInputs.solve, which
+    # wraps limTOD.wiener_filter_map.  It forms the dense normal matrix and
+    # factorises it directly, so there is no iterative tolerance to set; the
+    # in-repo Krylov path (krylov_map_solve) is retained only as the test
+    # suite's reference implementation and is no longer what makes the maps.
+    #
+    # Added to the diagonal of the normal matrix before inversion, to keep it
+    # invertible.  It is a bias on the answer as well as a numerical guard, so
+    # it stays as small as the conditioning allows.
+    regularization: 1.0e-12
+    # Kept from the Krylov era and still read by stage 1's cross-check below.
+    method: gmres                 # UNUSED -- krylov_map_solve's default only
     # 1e-12, not the 1e-9 used elsewhere: the residual norm is a poor proxy for
     # solution accuracy here because the prior width spans an order of
     # magnitude across the band, so a 1e-9 residual leaves the map ~1e-3
@@ -338,7 +368,11 @@ gibbs:
 validate:
   # "Did it finish" is not convergence -- this repo's history has silently
   # divergent solves accepted as valid samples.
-  require_solver_info_zero: true  # every Krylov solve must report info == 0
+  # SUPERSEDED by the move to limTOD's dense solver, which has no iteration
+  # count and no info flag.  The equivalent statement is now stage 1's Woodbury
+  # cross-check (tris.solver.cross_check_max_sigma), which every product must
+  # pass before it is written.
+  require_solver_info_zero: true  # UNUSED
   lnprob_burn_in_frac: 0.3
   lnprob_rhat_max: 1.1
   chi2_per_pixel_max: 2.0

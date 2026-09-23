@@ -66,6 +66,19 @@ python run_pipeline.py --stage 1
 python run_pipeline.py --stage 2
 ```
 
+Stage 1 takes two overrides, so a variant run needs no config edit. Whatever they are
+set to is what that run's manifest records:
+
+```bash
+python run_pipeline.py --stage 1 --nside 8 --run-name coarse --output-dir outputs/stage1_nside8
+```
+
+`--nside` overrides `tris.nside` (power of two; `nside_hires` is lifted with it if
+needed) and `--run-name` overrides `run.name`, which names the product
+`tris_maps_<run name>.npz`. Note the **manifest filename is fixed** at
+`stage1_manifest.json`, so two runs in the same directory overwrite each other's
+manifest — give each variant its own `--output-dir`.
+
 ### Stage 1
 
 The whole stage runs in about 12 s (the two Krylov solves are 0.45 s of
@@ -115,11 +128,16 @@ refuses to write a product that fails either check.
 ### Results at a glance
 
 ```
-600 MHz (νeff 600.5): gmres info=0, 114 iters, 1.6e-07 σ from exact
-        reduced χ² 33.6   zero level +1.7361 ± 0.0108 K
-820 MHz (νeff 817.8): gmres info=0,  72 iters, 1.8e-09 σ from exact
-        reduced χ² 13.3   zero level +0.5148 ± 0.0069 K
+600 MHz (νeff 600.5): limtod solve, 4.0e-10 σ from exact, 0.06 s
+        beam response > 0.01 of peak: 1272 pixels (41.4% of sky), 99.60% of beam power
+        reduced χ² 3.09   zero level +1.7442 ± 0.0425 K
+820 MHz (νeff 817.8): limtod solve, 1.1e-10 σ from exact, 0.06 s
+        reduced χ² 3.22   zero level +0.5101 ± 0.0269 K
 ```
+
+The solve is **limTOD's own** (`TRISMapMakingInputs.solve`), on a deliberately coarse
+nside 16 grid, over the pixels the beam actually saw. `TRIS_MAP_PROVENANCE.md` has the
+full settings and the threshold convergence study.
 
 Those fitted offsets reproduce the GSM2008 deficits measured independently in
 `notebooks/01` (1.92 K and 0.56 K cold) — a real check that the geometry, beam and
