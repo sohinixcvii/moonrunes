@@ -132,7 +132,7 @@ tris:
   # Each published ring contains exactly one row with a 0.000 K statistical
   # error, so a floor is mandatory.  null -> use that ring's smallest strictly
   # positive statistical error (what the walkthrough notebook does).
-  uncertainty_floor_k: null
+  uncertainty_floor_k: 1e6
   # Grid limTOD rotates the beam on before projecting it onto the `nside` map
   # pixels.  Must be >= nside.  limTOD draws the beam itself at `nside` (it calls
   # tris_cut_beam_map with the map nside) and only up-samples it to this grid.
