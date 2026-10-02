@@ -45,11 +45,12 @@ that knows this.
 What this stage does NOT do yet
 -------------------------------
 Step 0.4-0.5 -- regridding everything onto the common ``nside`` grid, and the
-coordinate-frame reconciliation that has to happen with it.  Haslam is
-galactic, stage 1's TRIS maps are equatorial, and ARCADE 2's headers do not say
-(no ``COORDSYS``), which is the open TODO in the pipeline document.  Smoothing
-is frame-independent, so this stage is correct as far as it goes; assembling
-SEDs across these maps is not, until that is resolved.
+coordinate-frame reconciliation that has to happen with it.  Haslam and
+ARCADE 2 are galactic (ARCADE 2 states it as ``SKYCOORD``, not ``COORDSYS``)
+and stage 1's TRIS maps are equatorial; :mod:`moonrunes.frames` rotates the
+first two into equatorial, checked in ``notebooks/04_coordinate_frames``.
+Smoothing is frame-independent, so this stage is correct as far as it goes;
+assembling SEDs across these maps needs that rotation applied first.
 """
 
 from __future__ import annotations
@@ -194,7 +195,7 @@ class Dataset:
     path_key: str          # dotted config key holding the file path
     fwhm_key: str          # dotted config key holding the native beam FWHM
     mask_convention: str   # see observed_mask
-    frame: str             # as the file states it, or "unstated"
+    frame: str             # as the file states it (COORDSYS or SKYCOORD)
     fwhm_source: str       # where that FWHM came from
 
 
@@ -203,11 +204,11 @@ DATASETS = (
             "beam_matching.haslam_native_fwhm_deg", "full", "galactic",
             "BEAMSIZE = 56.0 arcmin, HDU 1 of the FITS file"),
     Dataset("arcade2_3150", "paths.arcade2_map_3150",
-            "beam_matching.arcade2_native_fwhm_deg", "zeros", "unstated",
-            "external -- no beam keyword in the FITS header"),
+            "beam_matching.arcade2_native_fwhm_deg", "zeros", "galactic",
+            "config 12.0; header BEAMSZ (HDU 0) says 11.6"),
     Dataset("arcade2_3410", "paths.arcade2_map_3410",
-            "beam_matching.arcade2_native_fwhm_deg", "zeros", "unstated",
-            "external -- no beam keyword in the FITS header"),
+            "beam_matching.arcade2_native_fwhm_deg", "zeros", "galactic",
+            "config 12.0; header BEAMSZ (HDU 0) says 11.6"),
 )
 
 
@@ -296,8 +297,8 @@ def beam_match(
 
     if verbose:
         print("\nNot done here: the regrid onto the common nside and the frame "
-              "reconciliation\n(Step 0.4-0.5).  Haslam is galactic, TRIS is "
-              "equatorial, ARCADE 2 does not say.")
+              "reconciliation\n(Step 0.4-0.5).  Haslam and ARCADE 2 are galactic, "
+              "TRIS is equatorial -- see moonrunes.frames.")
     return results
 
 

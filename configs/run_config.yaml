@@ -15,7 +15,7 @@ run:
   name: tris_haslam_v0
   outputs_dir: outputs            # relative to repo root; gitignored
   seed: 20260903                  # every np.random.default_rng in the pipeline
-  overwrite: false                # stages refuse to clobber existing products
+  overwrite: true                # stages refuse to clobber existing products
 
 paths:
   # DATA_SOURCES.md is the download list for everything below: the archive page
@@ -71,10 +71,12 @@ beam:
   e_plane_hpbw_deg: 19.155        # archive-confirmed
   h_plane_hpbw_deg: 23.366        # archive-confirmed
   beam_deg: 21.2605               # DECISION: mean of E/H, passed to --beam-deg
-  nside_new: 8                    # DECISION: pinned, not inferred, so the grid
+  nside_new: 16                   # DECISION: pinned, not inferred, so the grid
                                   # cannot move under us if the heuristic's
                                   # PIXELS_PER_FWHM convention is ever retuned.
-                                  # Must equal nside_for_beam(beam_deg) = 8.
+                                  # nside_for_beam(beam_deg) gives 8; that only
+                                  # binds the superseded bayesian_skymap path, so
+                                  # stage 1 records the mismatch and warns.
   pixels_per_fwhm: 2.73           # bayesian_skymap's convention; recorded only
   selfrot_deg: -7.0               # E-plane roll east of meridian (geometry owns
                                   # it -- do NOT pre-rotate the beam map)
@@ -97,11 +99,12 @@ tris:
   mapmaker: prior_regularized
   # DECISION -- this is SUPPOSED to be a coarse map.  The beam is 19-23 deg,
   # so nside 16 (3.7 deg pixels) is already ~6x finer than the resolution
-  # behind it, and stage 3 degrades to beam.nside_new = 8 regardless.  The
+  # behind it.  The whole analysis works on nside 16 (beam.nside_new = 16;
+  # switched from 8 on 2026-10-02).  The
   # earlier value of 64 (0.92 deg pixels) asked the solver for 25705 free
   # parameters from 120 samples carrying ~15 independent numbers, and is also
   # more than limTOD's dense solver can fit in memory.
-  nside: 8
+  nside: 16
   # DECISION -- pixel selection is on BEAM RESPONSE, not on a declination
   # band.  A pixel is retained if the beam response at it exceeds this
   # fraction of the peak response for at least one observation.  That is the
@@ -129,12 +132,14 @@ tris:
   # Each published ring contains exactly one row with a 0.000 K statistical
   # error, so a floor is mandatory.  null -> use that ring's smallest strictly
   # positive statistical error (what the walkthrough notebook does).
-  uncertainty_floor_k: 1e6
-  # Resolution at which the beam is rotated before being sampled onto the
-  # `nside` grid.  Must be >= nside; equal to it is correct here because the
-  # cut-built beam is already well sampled at nside 64 (0.92 deg pixels for a
-  # 19 deg FWHM).
-  nside_hires: 64
+  uncertainty_floor_k: null
+  # Grid limTOD rotates the beam on before projecting it onto the `nside` map
+  # pixels.  Must be >= nside.  limTOD draws the beam itself at `nside` (it calls
+  # tris_cut_beam_map with the map nside) and only up-samples it to this grid.
+  # DECISION (2026-10-02): 16, so everything runs at nside 16.  Its measured
+  # cost at nside 16: with 64 the fit gives reduced chi2 3.09 / 3.22 and the
+  # data tighten 388 / 201 pixels by >5%; with 16 it is 16.1 / 5.9 and 23 / 7.
+  nside_hires: 16
 
   # Prior for the prior-regularized map-maker.  Blocker 2 has no truth for real
   # data and Berkhuijsen is not in hand yet, so GSM2008 stands in as BOTH the
@@ -200,10 +205,10 @@ beam_matching:
   target_fwhm_deg: 23.366
   # Haslam: BEAMSIZE = 56.0 in HDU 1 of the FITS file, in ARCMINUTES.
   haslam_native_fwhm_deg: 0.93333
-  # OPEN -- ARCADE 2's native beam is NOT in either FITS header, so this is an
-  # external number with no citation recorded.  12.0 is what the beam-matching
-  # work has been using.  Pin it to the instrument paper before a recovered
-  # gain means anything: it sets the kernel for two of the four trusted points.
+  # OPEN -- both ARCADE 2 headers carry BEAMSZ = 11.6 deg (HDU 0), and LAMBDA
+  # and Singal et al. 2011 give 11.6 deg as well.  12.0 is what the
+  # beam-matching work has been using.  Reconcile before a recovered gain means
+  # anything: it sets the kernel for two of the four trusted points.
   arcade2_native_fwhm_deg: 12.0
   # Step 0.3 -- below this smoothed weight a pixel is mask boundary, not data.
   weight_floor: 0.5

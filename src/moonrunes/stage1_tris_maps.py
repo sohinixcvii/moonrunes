@@ -41,8 +41,9 @@ several ``n x n`` float64 arrays it allocates is ~4.9 GB and the peak is
 :func:`krylov_map_solve` is retained as the matrix-free reference
 implementation the test suite pins against a dense solve; it is no longer what
 makes the maps.  ``bayesian_skymap.bayesian_func`` is still imported for real:
-its ``nside_for_beam`` validates the pinned ``beam.nside_new`` against the TRIS
-beam width (Blocker 1), and its ``estimate_diag_precond`` defines the
+its ``nside_for_beam`` is compared with the pinned ``beam.nside_new`` (Blocker 1;
+a mismatch is recorded and warned about, not fatal, since the SED redesign
+superseded the Gibbs path that needed them equal), and its ``estimate_diag_precond`` defines the
 preconditioner convention that :func:`lhs_diagonal` reproduces analytically.
 
 Because "it returned an array" is not "it solved the system" -- a dense
@@ -76,6 +77,7 @@ import argparse
 import datetime as _dt
 import json
 import sys
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
@@ -691,11 +693,15 @@ def _report(frequency_mhz: float, effective_mhz: float, diagnostics: Dict) -> No
 # stage entry point
 # ---------------------------------------------------------------------------
 def _check_beam_against_bayesian_skymap(config: Config) -> Dict[str, Any]:
-    """Blocker 1: the pinned ``nside_new`` must be what the fork's heuristic gives.
+    """Blocker 1: compare the pinned ``nside_new`` with the fork's heuristic.
 
-    Stage 1's own working grid is free, but its product has to land on the grid
-    stage 3 hands to ``bayesian_skymap``, so the reconciliation belongs here --
-    where it can still be fixed -- rather than three stages downstream.
+    This used to be a hard requirement: the product had to land on the grid
+    ``bayesian_skymap``'s Gibbs recalibration derives from the beam width.  The
+    SED redesign superseded that path, so ``beam.nside_new`` is now a free
+    choice (nside 16 included).  A mismatch is recorded in the manifest and
+    warned about rather than raised, so the information is not lost if the
+    Gibbs path is ever picked back up.  ``beam_deg`` being the mean of the E/H
+    widths is still enforced: that one is a real configuration error.
     """
     bayesian_func = import_bayesian_func(config)
 
@@ -713,12 +719,15 @@ def _check_beam_against_bayesian_skymap(config: Config) -> Dict[str, Any]:
         )
     derived = int(bayesian_func.nside_for_beam(beam_deg, pixels_per_fwhm))
     if derived != pinned:
-        raise ConfigError(
+        warnings.warn(
             "beam.nside_new is pinned at {} but bayesian_func.nside_for_beam("
-            "{}) gives {} -- Blocker 1's grid decision has moved under the "
-            "pipeline".format(pinned, beam_deg, derived)
+            "{}) gives {}. Only the superseded bayesian_skymap (Gibbs) path "
+            "needs them equal; the pinned value is used.".format(
+                pinned, beam_deg, derived),
+            stacklevel=2,
         )
     return {
+        "matches_bayesian_skymap": derived == pinned,
         "beam_deg": beam_deg,
         "nside_new_pinned": pinned,
         "nside_new_from_bayesian_func": derived,

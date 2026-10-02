@@ -12,6 +12,25 @@ resolve before running anything".
 
 ### Changed
 
+#### Everything on nside 16 (2026-10-02)
+
+- 🔢 **`tris.nside`, `tris.nside_hires` and `beam.nside_new` all 16.** nside 16 is the grid
+  the TRIS stage 1 maps are made on, so every other product is put on the TRIS grid. Stage 1
+  at the current config: 1272 pixels, reduced χ² **16.1 / 5.9**, zero level +1.737 / +0.516 K, and
+  23 / 7 pixels tightened by >5%. With `nside_hires: 64` the same run gives 3.09 / 3.22 and
+  388 / 201; `nside_hires` is kept at 16 by decision (`TODO.md` S1-7).
+- 🔓 **The `nside_new` ↔ `bayesian_func.nside_for_beam` check is no longer fatal.** It
+  only guarded the superseded Gibbs path (the heuristic derives a coarser grid from the
+  21.26° beam). A mismatch is now
+  recorded in the manifest (`matches_bayesian_skymap`) and warned about. The `beam_deg`
+  = E/H mean check stays fatal.
+- 🧪 `test_stage1_refuses_to_clobber` pins `run.overwrite: false` itself, instead of
+  depending on the config default.
+- 📝 ARCADE 2's beam: both headers carry `BEAMSZ = 11.6°`. The config, stage 2's dataset
+  table and the README said there was no beam keyword. The 12.0° in use is unchanged
+  (`TODO.md` N-4).
+
+
 #### Stage 1 — solver, resolution, and pixel selection
 
 - 🔁 **The solve is now limTOD's own** — `TRISMapMakingInputs.solve`, wrapping
@@ -22,8 +41,8 @@ resolve before running anything".
   `tris.solver.regularization`; the Krylov keys and stage 5's `require_solver_info_zero`
   are marked unused.
 - 📉 **`tris.nside` 64 → 16.** This is supposed to be a coarse map: the beam is 19–23°, so
-  nside 16 is already ~6× finer than the resolution behind it, and stage 3 degrades to
-  `beam.nside_new = 8` regardless. It also puts the dense solve back in reach — at nside 64
+  nside 16 is already ~6× finer than the resolution behind it, and `beam.nside_new` is 16
+  as well, so every downstream product sits on the same grid as the TRIS maps. It also puts the dense solve back in reach — at nside 64
   the 25,705-parameter normal matrix needs ~25 GB and did not complete on 16 GB of RAM.
 - 🎯 **Pixel selection is now on beam response, not a declination band.** A pixel is
   retained if the beam response exceeds `tris.beam_response_threshold` (0.01) of the peak
@@ -41,6 +60,36 @@ resolve before running anything".
   25,704 — coarsening the grid is what bought that.
 
 ### Added
+
+#### Coordinate frames — everything into Equatorial
+
+- 🧭 **`src/moonrunes/frames.py` + `notebooks/04_coordinate_frames.ipynb`.** Frames read
+  from the files, then checked against the sky: Haslam declares `COORDSYS='GALACTIC'`;
+  ARCADE 2 declares `SKYCOORD='Galactic'` (not `COORDSYS`, which is why it looked
+  unstated); the stage 1 TRIS products declare nothing and are equatorial by construction.
+  Haslam is rotated G→C in harmonic space (full sky, band-limited at nside 512); ARCADE 2
+  in pixel space with the mask interpolated separately, so the exact-zero fill cannot leak
+  into edge pixels (a plain `rotate_map_pixel` contaminates ~157 per band). Sgr A*, Cas A
+  and Tau A land within 0.08–0.15° of their literature positions after rotation.
+  Beam matching does not use it yet.
+
+#### Notebooks and analysis
+
+- 📈 **`notebooks/03`**: residuals with error bars and the RMS maps, with the derivation:
+  r = d − A x̂, Cov(r) = N − AΣAᵀ, and a χ² normalised by n − Σhᵢ.
+- 🛰️ **`notebooks/05_beam_matching.ipynb`**: Haslam and ARCADE 2 smoothed in the equatorial
+  frame. UNSEEN counts, the final ARCADE 2 mask (observed **and** w ≥ 0.5, removing 4 / 5
+  extrapolated pixels), and the four-way overlap with TRIS (33 pixels on the earlier, coarser grid with the
+  "all 4 children" rule; to be re-run at nside 16).
+- 📉 **`notebooks/06_sed_fit.ipynb`**: stage 3 prototype. The 5-point SED and the 4-point
+  power-law fit at the 33 overlap pixels, ARCADE 2 in thermodynamic → RJ units with
+  calibration errors from Fixsen et al. 2011, and the sensitivity to TRIS beam matching and
+  the zero level (`TODO.md` N-2, N-3).
+- 🗺️ **`notebooks/01` sections 05–06**: every map in `res/`, discovered automatically, with
+  the TRIS strip, Dec +30–55° strip slices and a frequency / frame / nside / beam table.
+  Then the TRIS TOD each map predicts, from limTOD's `generate_TOD_sky` (`TODO.md` N-5).
+- 📦 **`res/`**: Maipu + MU 45 MHz and Stockert + Villa-Elisa 1420 MHz added as reference
+  maps (`DATA_SOURCES.md`).
 
 #### Documentation
 
@@ -137,8 +186,9 @@ resolve before running anything".
   approximation Blocker 3 rules out.
 - 🧭 **Blocker 1 is re-derived at run time, not trusted.** Stage 1 calls
   `bayesian_func.nside_for_beam` on the configured E/H mean beam width (21.2605°) and
-  refuses to start if the pinned `beam.nside_new = 8` has drifted from it, so the grid
-  stage 3 hands to `bayesian_skymap` cannot move under the pipeline unnoticed.
+  refused to start if the pinned `beam.nside_new` had drifted from it, so the grid stage 3
+  hands to `bayesian_skymap` could not move under the pipeline unnoticed. Relaxed to a
+  warning on 2026-10-02, when `nside_new` moved to 16 to match the TRIS maps.
 - 📖 **Config loader** (`moonrunes.config`) with dotted lookup. `require()` treats a
   `null` as *"still an open decision"* and raises, rather than letting a stage invent a
   default; `section()` supplies the blocks each stage records in its manifest.
@@ -158,8 +208,9 @@ resolve before running anything".
   Convergence, reduced χ² and residuals, the fitted zero level against the template
   deficit, prior→posterior σ shrinkage and z-scores, the band maps, the spectral index
   between the two solved maps (median β = −2.701, 92% inside the −3.0…−2.5 range stage 5
-  expects), and a preview of the degrade to `nside_new = 8` (432 of 768 pixels touched,
-  364 fully covered).
+  expects), and a preview of the degrade to `nside_new` on the earlier, coarser grid (432 of 768
+  pixels touched, 364 fully covered). At nside 16 the TRIS maps are already on the
+  `nside_new` grid.
 - ✅ **Tests** (`tests/test_stage_io.py`, 14 of them). The algebra is pinned against dense
   references — the Krylov solve for all three methods, the Woodbury posterior including
   the regime where pixels outnumber samples, and `lhs_diagonal` against

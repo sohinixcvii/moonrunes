@@ -51,14 +51,18 @@ through.
 
 ---
 
-## Open TODO — coordinate system mismatch (confirmed real)
+## Coordinate system mismatch — resolved (reprojection to Equatorial)
 
 Haslam ships in **Galactic** coordinates; TRIS work to date has been in
-**Equatorial** (RA/Dec, LST-based). **This mismatch is real and
-unresolved.** Needs a proper reprojection (not just a rotation guess)
-before any pixel-by-pixel comparison is trustworthy — check ARCADE2's
-native coordinate system too, not just Haslam vs. TRIS, since it hasn't
-been confirmed either way yet.
+**Equatorial** (RA/Dec, LST-based). ARCADE2 is **Galactic** too — its
+headers say so as `SKYCOORD='Galactic'`, a keyword healpy does not read.
+The TRIS stage 1 products declare no frame; they are equatorial by
+construction, and the rings peak at the Cygnus plane crossing, as they
+should. `src/moonrunes/frames.py` rotates Haslam (harmonic space, full
+sky) and ARCADE2 (pixel space, mask-aware) to Equatorial; the checks —
+landmarks at their literature positions, the ARCADE2 exact-zero mask
+surviving the rotation — are in `notebooks/04_coordinate_frames.ipynb`.
+Not yet wired into stage 2's beam matching.
 
 ---
 
@@ -122,8 +126,8 @@ two down to match it, never the reverse.**
    at a sufficiently fine native `nside` first, *then* `ud_grade` down to
    the common coarse grid.
 
-5. **Regrid all three to TRIS's own map-making pixelization** (nside=8,
-   ~7.33 deg pixels, per your walkthrough's "~3 pixels per beam FWHM"
+5. **Regrid all three to TRIS's own map-making pixelization** (nside=16
+   since 2026-10-02, ~3.66 deg pixels; originally nside=8, ~7.33 deg pixels, per your walkthrough's "~3 pixels per beam FWHM"
    convention) — so Step 1's per-pixel SEDs are being assembled on a grid
    that actually matches the physical resolution of the trusted
    calibrators, not an arbitrarily finer one.
@@ -170,7 +174,7 @@ Unchanged from the original plan:
 ## Stage 2 — Beam-match and regrid (Step 0's procedure, applied)
 
 Apply Step 0 to Haslam and both ARCADE2 bands, regridding everything
-(including TRIS's own maps) onto the common nside=8 grid, in a common
+(including TRIS's own maps) onto the common nside=16 grid, in a common
 coordinate system (resolves the Open TODO above — do this *before*
 Stage 3, not after).
 

@@ -25,8 +25,8 @@ flags as "decide rather than default".
 | Stage | What it does | State |
 |---|---|---|
 | **1** | Calibrated TRIS maps from the public archive (`limTOD.tris`) | **implemented** |
-| **2** | Beam-match the three surveys onto TRIS's resolution (Step 0) | **implemented**, minus the regrid |
-| 3 | Assemble per-pixel SEDs and fit | not started |
+| **2** | Beam-match the three surveys onto TRIS's resolution (Step 0) | **implemented** in each survey's native frame, minus the regrid. The rotation to equatorial, final masks and regrid are prototyped in `notebooks/04`–`05` (`moonrunes.frames`), not yet in the CLI |
+| 3 | Assemble per-pixel SEDs and fit | prototype in `notebooks/06`, not in the CLI |
 | 4 | Derive and apply the calibration correction | not started |
 | 5 | Validate | not started |
 
@@ -70,7 +70,7 @@ Stage 1 takes two overrides, so a variant run needs no config edit. Whatever the
 set to is what that run's manifest records:
 
 ```bash
-python run_pipeline.py --stage 1 --nside 8 --run-name coarse --output-dir outputs/stage1_nside8
+python run_pipeline.py --stage 1 --nside 32 --run-name fine --output-dir outputs/stage1_nside32
 ```
 
 `--nside` overrides `tris.nside` (power of two; `nside_hires` is lifted with it if
@@ -128,12 +128,21 @@ refuses to write a product that fails either check.
 ### Results at a glance
 
 ```
-600 MHz (νeff 600.5): limtod solve, 4.0e-10 σ from exact, 0.06 s
-        beam response > 0.01 of peak: 1272 pixels (41.4% of sky), 99.60% of beam power
-        reduced χ² 3.09   zero level +1.7442 ± 0.0425 K
-820 MHz (νeff 817.8): limtod solve, 1.1e-10 σ from exact, 0.06 s
-        reduced χ² 3.22   zero level +0.5101 ± 0.0269 K
+600 MHz (νeff 600.5): limtod solve, 5.4e-10 σ from exact, 0.07 s
+        beam response > 0.01 of peak: 1272 pixels (41.4% of sky), 99.61% of beam power
+        reduced χ² 16.14   zero level +1.7369 ± 0.0428 K
+820 MHz (νeff 817.8): limtod solve, 1.5e-10 σ from exact, 0.06 s
+        reduced χ² 5.88    zero level +0.5158 ± 0.0271 K
 ```
+
+These come from the current config, where **everything is nside 16**, the grid the TRIS
+stage 1 maps are made on, so every other product is put on the TRIS grid. That includes
+`tris.nside_hires`, the grid limTOD rotates the beam on. That last choice has a measured
+cost. The same run with `nside_hires: 64` gives reduced χ² **3.09 / 3.22**, and the data
+tighten **388 / 201** pixels by more than 5%, against **23 / 7** at 16. The 64 numbers are
+the product `TRIS_MAP_PROVENANCE.md` documents. Stage 1 also warns that `beam.nside_new`
+(16) differs from what `bayesian_func.nside_for_beam` derives for the TRIS beam; that
+comparison only mattered for the superseded Gibbs path, so it is recorded, not enforced.
 
 The solve is **limTOD's own** (`TRISMapMakingInputs.solve`), on a deliberately coarse
 nside 16 grid, over the pixels the beam actually saw. `TRIS_MAP_PROVENANCE.md` has the
@@ -165,20 +174,23 @@ results["arcade2_3150"]["extra_fwhm_deg"] # sqrt(target^2 - native^2), not the t
 haslam_408     nside 512  native  0.9333° -> extra kernel 23.3474°
                observed 3145728 -> 3145728 pixels (+0 at the mask edge), frame galactic
 arcade2_3150   nside 16   native 12.0000° -> extra kernel 20.0492°
-               observed 220 -> 168 pixels (-52 at the mask edge), frame unstated
+               observed 220 -> 168 pixels (-52 at the mask edge), frame galactic
 arcade2_3410   nside 16   native 12.0000° -> extra kernel 20.0492°
-               observed 232 -> 195 pixels (-37 at the mask edge), frame unstated
+               observed 232 -> 195 pixels (-37 at the mask edge), frame galactic
 ```
 
 Haslam is full-sky and keeps every pixel; ARCADE 2 loses its mask edge, where the smoothed
 weight falls below 0.5 and the weight division cannot rescue the pixel.
 
-**Two things it does not do.** The regrid onto a common `nside` and the coordinate-frame
-reconciliation (Step 0.4–0.5) — Haslam is galactic, stage 1's TRIS maps are equatorial,
-and ARCADE 2's headers state no frame at all. Smoothing is frame-independent, so what is
-implemented is correct as far as it goes; assembling SEDs across these maps is not, until
-that is resolved. And `beam_matching.arcade2_native_fwhm_deg` is an external number with
-no citation recorded — no beam keyword exists in either ARCADE 2 file.
+**What it does not do yet.** It smooths in each survey's native Galactic frame and writes
+nothing. The frames themselves are settled. Haslam and ARCADE 2 are Galactic (ARCADE 2
+states it as `SKYCOORD`, which healpy does not read) and stage 1's TRIS maps are
+equatorial. `moonrunes.frames` rotates the first two to equatorial, checked in
+`notebooks/04`. `notebooks/05` applies the rotation, the smoothing and the final ARCADE 2
+mask (observed **and** smoothed weight ≥ 0.5) and measures the four-way overlap. None of
+that is wired into the CLI yet. Smoothing is frame-independent, so what the CLI does is
+correct as far as it goes. And `beam_matching.arcade2_native_fwhm_deg` is 12.0°, while
+both ARCADE 2 headers carry `BEAMSZ = 11.6`.
 
 ---
 
@@ -229,13 +241,17 @@ builds from the *true* gain as `(0.15 × (1 + g_true))²` (stage 2 emits the sam
 
 ## Notebooks
 
-Both are committed **with their outputs**, so they can be read without re-running.
+All are committed **with their outputs**, so they can be read without re-running.
+**03, 05 and 06 predate the switch to nside 16** and have not been re-run on it yet; 01's sections 05–06 follow `tris.nside`.
 
 | Notebook | Contents |
 |---|---|
-| `01_explore_data.ipynb` | The inputs, one section per dataset. **01** the four TRIS products, the beam, the temperature convention, the GSM2008 template — and where `zero_level_sigma_k`, `uncertainty_floor_k` and `nside_new` come from. **02** a first look at ARCADE 2 (3.15/3.41 GHz), which nothing reads yet. **03** the Haslam 408 MHz download. |
+| `01_explore_data.ipynb` | The inputs, one section per dataset. **01** the four TRIS products, the beam, the temperature convention, the GSM2008 template — and where `zero_level_sigma_k`, `uncertainty_floor_k` and `nside_new` come from. **02** a first look at ARCADE 2 (3.15/3.41 GHz). **03** the Haslam 408 MHz download. **04** the stage 1 TRIS maps. **05** every map in `res/`, discovered automatically: full-sky panels and Dec +30–55° strip slices with the TRIS strip, plus a frequency / frame / nside / beam table. **06** the TRIS TOD each map predicts (limTOD `generate_TOD_sky`), compared by shape and by spectral index against the TRIS 600 MHz ring. |
 | `02_build_berkhijsen_prior.ipynb` | **Superseded, does not run** — imports the deleted `stage2_haslam_prep`. Kept for section 3's circularity measurement. The stage 2 products: the Haslam map, the region operators, the three prior sources compared — and section 3, which *measures* the GSM2008/Haslam circularity instead of asserting it. |
-| `03_diagnostics.ipynb` | The stage 1 results: convergence, χ² and residuals, the zero level against the template deficit, prior→posterior shrinkage and z-scores, the band maps, β between the two solved maps, and a preview of the degrade to `nside_new`. |
+| `03_diagnostics.ipynb` | The stage 1 results: convergence, χ² and residuals, the zero level against the template deficit, prior→posterior shrinkage and z-scores, the band maps, β between the two solved maps, a preview of the degrade to `nside_new`, the prior-only and high-noise comparison runs, residuals with error bars (with the derivation of their expected scatter) and the RMS maps. |
+| `04_coordinate_frames.ipynb` | What each input's header declares, checked against the sky; the rotation to equatorial (harmonic for Haslam, mask-aware pixel rotation for ARCADE 2); Sgr A*, Cas A and Tau A at their literature positions; the ARCADE 2 zero mask after rotation. |
+| `05_beam_matching.ipynb` | Haslam and ARCADE 2 smoothed to 23.366° in the equatorial frame; UNSEEN counts and the ring's break at its narrow junctions; the final ARCADE 2 mask and the four-way overlap with TRIS. |
+| `06_sed_fit.ipynb` | Stage 3 prototype: the 5-point SED at the 33 overlap pixels, the 4-point power-law fit, the 408 MHz prediction against Haslam, χ² per pixel, and the sensitivity to the two upstream choices (TRIS beam matching, zero level). Stops before stage 4. |
 
 ---
 
@@ -243,7 +259,7 @@ Both are committed **with their outputs**, so they can be read without re-runnin
 
 | | Status |
 |---|---|
-| **1 — beam width mismatch** | Resolved. The fork accepts arbitrary `beam_deg`; the TRIS E/H mean (21.2605°) is passed through as itself. Stage 1 re-derives `nside_new` from `bayesian_func.nside_for_beam` at run time and refuses to start if the pinned value has drifted. |
+| **1 — beam width mismatch** | Resolved. The fork accepts arbitrary `beam_deg`; the TRIS E/H mean (21.2605°) is passed through as itself. Stage 1 still compares the pinned `nside_new` with `bayesian_func.nside_for_beam`, but since the SED redesign a mismatch is recorded in the manifest and warned about, not fatal. `nside_new` is now 16. |
 | **2 — no "truth" for real data** | **Open, in both stages.** Stage 1 uses GSM2008 as both prior and reference truth (`prior_equals_truth: true`). Stage 2's prior defaults to GSM2008 too, which is not Haslam-independent (`prior_is_haslam_derived: true`, measured at r = 0.993 in `notebooks/02`). `tris_stage1` is the honest interim — independent across the 52% of sky TRIS observed. The real answer stays Berkhuijsen (1972), and swapping it in is one config line. |
 | **3 — Woodbury fast path broken at low channel count** | Resolved by not using it. `gibbs.use_woodbury` is `false` and stage 1 solves with the direct Krylov path. |
 
@@ -261,11 +277,13 @@ src/moonrunes/
     config.py               loader; `require()` raises on null = "still an open decision"
     stage1_tris_maps.py     stage 1 + its product loader
     stage2_beam_matching.py stage 2 -- Step 0 beam matching
+    frames.py               declared frames; Galactic -> equatorial rotation (full-sky and mask-aware)
     stage3..stage5          empty
 notebooks/                  analysis and plotting, committed with outputs
 external/bayesian_skymap    submodule (patched fork)
 outputs/                    stage products, gitignored
-tests/test_stage_io.py      pytest
+res/                        input maps: TRIS text products, Haslam, ARCADE 2, Maipu 45 MHz, Stockert 1420 MHz
+tests/                      pytest: test_stage_io.py, test_frames.py
 ```
 
 Two rules the stages rely on: a `null` in the config is an *open decision* and the stage
@@ -280,9 +298,9 @@ consumed in its manifest.
 pytest
 ```
 
-30 tests. The algebra ones — the Krylov solve against a dense reference, the Jacobi
+43 tests. The algebra ones — the Krylov solve against a dense reference, the Jacobi
 diagonal against `bayesian_func.estimate_diag_precond`, the Woodbury posterior against a
-dense inverse, and stage 2's beam quadrature and masked-smoothing behaviour — run
+dense inverse, stage 2's beam quadrature and masked-smoothing behaviour, and the frame rotations — run
 anywhere. The end-to-end tests skip themselves when the TRIS archive, the FITS downloads,
 or `pygdsm` is absent.
 

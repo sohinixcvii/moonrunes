@@ -5,7 +5,7 @@ Every external dataset this pipeline reads, where it comes from, and what consum
 astropy cache populated by `pygdsm`) and raises with a clear message when it is absent.
 So this file is the download list.
 
-All three products below are hosted by **LAMBDA** (NASA/GSFC's Legacy Archive for
+Every product below except the last section is hosted by **LAMBDA** (NASA/GSFC's Legacy Archive for
 Microwave Background Data Analysis).
 
 ---
@@ -49,10 +49,10 @@ the Gibbs sampler is being asked to recover.
 
 | | |
 |---|---|
-| **Consumed by** | Stage 2 (`moonrunes.stage2_haslam_prep`) |
-| **Config** | `paths.haslam_map` — `null` means "use the copy `pygdsm` already caches" |
+| **Consumed by** | Stage 2 (`moonrunes.stage2_beam_matching`), and notebooks 01, 04–06 |
+| **Config** | `paths.haslam_map_fits` = `res/HASLAM.fits`. The superseded `stage2_haslam_prep` read `paths.haslam_map`, where `null` meant "use the copy `pygdsm` already caches" |
 | **File** | `haslam408_dsds_Remazeilles2014.fits` — the **destriped, desourced reprocessed** map (Remazeilles et al. 2015), not the original 1982 release |
-| **Format** | HEALPix FITS, galactic, nside 512, degraded to `haslam.nside = 128` |
+| **Format** | HEALPix FITS, `COORDSYS = GALACTIC`, RING, nside 512, `BEAMSIZE` = 56′, K (RJ, CMB included) |
 
 Notes:
 
@@ -80,10 +80,10 @@ meaningful.
 
 | | |
 |---|---|
-| **Consumed by** | the SED fit, as two of the four trusted points. No stage code reads it yet and no config key points at it |
-| **Looked at in** | `notebooks/01_explore_data.ipynb`, section 02 |
+| **Consumed by** | Stage 2 (`moonrunes.stage2_beam_matching`, `paths.arcade2_map_3150` / `_3410`), and the SED fit prototype in `notebooks/06` as two of the four trusted points |
+| **Looked at in** | `notebooks/01_explore_data.ipynb`, sections 02 and 05; `notebooks/04`–`06` |
 | **Files** | `res/ARCADE2_315.fits`, `res/ARCADE2_341.fits` — 3.15 and 3.41 GHz |
-| **Format** | HEALPix FITS, **`NESTED` at nside 16** (a 3.7° pixel), temperature in K |
+| **Format** | HEALPix FITS, **`NESTED` at nside 16** (a 3.7° pixel), **K thermodynamic with the CMB monopole included** (only the dipole removed — LAMBDA `arcade_maps_info`), `BEAMSZ = 11.6°` in HDU 0 |
 
 Three properties measured in the notebook, each of which changes how the maps must be
 handled:
@@ -94,13 +94,34 @@ handled:
   through a global spherical harmonic transform and would bleed those zeros across the
   boundary. Step 0.3 of the pipeline document is the procedure.
 * **`NESTED` ordering** — `hp.read_map` reorders to `RING` on read, silently.
-* **no `COORDSYS` in the header** — the frame is not stated by the file, which is
-  precisely the open coordinate-system TODO in the pipeline document. Do not assume
-  galactic on the strength of the plots in the notebook; they assume it too.
+* **Galactic, stated as `SKYCOORD='Galactic'`**, in both HDUs — not as `COORDSYS`,
+  which is the keyword healpy reads, so healpy reports no frame. Confirmed against the
+  sky as well as the header: the brightest pixels sit on b ≈ 0 in the file's own frame,
+  and after rotation to equatorial the maps correlate at 0.95 with rotated Haslam
+  (`notebooks/04_coordinate_frames.ipynb`).
 
 One caveat that is design, not format: 3.15/3.41 GHz against Haslam's 408 MHz is close to
 a decade of lever arm, over which free-free emission's rising contribution can put real
 curvature in the SED that a single power law will not capture.
+
+---
+
+## Maipu + MU 45 MHz, and Stockert + Villa-Elisa 1420 MHz — reference maps
+
+<https://lambda.gsfc.nasa.gov/product/foreground/fg_diffuse.html>
+
+Two more all-sky surveys in `res/`. **No stage reads them.** They are shown alongside the
+others in `notebooks/01_explore_data.ipynb`, sections 05–06. Neither header gives a
+frequency, unit or beam, so those come from the LAMBDA product pages.
+
+| | Maipu + MU 45 MHz | Stockert + Villa-Elisa 1420 MHz |
+|---|---|---|
+| **File** | `res/MAIPU_45mhZ.fits` | `res/STOCKERT_VILLA_1400MHZ.fits` (the survey is **1420** MHz, not the 1400 in the name) |
+| **Format** | HEALPix, `COORDSYS = G`, NESTED, nside 64 | HEALPix, `COORDSYS = G`, NESTED, nside 256 |
+| **Units** | K | **mK** (full-beam brightness temperature) |
+| **Beam** | 4.6° × 2.4° (Maipu, south) / 3.6° (MU, north) | 35.4′ |
+| **Unobserved** | −32768 (FITS null), 1877 px: caps around both celestial poles, data only Dec −79° to +71° | −32768, 47 px |
+| **Reference** | Guzmán et al. 2011, A&A 525, A138 (LAMBDA `fg_maipu_info`) | Reich 1982; Reich & Reich 1986; Testori et al. 2001 (LAMBDA `fg_stockert_villa_info`) |
 
 ## Not on LAMBDA
 

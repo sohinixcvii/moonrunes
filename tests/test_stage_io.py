@@ -68,9 +68,19 @@ def test_solver_decisions_are_the_recorded_ones(config):
 # ---------------------------------------------------------------------------
 # Blocker 1: stage 1's grid has to survive the trip to bayesian_skymap
 # ---------------------------------------------------------------------------
-def test_pinned_nside_new_matches_bayesian_skymap(config):
-    check = stage1._check_beam_against_bayesian_skymap(config)
-    assert check["nside_new_pinned"] == check["nside_new_from_bayesian_func"] == 8
+def test_pinned_nside_new_is_compared_not_enforced(config):
+    # The heuristic still derives 8 for the TRIS beam; a different pinned grid is
+    # recorded and warned about, never fatal (the Gibbs path that needed them
+    # equal is superseded).
+    pinned = int(config.require("beam.nside_new"))
+    if pinned == 8:
+        check = stage1._check_beam_against_bayesian_skymap(config)
+    else:
+        with pytest.warns(UserWarning, match="nside_for_beam"):
+            check = stage1._check_beam_against_bayesian_skymap(config)
+    assert check["nside_new_from_bayesian_func"] == 8
+    assert check["nside_new_pinned"] == pinned
+    assert check["matches_bayesian_skymap"] == (pinned == 8)
 
 
 # ---------------------------------------------------------------------------
@@ -279,6 +289,7 @@ def test_stage1_refuses_to_clobber(config, tmp_path):
     fast._data["tris"]["nside"] = 4
     fast._data["tris"]["nside_hires"] = 4
     fast._data["run"]["name"] = "pytest_clobber"
+    fast._data["run"]["overwrite"] = False   # the guard under test, whatever the config says
     kwargs = dict(config=fast, archive_dir=archive, output_dir=tmp_path, verbose=False)
 
     stage1.run_stage1(**kwargs)
