@@ -41,16 +41,18 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
 
 ## Stage 3 owes (assembly only — it should invent nothing)
 
-- [ ] **S3-1 — Rotate stage 1's TRIS maps into galactic.**
-  Stage 1 works equatorial, stage 2 galactic (`haslam.frame`). Stage 2's
-  `_tris_at_408()` already does exactly this resampling (rotate each galactic pixel centre
-  into equatorial, take the stage 1 pixel it lands in — nearest neighbour, no smearing at
-  the band edge); factor it out rather than writing it twice.
+- [ ] **S3-1 — Wire the equatorial frame into the stage 2 CLI.** *(direction reversed)*
+  The common frame is now **equatorial**: Haslam and ARCADE 2 are rotated in, and TRIS
+  stays as it is (`moonrunes.frames`, checked in `notebooks/04`). `beam_match()` still
+  smooths in the native Galactic frame and writes nothing. It should rotate first, apply
+  the final ARCADE 2 mask (observed **and** smoothed weight ≥ 0.5), regrid, and write a
+  product with a manifest. `notebooks/05` is the reference implementation.
 
-- [ ] **S3-2 — Decide how the 68 partially-covered coarse pixels are filled.**
-  Degrading the TRIS band from nside 64 to `beam.nside_new = 8` touches 432 of 768 pixels:
-  364 fully covered, **68 partial**, mixing solved sky with pixels the ring never reached.
-  `notebooks/03` previews this but explicitly leaves the decision to stage 3.
+- [ ] **S3-2 — Decide how partially covered coarse pixels are filled.**
+  With TRIS now solved directly on the nside 16 working grid, TRIS itself needs no degrade.
+  The question remains for ARCADE 2 whenever its grid differs from the working grid. On
+  the earlier, coarser grid, `notebooks/05`–`06` used "all 4 children observed". At
+  nside 16 ARCADE 2 is native, so the rule falls away, and the overlap count will change.
 
 - [ ] **S3-3 — Build `pixel_mask` at `nside_new` from the rotated footprint.**
   `bayesian_skymap` uses it to zero out unobserved low-resolution pixels. It must match
@@ -103,12 +105,16 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
 
 ## Open decisions carried from stage 1
 
-- [ ] **S1-1 — Reconsider `tris.nside: 64`.**
-  At nside 64 the band holds 25704 pixels against 120 samples, and the map is
-  ~entirely prior: median posterior/prior σ ratio **0.99998**, with only **2 of 25704**
-  pixels tightened by more than 5%. Since stage 3 degrades to nside 8 anyway, solving
-  directly at nside 8 (400 band pixels) would be the more honest grid. One config line;
-  deliberately left alone because it is a recorded decision.
+- [x] **S1-1 — Reconsider `tris.nside: 64`.** Done: now 16 (since 2026-10-02 the whole
+  analysis is nside 16, including `nside_hires`).
+
+- [ ] **S1-7 — The cost of `tris.nside_hires: 16`.**
+  At nside 16, rotating the beam on a 16 grid instead of 64 raises reduced χ² from
+  3.09 / 3.22 to 16.1 / 5.9, and cuts the pixels the data tighten by >5% from 388 / 201 to
+  23 / 7. Kept at 16 deliberately; revisit if the fit quality matters. Separately, limTOD
+  draws the beam at the *map* nside before any up-sampling, so `nside_hires` never makes
+  the beam itself finer. On the earlier, coarser grid that changed the forward model by 0.34 K rms where the
+  ring crosses Cygnus (RA 260–340°), about 4× the residual there.
 
 - [ ] **S1-2 — Model the asymmetric 820 MHz zero level properly.**
   The archive quotes **+0.430 / −0.300 K**; stage 1 covers both rings with one symmetric
@@ -122,7 +128,7 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   asymmetry itself cannot be represented downstream. Quantify the error this introduces.
 
 - [ ] **S1-4 — `bicgstab` stalls on the stage 1 operator; document or drop it.**
-  It is in `_SOLVERS` and passes the well-conditioned unit test, but on the real nside-8
+  It is in `_SOLVERS` and passes the well-conditioned unit test, but on the real stage 1
   problem it returns `info=1000` at every tolerance tried and sits 5.5e-2 posterior σ from
   the exact answer. The cross-check catches it, but the option invites a bad run.
 
@@ -136,6 +142,33 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   rather than inheriting it.
 
 ---
+
+## Open from the SED prototype and the diagnostics (notebooks 03–06, 01 §05–06)
+
+- [ ] **N-1 — Re-run notebooks 03, 05 and 06 on nside 16.** They hard-code the earlier grid
+  and its output directory. 06 asserts exactly 33 overlap pixels, a number that will
+  change. Notebook 01's section 04 also expects a different product filename from either.
+- [ ] **N-2 — Put TRIS on the common beam before it enters an SED.** The stage 1 map is a
+  pixel-scale deconvolution, and in `notebooks/06` two pixels have a *negative* CMB-free
+  TRIS temperature and five more have inconsistent 600/820 values. Smoothing TRIS to the
+  23.366° target removes every such pixel.
+- [ ] **N-3 — Decide whether the fitted zero level ẑ is sky or instrument.** Adding it to
+  the TRIS temperatures is worth about 6–7 K at 408 MHz. Together with N-2 it moves the
+  median predicted − raw Haslam between −19% and +21%, so the ~3% / 0.91 K benchmark cannot
+  validate anything until both are settled.
+- [ ] **N-4 — ARCADE 2 beam: 12.0° in the config, 11.6° in the headers** (`BEAMSZ`), on
+  LAMBDA and in Singal et al. 2011.
+- [ ] **N-5 — Haslam against TRIS in the TOD domain.** Simulated through the TRIS beam
+  (`notebooks/01` §06), every survey gives β ≈ −2.8 to −2.9 against the real 600 MHz ring
+  except Haslam, at −2.1, uniform across RA: a scale-like difference of ~30%. Consider it
+  for stage 5, since it is the one check that never goes through a map-maker. It assumes
+  the Remazeilles Haslam map includes the CMB.
+- [ ] **N-6 — The residual bump at RA ≈ 260–340°** (`notebooks/03`). Candidates: the beam
+  drawn at the map nside (S1-7), the prior width, or pixelisation. A Gibbs sampler with the
+  prior width or a beam-error term free would separate them.
+- [ ] **N-7 — The ARCADE 2 ring breaks after smoothing.** On the earlier grid (`notebooks/05`), the
+  w ≥ 0.5 floor cut the ring's two narrow junctions, including the Galactic-plane crossing.
+  Re-check at nside 16 before choosing a floor.
 
 ## Open decisions carried from stage 2
 

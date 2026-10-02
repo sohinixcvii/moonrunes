@@ -9,6 +9,14 @@ manifest (`outputs/stage1/stage1_manifest.json`) is the machine-readable version
 document is the annotated one, and it flags the places where a number is a *decision* we
 made rather than something the archive or limTOD told us.
 
+> **Status note, 2026-10-02.** This document records the product made with
+> `tris.nside_hires: 64`. The config now runs **everything at nside 16**, including
+> `nside_hires`, and `beam.nside_new` is 16. nside 16 is the grid the TRIS stage 1 maps are
+> made on, so every other product is put on the TRIS grid. Same pixels, same solve, but a coarser beam
+> rotation grid: reduced χ² **16.1 / 5.9** (against 3.09 / 3.22 below), zero levels
+> +1.737 / +0.516 K, and **23 / 7** pixels tightened by more than 5% (against 388 / 201).
+> The current run's manifest has the full numbers.
+
 **The short version:** the maps are a prior-regularized MAP reconstruction of two
 120-sample drift rings, solved by **limTOD's own solver** on a deliberately coarse
 **nside 16** grid, over the **1272 pixels the beam actually saw**, with GSM2008 standing in
@@ -35,7 +43,7 @@ offset, not of the TRIS archive's zero point. Read the
 | component | version |
 |---|---|
 | `limTOD` | sibling source checkout, **commit `dbe720b`** ("Merge: make the TRIS map figures say what the numbers already said", 14 Aug 2026) |
-| `bayesian_skymap` | `external/bayesian_skymap` (the patched fork), used only to validate `nside_new` |
+| `bayesian_skymap` | `external/bayesian_skymap` (the patched fork), used only to compare `nside_new` with `nside_for_beam` (recorded and warned about since 2026-10-02, no longer fatal) |
 | Python / numpy / healpy | 3.14.6 / 2.5.2 / 1.20.0 |
 
 `limTOD` was **not** imported as an installed package. The manifest records the path
@@ -67,7 +75,8 @@ Five entry points, in call order.
 | 5 | `build_tris_mapmaking_inputs` | `mapmaking` | operator, data vector, noise model, pixel selection |
 
 Call 5 is where most of the physics is. Internally it builds the beam with
-`tris_cut_beam_map(cuts, nside=64, normalization="peak")`, takes pointing from
+`tris_cut_beam_map(cuts, nside=tris.nside, normalization="peak")`, which is the map's own
+nside (up-sampled to `nside_hires` only for the rotation), takes pointing from
 `tris_zenith_geometry`, applies `tris_horizon_mask`, selects the band with
 `tris_ring_pixels`, and calls `limTOD.simulator.generate_sky2sys_projection` to build the
 sky→sample operator. The zero level is appended as a column of ones, making it an explicit
@@ -112,14 +121,14 @@ Krylov machinery as the recalibration step — see [§5](#5-the-solve).
 | beam model | built from the archive's E/H cuts, `normalization="peak"` | limTOD, via `cuts=` |
 | measured HPBW | 19.155° (E) / 23.366° (H) | **derived by limTOD from the cut table** — the ring headers say "18 degrees", which is 6% narrow |
 | horizon mask | **on** | **decision** (`beam.apply_horizon_mask`) — the cut beam has ~1.2e-4 of its power below the horizon, ≈0.035 K against 300 K ground, comparable to the published 0.066 K systematic |
-| `nside_hires` | 64 | **decision** — equal to the working nside; the cut-built beam is already well sampled there (0.92° pixels for a 19° FWHM) |
+| `nside_hires` | 64 | **decision** — the grid the beam is rotated on. Note the beam itself is drawn at `tris.nside` and only up-sampled to this grid. The config now uses 16; see the status note at the top |
 | beam normalisation in the projection | `normalize_beam=True` | limTOD default via `build_tris_mapmaking_inputs` |
 
 ### Pixelisation
 
 | setting | value | source |
 |---|---|---|
-| `tris.nside` | **16** (3072 pixels; 3.66°/pixel) | **decision** — this is *supposed* to be a coarse map: the beam is 19–23°, so nside 16 is already ~6× finer than the resolution behind it, and stage 3 degrades to `beam.nside_new = 8` regardless |
+| `tris.nside` | **16** (3072 pixels; 3.66°/pixel) | **decision** — this is *supposed* to be a coarse map: the beam is 19–23°, so nside 16 is already ~6× finer than the resolution behind it, and `beam.nside_new` is 16 too, so every downstream product sits on the same grid as the TRIS maps |
 | `tris.beam_response_threshold` | **0.01** | **decision** — a pixel is retained if the beam response exceeds 1% of the peak for **at least one observation** |
 | pixels retained | **1272** (41.4% of sky) | measured, not geometric — see below |
 | beam power retained | **99.604%** | what the 1% cut costs |
