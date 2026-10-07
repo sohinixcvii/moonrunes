@@ -132,7 +132,7 @@ tris:
   # Each published ring contains exactly one row with a 0.000 K statistical
   # error, so a floor is mandatory.  null -> use that ring's smallest strictly
   # positive statistical error (what the walkthrough notebook does).
-  uncertainty_floor_k: 1e6
+  uncertainty_floor_k: null
   # Grid limTOD rotates the beam on before projecting it onto the `nside` map
   # pixels.  Must be >= nside.  limTOD draws the beam itself at `nside` (it calls
   # tris_cut_beam_map with the map nside) and only up-samples it to this grid.
@@ -205,13 +205,17 @@ beam_matching:
   target_fwhm_deg: 23.366
   # Haslam: BEAMSIZE = 56.0 in HDU 1 of the FITS file, in ARCMINUTES.
   haslam_native_fwhm_deg: 0.93333
-  # OPEN -- both ARCADE 2 headers carry BEAMSZ = 11.6 deg (HDU 0), and LAMBDA
-  # and Singal et al. 2011 give 11.6 deg as well.  12.0 is what the
-  # beam-matching work has been using.  Reconcile before a recovered gain means
-  # anything: it sets the kernel for two of the four trusted points.
-  arcade2_native_fwhm_deg: 12.0
+  # DECISION (2026-10-07): 11.6 deg, as both ARCADE 2 headers state (BEAMSZ,
+  # HDU 0), and as LAMBDA and Singal et al. 2011 give.  It was 12.0, uncited.
+  arcade2_native_fwhm_deg: 11.6
   # Step 0.3 -- below this smoothed weight a pixel is mask boundary, not data.
+  # Stage 2 also drops any pixel that passes the floor but was never observed.
   weight_floor: 0.5
+  # DECISION -- how a map finer than beam.nside_new is averaged onto it.
+  # "all_children": a coarse pixel gets a value only if every one of its
+  # sub-pixels was observed, so no value mixes observed and unobserved sky.
+  # Everything is put on the TRIS grid (beam.nside_new must equal tris.nside).
+  coarse_pixel_rule: all_children
 
 # =============================================================================
 # SUPERSEDED BY THE SED REDESIGN -- kept, not deleted, like the old blockers in

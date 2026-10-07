@@ -12,6 +12,63 @@ resolve before running anything".
 
 ### Changed
 
+#### Notebook 06 on nside 16, TRIS + ARCADE 2 only (2026-10-07)
+
+- 📉 **`notebooks/06_sed_fit.ipynb` ported to nside 16.** It reads the stage 1 and stage 2
+  products instead of rebuilding maps on the old grid; nside, beams and floor come from
+  the config (ARCADE 2 11.6°). It stays the four-trusted-point analysis. New: full-sky maps
+  of best-fit Haslam, old Haslam, their difference, β, χ²/dof and σ(β).
+- **Fitted at every TRIS-stripe pixel:** 4 points where both ARCADE 2 bands exist (153), 3
+  where one does (14), and the 2 TRIS bands elsewhere (1105; exact, no χ²). With ARCADE 2:
+  median β −2.79, best fit − Haslam **+3.4 K (+9.6%)**. TRIS only: σ(β) 0.5–0.9, +31%,
+  driven by ẑ (+1% without it).
+
+#### Paper plots (2026-10-07)
+
+- 🖼️ **`notebooks/08_paper_plots.ipynb`** and **`moonrunes.sed_prototype`** (notebook 07's
+  calculation as a module). Target: `HASLAM_DESTRIPED_ONLY.fits`. Figures: maps used, target
+  with the TRIS stripe, stripe slices, TRIS maps and TODs, pixel-by-pixel (5) and
+  sample-by-sample (5b) SED fits with residuals, fit-residual maps, old vs best-fit Haslam
+  for both routes, residuals by survey, χ² and β maps, full-resolution corrected Haslam for
+  both routes, and T–T corner plots (raw and beam-convolved). PNG + PDF in
+  `outputs/paper_plots/`.
+- With the destriped-only target, the TOD route finds Haslam **+12.6%** low along the ring
+  (+3.8 K). The map route finds −0.4%, still circular.
+
+#### Stage 3 prototype with every map: TOD route and map route (2026-10-07)
+
+- 📈 **`notebooks/07_sed_calibration.ipynb`**. Every usable `res/` map plus TRIS, fitted with a
+  power law two ways. The **TOD route** uses limTOD TODs of the native maps, fits each ring
+  sample against the real TRIS data, and maps the correction TOD with stage 1's Wiener
+  filter and a zero-mean prior. The **map route** fits each TRIS-stripe pixel on the
+  nside 16 grid, with stage 1 + ẑ. Plots: old Haslam (nside 16), the corrected maps for
+  both routes, and a hybrid (corrected in the stripe, old elsewhere).
+- 🔎 **The routes disagree.** The TOD route finds Haslam ~18% low along the ring; the map
+  route finds +0.9%. The map route is circular through stage 1's GSM2008 prior.
+- 📦 **`moonrunes.sky_maps`**: the `res/` reader (four layouts, metadata from keywords,
+  comments, filename or `EXTERNAL_METADATA`), now with a numeric native beam for the
+  smoothing kernel. The WMAP K / Ka files are excluded: their headers say V band, and their
+  monopole is removed.
+
+#### Stage 2 — complete: matched to TRIS, written to disk (2026-10-07)
+
+- 🛰️ **Stage 2 now rotates, smooths, masks, regrids and writes.** Per map: the declared
+  frame is checked, the map is rotated into equatorial (`moonrunes.frames`: harmonic for
+  Haslam, mask-aware pixel rotation for ARCADE 2), smoothed to the TRIS beam (23.366°),
+  cut to observed pixels whose smoothed weight reached 0.5, and regridded onto
+  `beam.nside_new` = `tris.nside` = 16 with the new `regrid_to_nside` (a coarse pixel
+  needs every sub-pixel observed). TRIS is not touched: everything else is matched to it.
+- 💾 **`run_stage2()` / `load_stage2()`** write and read
+  `outputs/stage2/beam_matched_<run>.npz` + `stage2_manifest.json`, with stage 1's
+  overwrite guard. `run_pipeline.py --stage 2` calls it. ARCADE 2 keeps 170 / 192 pixels
+  at nside 16, after removing 4 / 5 extrapolated ones.
+- 📏 **`beam_matching.arcade2_native_fwhm_deg` 12.0 → 11.6°**, as both headers state. New
+  config key `beam_matching.coarse_pixel_rule: all_children`.
+- 🧪 Six new tests: the regrid rule, no resolution invented, the ARCADE 2 beam against its
+  headers, the TRIS grid and no extrapolation end to end, and the product round trip.
+- 🗑️ The stale `outputs/stage2/` product from the deleted `stage2_haslam_prep` was removed.
+
+
 #### Everything on nside 16 (2026-10-02)
 
 - 🔢 **`tris.nside`, `tris.nside_hires` and `beam.nside_new` all 16.** nside 16 is the grid

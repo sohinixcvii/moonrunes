@@ -509,3 +509,82 @@ def test_beam_match_says_when_a_map_is_missing(config, tmp_path):
     config._data["paths"]["arcade2_map_3150"] = str(tmp_path / "absent.fits")
     with pytest.raises(FileNotFoundError, match="paths.arcade2_map_3150"):
         stage2.beam_match(config, verbose=False)
+
+
+# ---------------------------------------------------------------------------
+# stage 2 -- the regrid onto the TRIS grid
+# ---------------------------------------------------------------------------
+def test_regrid_keeps_only_coarse_pixels_with_every_child_observed():
+    hp = pytest.importorskip("healpy")
+    nside_in, nside_out = 32, 16
+    sky = np.full(hp.nside2npix(nside_in), 4.0)
+    observed = np.ones(sky.size, dtype=bool)
+    # Unobserve one child of coarse pixel 0 (RING); its parent must drop out.
+    child = hp.nest2ring(nside_in, hp.ring2nest(nside_out, 0) * 4)
+    observed[child] = False
+
+    values, kept = stage2.regrid_to_nside(sky, observed, nside_out)
+
+    assert not kept[0] and values[0] == hp.UNSEEN
+    assert kept.sum() == hp.nside2npix(nside_out) - 1
+    assert values[kept] == pytest.approx(4.0)
+
+
+def test_regrid_of_a_full_sky_map_is_plain_averaging():
+    hp = pytest.importorskip("healpy")
+    rng = np.random.default_rng(1)
+    sky = rng.normal(20.0, 3.0, hp.nside2npix(64))
+    values, kept = stage2.regrid_to_nside(sky, np.ones(sky.size, bool), 16)
+    assert kept.all()
+    assert values == pytest.approx(hp.ud_grade(sky, 16))
+
+
+def test_regrid_refuses_to_invent_resolution():
+    hp = pytest.importorskip("healpy")
+    sky = np.ones(hp.nside2npix(8))
+    with pytest.raises(ValueError, match="invent resolution"):
+        stage2.regrid_to_nside(sky, np.ones(sky.size, bool), 16)
+
+
+def test_arcade2_beam_is_the_one_the_headers_state(config):
+    """beam_matching.arcade2_native_fwhm_deg must match BEAMSZ in both files."""
+    fits = pytest.importorskip("astropy.io.fits")
+    configured = float(config.require("beam_matching.arcade2_native_fwhm_deg"))
+    for key in ("paths.arcade2_map_3150", "paths.arcade2_map_3410"):
+        path = config.resolve_path(key)
+        if not path.exists():
+            pytest.skip("{} not downloaded".format(path.name))
+        assert float(fits.getheader(path, 0)["BEAMSZ"]) == pytest.approx(configured)
+
+
+def test_beam_match_puts_everything_on_the_tris_grid_without_extrapolating(config):
+    hp = pytest.importorskip("healpy")
+    _maps_or_skip(config)
+    results = stage2.beam_match(config, verbose=False)
+    nside = int(config.require("tris.nside"))
+    for name, entry in results.items():
+        assert hp.get_nside(entry["map"]) == nside, name
+        assert entry["declared_frame"] == "G", name
+        assert np.array_equal(entry["map"] != hp.UNSEEN, entry["observed"]), name
+        # Never more pixels after smoothing than the survey observed.
+        assert entry["observed_after"] <= entry["observed_before"], name
+
+
+def test_run_stage2_writes_a_product_that_loads_back(config, tmp_path):
+    hp = pytest.importorskip("healpy")
+    _maps_or_skip(config)
+    fast = load_config(config.path)
+    fast._data["run"]["overwrite"] = False
+
+    manifest = stage2.run_stage2(fast, output_dir=tmp_path, verbose=False)
+    maps_path, manifest_path = stage2.stage2_product_paths(fast, tmp_path)
+    products = stage2.load_stage2(fast, maps_path=maps_path, manifest_path=manifest_path)
+
+    assert products.names == [d.name for d in stage2.DATASETS]
+    assert products.nside == int(config.require("beam.nside_new"))
+    assert str(products.arrays["frame"]) == "C"
+    assert set(manifest["datasets"]) == set(products.names)
+    for name in products.names:
+        assert np.array_equal(products.map(name) != hp.UNSEEN, products.observed(name))
+    with pytest.raises(FileExistsError):
+        stage2.run_stage2(fast, output_dir=tmp_path, verbose=False)
