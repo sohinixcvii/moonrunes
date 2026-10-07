@@ -41,7 +41,9 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
 
 ## Stage 3 owes (assembly only — it should invent nothing)
 
-- [ ] **S3-1 — Wire the equatorial frame into the stage 2 CLI.** *(direction reversed)*
+- [x] **S3-1 — Wire the equatorial frame into the stage 2 CLI.** Done 2026-10-07: stage 2
+  rotates, smooths, applies the final mask, regrids to nside 16 and writes a product.
+  *(Original note, direction reversed:)*
   The common frame is now **equatorial**: Haslam and ARCADE 2 are rotated in, and TRIS
   stays as it is (`moonrunes.frames`, checked in `notebooks/04`). `beam_match()` still
   smooths in the native Galactic frame and writes nothing. It should rotate first, apply
@@ -145,10 +147,12 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
 
 ## Open from the SED prototype and the diagnostics (notebooks 03–06, 01 §05–06)
 
-- [ ] **N-1 — Re-run notebooks 03, 05 and 06 on nside 16.** They hard-code the earlier grid
+- [ ] **N-1 — Re-run notebooks 03, 05 and 06 on nside 16.** *(06 done 2026-10-07.)* They hard-code the earlier grid
   and its output directory. 06 asserts exactly 33 overlap pixels, a number that will
   change. Notebook 01's section 04 also expects a different product filename from either.
-- [ ] **N-2 — Put TRIS on the common beam before it enters an SED.** The stage 1 map is a
+- [ ] **N-2 — Put TRIS on the common beam before it enters an SED.** *Decided 2026-10-07:
+  TRIS stays as stage 1 makes it; every other map is matched to TRIS, not the reverse.
+  The SED step still has to deal with the pixel-scale TRIS values described below.* The stage 1 map is a
   pixel-scale deconvolution, and in `notebooks/06` two pixels have a *negative* CMB-free
   TRIS temperature and five more have inconsistent 600/820 values. Smoothing TRIS to the
   23.366° target removes every such pixel.
@@ -156,8 +160,8 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   the TRIS temperatures is worth about 6–7 K at 408 MHz. Together with N-2 it moves the
   median predicted − raw Haslam between −19% and +21%, so the ~3% / 0.91 K benchmark cannot
   validate anything until both are settled.
-- [ ] **N-4 — ARCADE 2 beam: 12.0° in the config, 11.6° in the headers** (`BEAMSZ`), on
-  LAMBDA and in Singal et al. 2011.
+- [x] **N-4 — ARCADE 2 beam: 12.0° in the config, 11.6° in the headers.** Done 2026-10-07:
+  the config now uses 11.6°, and a test checks it against both headers.
 - [ ] **N-5 — Haslam against TRIS in the TOD domain.** Simulated through the TRIS beam
   (`notebooks/01` §06), every survey gives β ≈ −2.8 to −2.9 against the real 600 MHz ring
   except Haslam, at −2.1, uniform across RA: a scale-like difference of ~30%. Consider it

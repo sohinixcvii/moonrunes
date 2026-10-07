@@ -91,9 +91,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 "--nside and --run-name apply to stage 1; stage 2 takes its grid "
                 "from beam_matching in the config"
             )
-        # Beam-matching writes no products yet -- it returns them.  Once it
-        # does, this grows the same manifest contract stage 1 has.
-        stage2_beam_matching.beam_match(config=config, verbose=not args.quiet)
+        stage2_beam_matching.run_stage2(
+            config=config,
+            output_dir=args.output_dir,
+            overwrite=True if args.overwrite else None,
+            verbose=not args.quiet,
+        )
     return 0
 
 

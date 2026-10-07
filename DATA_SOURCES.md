@@ -123,6 +123,15 @@ frequency, unit or beam, so those come from the LAMBDA product pages.
 | **Unobserved** | −32768 (FITS null), 1877 px: caps around both celestial poles, data only Dec −79° to +71° | −32768, 47 px |
 | **Reference** | Guzmán et al. 2011, A&A 525, A138 (LAMBDA `fg_maipu_info`) | Reich 1982; Reich & Reich 1986; Testori et al. 2001 (LAMBDA `fg_stockert_villa_info`) |
 
+## CHIPASS 1400 MHz — not in the repository
+
+<https://lambda.gsfc.nasa.gov/product/foreground/fg_chipass_info.html>
+
+At 104.9 MB the file is over GitHub's 100 MB limit, so `res/CHIPASS_1400MHz.fits` is
+git-ignored. Download it from the LAMBDA page above and save it under that name. It is a
+FITS image in the HPX projection, in mK, with a 14.4′ beam and the CMB included
+(Calabretta et al. 2014). `moonrunes.sky_maps` converts it back to HEALPix.
+
 ## Not on LAMBDA
 
 * **Berkhuijsen (1972), 820 MHz** — the one genuinely Haslam-independent prior basis, and

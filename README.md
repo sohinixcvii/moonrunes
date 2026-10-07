@@ -8,6 +8,7 @@ high-resolution but badly-calibrated map (Haslam) *and* a low-resolution but **a
 calibrated** one — and TRIS is an absolute radiometer. So `limTOD.tris` makes maps from
 the TRIS drift rings, and those maps become `bayesian_skymap`'s `data1`/`sky_lowres`.
 
+`PIPELINE.md` describes the pipeline in detail as it currently stands.
 `tris_haslam_pipeline.md` is the algorithm, stage by stage, and is the document this repo
 implements. `configs/run_config.yaml` is the single source of truth for every decision it
 flags as "decide rather than default".
@@ -25,7 +26,7 @@ flags as "decide rather than default".
 | Stage | What it does | State |
 |---|---|---|
 | **1** | Calibrated TRIS maps from the public archive (`limTOD.tris`) | **implemented** |
-| **2** | Beam-match the three surveys onto TRIS's resolution (Step 0) | **implemented** in each survey's native frame, minus the regrid. The rotation to equatorial, final masks and regrid are prototyped in `notebooks/04`–`05` (`moonrunes.frames`), not yet in the CLI |
+| **2** | Match Haslam and ARCADE 2 to the TRIS beam, frame and grid (Step 0) | **implemented**: writes `outputs/stage2/` |
 | 3 | Assemble per-pixel SEDs and fit | prototype in `notebooks/06`, not in the CLI |
 | 4 | Derive and apply the calibration correction | not started |
 | 5 | Validate | not started |
@@ -159,38 +160,46 @@ plus a template that is kelvins off, not a defect in the map-maker.
 
 ### Stage 2 — beam matching
 
-Step 0 of `tris_haslam_pipeline.md`: Haslam and both ARCADE 2 bands smoothed down to
-TRIS's beam, because an SED is only meaningful if every point in it came through the same
-beam. It returns its maps rather than writing products, so there is no manifest yet.
+Step 0 of `tris_haslam_pipeline.md`. Haslam and both ARCADE 2 bands are matched **to
+TRIS**: its beam, its frame and its grid. An SED is only meaningful if every point in it
+came through the same beam. The TRIS maps themselves are not touched. Per map:
+
+1. read it, and check the frame the file declares (`moonrunes.frames.declared_frame`);
+2. rotate it into equatorial, the frame of the TRIS maps: harmonic space for Haslam (full
+   sky), mask-aware pixel space for ARCADE 2;
+3. smooth it to the TRIS beam (`beam_matching.target_fwhm_deg` = 23.366°, the larger TRIS
+   axis), with the quadrature kernel √(target² − native²), mask-aware for ARCADE 2;
+4. keep a pixel only if it was **observed** and its smoothed weight reached
+   `beam_matching.weight_floor` (0.5);
+5. regrid onto `beam.nside_new` (= `tris.nside` = 16). A coarse pixel gets a value only if
+   all of its sub-pixels were observed (`beam_matching.coarse_pixel_rule`).
+
+```bash
+python run_pipeline.py --stage 2
+```
+
+```
+haslam_408     G nside 512  native  0.9333° -> extra kernel 23.3474°
+               observed 3145728 -> 3145728 pixels after smoothing (0 extrapolated removed); 3072 on the nside 16 grid
+arcade2_3150   G nside 16   native 11.6000° -> extra kernel 20.2832°
+               observed 220 -> 170 pixels after smoothing (4 extrapolated removed); 170 on the nside 16 grid
+arcade2_3410   G nside 16   native 11.6000° -> extra kernel 20.2832°
+               observed 234 -> 192 pixels after smoothing (5 extrapolated removed); 192 on the nside 16 grid
+```
+
+**The product** is `outputs/stage2/beam_matched_<run name>.npz` plus `stage2_manifest.json`
+(the config used, each file's declared frame, the rotation method, kernels and pixel
+counts). Read it back with:
 
 ```python
-from moonrunes.stage2_beam_matching import beam_match
-results = beam_match()
-results["haslam_408"]["map"]              # smoothed, hp.UNSEEN where unusable
-results["arcade2_3150"]["extra_fwhm_deg"] # sqrt(target^2 - native^2), not the target
+from moonrunes.stage2_beam_matching import load_stage2
+products = load_stage2()
+products.map("arcade2_3150")        # nside 16, equatorial, hp.UNSEEN where unobserved
 ```
 
-```
-haslam_408     nside 512  native  0.9333° -> extra kernel 23.3474°
-               observed 3145728 -> 3145728 pixels (+0 at the mask edge), frame galactic
-arcade2_3150   nside 16   native 12.0000° -> extra kernel 20.0492°
-               observed 220 -> 168 pixels (-52 at the mask edge), frame galactic
-arcade2_3410   nside 16   native 12.0000° -> extra kernel 20.0492°
-               observed 232 -> 195 pixels (-37 at the mask edge), frame galactic
-```
-
-Haslam is full-sky and keeps every pixel; ARCADE 2 loses its mask edge, where the smoothed
-weight falls below 0.5 and the weight division cannot rescue the pixel.
-
-**What it does not do yet.** It smooths in each survey's native Galactic frame and writes
-nothing. The frames themselves are settled. Haslam and ARCADE 2 are Galactic (ARCADE 2
-states it as `SKYCOORD`, which healpy does not read) and stage 1's TRIS maps are
-equatorial. `moonrunes.frames` rotates the first two to equatorial, checked in
-`notebooks/04`. `notebooks/05` applies the rotation, the smoothing and the final ARCADE 2
-mask (observed **and** smoothed weight ≥ 0.5) and measures the four-way overlap. None of
-that is wired into the CLI yet. Smoothing is frame-independent, so what the CLI does is
-correct as far as it goes. And `beam_matching.arcade2_native_fwhm_deg` is 12.0°, while
-both ARCADE 2 headers carry `BEAMSZ = 11.6`.
+On the TRIS grid, rotated ARCADE 2 correlates with rotated Haslam at 0.98, and Haslam's
+mean is preserved exactly (34.405 K). The weight floor costs ARCADE 2 the narrow
+junctions of its observed ring (`TODO.md` N-7).
 
 ---
 
@@ -251,7 +260,9 @@ All are committed **with their outputs**, so they can be read without re-running
 | `03_diagnostics.ipynb` | The stage 1 results: convergence, χ² and residuals, the zero level against the template deficit, prior→posterior shrinkage and z-scores, the band maps, β between the two solved maps, a preview of the degrade to `nside_new`, the prior-only and high-noise comparison runs, residuals with error bars (with the derivation of their expected scatter) and the RMS maps. |
 | `04_coordinate_frames.ipynb` | What each input's header declares, checked against the sky; the rotation to equatorial (harmonic for Haslam, mask-aware pixel rotation for ARCADE 2); Sgr A*, Cas A and Tau A at their literature positions; the ARCADE 2 zero mask after rotation. |
 | `05_beam_matching.ipynb` | Haslam and ARCADE 2 smoothed to 23.366° in the equatorial frame; UNSEEN counts and the ring's break at its narrow junctions; the final ARCADE 2 mask and the four-way overlap with TRIS. |
-| `06_sed_fit.ipynb` | Stage 3 prototype: the 5-point SED at the 33 overlap pixels, the 4-point power-law fit, the 408 MHz prediction against Haslam, χ² per pixel, and the sensitivity to the two upstream choices (TRIS beam matching, zero level). Stops before stage 4. |
+| `06_sed_fit.ipynb` | Stage 3 prototype with the four trusted points only (TRIS 600/820 + ARCADE 2), at nside 16 from the stage 1 and 2 products, fitted at **every** TRIS-stripe pixel (4 points where ARCADE 2 exists, 2 elsewhere): full maps of best-fit Haslam, β, χ², σ(β) and points per fit, and the sensitivity to ẑ and TRIS beam matching. With ARCADE 2: +3.4 K (+9.6%); TRIS only: +31%, driven by ẑ. |
+| `07_sed_calibration.ipynb` | Stage 3 prototype on nside 16, with every usable map in `res/`: the **TOD route** (limTOD TODs → per-sample SED fit → correction TOD → map via the Wiener filter) and the **map route** (per-pixel fit on the TRIS grid), old vs corrected Haslam, and a hybrid map. The TOD route finds Haslam ~18% low along the ring; the map route is circular through stage 1's GSM2008 prior. |
+| `08_paper_plots.ipynb` | Paper figures, target = destriped-only Haslam: the maps used and the target with the TRIS stripe, stripe slices, the TRIS maps and TODs, pixel-by-pixel and sample-by-sample SED fits with residuals, fit-residual maps, old vs best-fit Haslam (both routes), χ² and β maps, full-resolution corrected Haslam (both routes), T–T corner plots (raw and beam-convolved). Saved to `outputs/paper_plots/`. |
 
 ---
 
@@ -268,6 +279,7 @@ All are committed **with their outputs**, so they can be read without re-running
 ## Layout
 
 ```
+PIPELINE.md                 the whole pipeline in detail, as it currently stands
 TODO.md                     open items from stages 1 and 2, ordered by what they block
 DATA_SOURCES.md             every external dataset, its archive page, and what reads it
 TRIS_MAP_PROVENANCE.md      the limTOD code, settings and conventions behind the stage 1 maps
@@ -278,6 +290,8 @@ src/moonrunes/
     stage1_tris_maps.py     stage 1 + its product loader
     stage2_beam_matching.py stage 2 -- Step 0 beam matching
     frames.py               declared frames; Galactic -> equatorial rotation (full-sky and mask-aware)
+    sky_maps.py             reads every map in res/ (any layout), with frequency, frame, beam and CMB convention
+    sed_prototype.py        stage 3 prototype: the TOD route and the map route of the SED calibration
     stage3..stage5          empty
 notebooks/                  analysis and plotting, committed with outputs
 external/bayesian_skymap    submodule (patched fork)
@@ -298,7 +312,7 @@ consumed in its manifest.
 pytest
 ```
 
-43 tests. The algebra ones — the Krylov solve against a dense reference, the Jacobi
+49 tests. The algebra ones — the Krylov solve against a dense reference, the Jacobi
 diagonal against `bayesian_func.estimate_diag_precond`, the Woodbury posterior against a
 dense inverse, stage 2's beam quadrature and masked-smoothing behaviour, and the frame rotations — run
 anywhere. The end-to-end tests skip themselves when the TRIS archive, the FITS downloads,
