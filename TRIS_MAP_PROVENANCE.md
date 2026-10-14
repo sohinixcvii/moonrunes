@@ -228,7 +228,7 @@ but it is an assumption we own, not a fact.
 | setting | value |
 |---|---|
 | `tris.solver.regularization` | `1e-12`, added to the diagonal before inversion — a bias on the answer as well as a numerical guard, so it stays as small as conditioning allows |
-| cross-check | unchanged: every solve is compared against the exact Woodbury identity and the product is refused if it misses by more than `cross_check_max_sigma` |
+| cross-check | **off since 2026-10-14** (`tris.solver.cross_check: false`). When on, every solve is compared against an exact reference solve (the matrix inversion lemma) and the product is refused if it misses by more than `cross_check_max_sigma` |
 
 **Measured cost.** The dense path scales as the cube of the parameter count. At the
 configured nside 16 it is effectively free:
@@ -246,14 +246,17 @@ n² float64. At the coarse resolution this map is supposed to have, none of that
 **The previous in-repo solver** (`krylov_map_solve`) is still present and still pinned by
 the test suite against a dense reference, but it no longer makes the maps.
 
-**Because "it finished" is not "it converged"**, every solve is cross-checked against the
-exact Woodbury identity at a single frequency — a 120×120 inner matrix, cheap, and *not*
-the multi-frequency approximation above. The same identity supplies the posterior σ, which
-a Krylov solve alone cannot give. Stage 1 refuses to write a product that fails the check.
+**Because "it finished" is not "it converged"**, stage 1 can cross-check every solve
+against the exact matrix inversion lemma at a single frequency: a 120×120 inner matrix,
+cheap, and *not* the multi-frequency approximation above. With the check on, stage 1
+refuses to write a product that fails it. **It is switched off since 2026-10-14**
+(`tris.solver.cross_check: false`), because that robustness is not needed yet. Products
+made since then carry no convergence check, and their posterior σ is limTOD's own. The
+last run with it on gave:
 
 | | 600 MHz | 820 MHz |
 |---|---:|---:|
-| agreement with exact Woodbury | 3.96e-10 σ | 1.07e-10 σ |
+| agreement with the exact reference | 3.96e-10 σ | 1.07e-10 σ |
 | tolerance | 1e-04 σ | 1e-04 σ |
 | solve time | 0.06 s | 0.06 s |
 

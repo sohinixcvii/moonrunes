@@ -6,8 +6,10 @@ It is a prototype, not a pipeline stage: it writes nothing, and the choices it
 makes are the module constants below.
 
 * **Map route** (:func:`map_route`): every usable map matched to the TRIS beam
-  on the nside grid (stage 2 procedure), TRIS from the stage 1 maps + the fitted
-  zero level, and a power law fitted at every TRIS-stripe pixel.
+  on the nside grid (stage 2 procedure, :func:`match_to_tris_beam`, with the
+  kernel set by ``beam_matching.kernel`` -- the measured elliptical TRIS beam
+  by default), TRIS from the stage 1 maps + the fitted zero level, and a power
+  law fitted at every TRIS-stripe pixel.
 * **TOD route** (:func:`tod_route`): limTOD observes every map at its native
   resolution through the TRIS beam, a power law is fitted at every ring sample
   against the real TRIS data, and the correction TOD (predicted - target) is
@@ -25,10 +27,10 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-from . import frames, sky_maps
+from . import elliptical_beam, frames, sky_maps
 from .config import Config
 from .stage1_tris_maps import import_limtod_tris, load_stage1
-from .stage2_beam_matching import regrid_to_nside, smooth_to_target
+from .stage2_beam_matching import match_to_tris_beam, regrid_to_nside
 
 NU0_MHZ = 408.0
 #: Error assumed for maps with no published per-pixel error (fraction of T).
@@ -97,6 +99,12 @@ class Inputs:
         self.target_fwhm = float(config.require("beam_matching.target_fwhm_deg"))
         self.weight_floor = float(config.require("beam_matching.weight_floor"))
         self.rule = str(config.require("beam_matching.coarse_pixel_rule"))
+        # The map route's smoothing kernel (beam_matching.kernel): the archive cuts are
+        # read once here, not once per map.  self.smoothing[name] records what was done.
+        self.kernel = str(config.require("beam_matching.kernel"))
+        self.beam_spec = (None if self.kernel == "circular_gaussian"
+                          else elliptical_beam.beam_spec_from_config(config))
+        self.smoothing: Dict[str, Dict[str, object]] = {}
         self.stage1 = load_stage1(config)
         self.band = self.stage1["band_mask"].astype(bool)
         self.all_maps = sky_maps.discover(res_dir)
@@ -155,12 +163,11 @@ class Inputs:
         rotated, observed = self._rotated(m)
         raw_values, raw_kept = regrid_to_nside(np.where(observed, rotated, hp.UNSEEN),
                                                observed, self.nside, self.rule)
-        smoothed = smooth_to_target(rotated, m["fwhm_deg"], self.target_fwhm,
-                                    weight_mask=None if observed.all() else observed,
-                                    weight_floor=self.weight_floor)
-        final = observed & (smoothed != hp.UNSEEN)
-        values, kept = regrid_to_nside(np.where(final, smoothed, hp.UNSEEN), final,
-                                       self.nside, self.rule)
+        # Smooth to the TRIS beam with the configured kernel, mask, regrid -- the same
+        # function stage 2 uses, so the map route and stage 2 cannot drift apart.
+        values, kept, self.smoothing[m["name"]] = match_to_tris_beam(
+            rotated, observed, m["fwhm_deg"], self.config, nside_out=self.nside,
+            rule=self.rule, spec=self.beam_spec, full_sky=bool(observed.all()))
         return np.where(kept, values, np.nan), np.where(raw_kept, raw_values, np.nan)
 
     # -- TODs -----------------------------------------------------------------------

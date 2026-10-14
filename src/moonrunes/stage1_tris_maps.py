@@ -48,16 +48,17 @@ preconditioner convention that :func:`lhs_diagonal` reproduces analytically.
 
 Because "it returned an array" is not "it solved the system" -- a dense
 factorisation with a regularizer added to the diagonal can come back biased
-without raising -- every solve is cross-checked against the exact Woodbury
-identity
+without raising -- a solve *can* be cross-checked against the exact Woodbury
+identity (``tris.solver.cross_check``; **off since 2026-10-14**, when the
+reference is not computed at all)
 
     (A^T N^-1 A + P^-1)^-1 = P - P A^T (N + A P A^T)^-1 A P,
 
 which is cheap here (the ring has 120 samples, so the inner matrix is 120x120)
 and is *not* the approximation Blocker 3 rules out -- that one drops
 cross-frequency coupling in the multi-frequency Gibbs solver; this one is an
-algebraic identity at a single frequency.  The same identity supplies the
-posterior standard deviation, which a Krylov solve alone cannot give.
+algebraic identity at a single frequency.  The posterior standard deviation in
+the product comes from limTOD's own solve, not from this identity.
 
 Blocker 2, honestly
 -------------------
@@ -534,38 +535,41 @@ def solve_frequency(
     chi_square = float(solved.chi_square)
     dof = int(solved.degrees_of_freedom)
 
-    # ---- verification ------------------------------------------------------
+    # ---- verification (optional, tris.solver.cross_check) --------------------
     # "It returned an array" is not "it solved the system".  The dense path
-    # adds `regularization * I` to the normal matrix and inverts a
-    # 25k x 25k operator, so it can come back biased or ill-conditioned
-    # without raising.  The Woodbury identity is exact at a single frequency
-    # (the inner matrix is n_samples x n_samples) and is what says whether it
-    # did: same check the Krylov path carried, now pointed at limTOD's answer.
-    prior_mean = np.concatenate([prior_mean_sky, [0.0]])
-    prior_variance = np.concatenate([prior_sigma_sky**2, [zero_prior**2]])
-    reference_mean, posterior_variance = woodbury_reference(
-        inputs.operator,
-        inputs.data_k,
-        inputs.noise.variance_k2,
-        prior_mean,
-        prior_variance,
-    )
-    # The meaningful unit is the posterior width, not the residual norm: the
-    # prior width spans an order of magnitude between the Galactic plane and
-    # the cold sky, so an absolute difference means nothing on its own.
-    posterior_sigma = np.sqrt(np.maximum(posterior_variance, 0.0))
-    parameters = np.concatenate([sky_k, [zero_level_k]])
-    difference = np.abs(parameters - reference_mean)
-    solver_vs_exact_sigma = float(
-        np.max(difference / np.maximum(posterior_sigma, 1e-300))
-    )
-    solver_vs_exact_rel = float(
-        difference.max() / max(float(np.max(np.abs(reference_mean))), 1e-300)
-    )
+    # adds `regularization * I` to the normal matrix, so it can come back
+    # biased without raising.  When tris.solver.cross_check is true, the
+    # answer is compared against an exact reference solve (the matrix
+    # inversion lemma; the inner matrix is n_samples x n_samples) and the run
+    # stops if they disagree.  It is OFF since 2026-10-14: the reference is not
+    # computed at all, and the manifest records the comparison as None.
+    cross_check = bool(config.require("tris.solver.cross_check"))
     cross_check_max_sigma = float(config.require("tris.solver.cross_check_max_sigma"))
-    if bool(config.require("tris.solver.cross_check")) and (
-        solver_vs_exact_sigma > cross_check_max_sigma
-    ):
+    solver_vs_exact_sigma: Optional[float] = None
+    solver_vs_exact_rel: Optional[float] = None
+    if cross_check:
+        prior_mean = np.concatenate([prior_mean_sky, [0.0]])
+        prior_variance = np.concatenate([prior_sigma_sky**2, [zero_prior**2]])
+        reference_mean, posterior_variance = woodbury_reference(
+            inputs.operator,
+            inputs.data_k,
+            inputs.noise.variance_k2,
+            prior_mean,
+            prior_variance,
+        )
+        # The meaningful unit is the posterior width, not the residual norm: the
+        # prior width spans an order of magnitude between the Galactic plane and
+        # the cold sky, so an absolute difference means nothing on its own.
+        posterior_sigma = np.sqrt(np.maximum(posterior_variance, 0.0))
+        parameters = np.concatenate([sky_k, [zero_level_k]])
+        difference = np.abs(parameters - reference_mean)
+        solver_vs_exact_sigma = float(
+            np.max(difference / np.maximum(posterior_sigma, 1e-300))
+        )
+        solver_vs_exact_rel = float(
+            difference.max() / max(float(np.max(np.abs(reference_mean))), 1e-300)
+        )
+    if cross_check and solver_vs_exact_sigma > cross_check_max_sigma:
         raise RuntimeError(
             "limTOD's solve at {} MHz sits {:.3e} posterior sigma from the "
             "exact Woodbury reference (tolerance {:.1e}); it raised nothing, "
@@ -592,6 +596,8 @@ def solve_frequency(
             "method": "wiener_filter_map (dense, direct)",
             "regularization": regularization,
             "seconds": solver_seconds,
+            "cross_check": cross_check,
+            # None when tris.solver.cross_check is false (the reference is not computed).
             "solver_vs_woodbury_sigma": solver_vs_exact_sigma,
             "solver_vs_woodbury_rel": solver_vs_exact_rel,
             "cross_check_max_sigma": cross_check_max_sigma,
@@ -650,13 +656,14 @@ def _describe_zero_level(ring) -> Any:
 def _report(frequency_mhz: float, effective_mhz: float, diagnostics: Dict) -> None:
     solver = diagnostics["solver"]
     selection = diagnostics["pixel_selection"]
+    check = solver.get("solver_vs_woodbury_sigma")
     print(
-        "  {:>4.0f} MHz (nu_eff {:.1f}): {} solve, vs exact {:.2e} sigma "
-        "in {:.2f}s".format(
+        "  {:>4.0f} MHz (nu_eff {:.1f}): {} solve, {} in {:.2f}s".format(
             frequency_mhz,
             effective_mhz,
             solver["backend"],
-            solver["solver_vs_woodbury_sigma"],
+            "vs exact {:.2e} sigma".format(check) if check is not None
+            else "exact cross-check off",
             solver["seconds"],
         )
     )
@@ -890,8 +897,11 @@ def run_stage1(
             "The map solve is the direct Krylov solve (LinearOperator + "
             "{}), never the multi-frequency Woodbury acceleration. The "
             "Woodbury identity used for the posterior variance is exact at a "
-            "single frequency and is cross-checked against the Krylov "
-            "mean.".format(config.require("tris.solver.method"))
+            "single frequency; the cross-check against it is {}.".format(
+                config.require("tris.solver.method"),
+                "on" if config.require("tris.solver.cross_check") else
+                "OFF (tris.solver.cross_check: false), so the map is limTOD's "
+                "answer, unverified")
         ),
         "frequencies": {
             "{:.0f}".format(r.frequency_mhz): {

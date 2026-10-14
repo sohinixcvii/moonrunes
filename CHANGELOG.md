@@ -12,6 +12,171 @@ resolve before running anything".
 
 ### Changed
 
+#### Back to the circular beam-matching kernel (2026-10-14)
+
+- ↩️ **`beam_matching.kernel: circular_gaussian`.** The config goes back to the 23.366°
+  circular Gaussian, the kernel the current stage 2 product was made with. The elliptical
+  kernels (`tris_cuts`, `elliptical_gaussian`; 2026-10-13) stay implemented and tested,
+  but are not in use.
+- 🖼️ The paper figures in `moonrunes_paper/figures/` were regenerated
+  (`notebooks/10_paper_plots.ipynb`), so the beam-matching example and the map-route SED
+  fits both use the circular kernel. Their captions were updated.
+- 📝 README, `PIPELINE.md` (stage map, §3, §5, §5.4, config table, A.8, A.9, C.3),
+  `tris_haslam_pipeline.md`, `TODO.md` N-8, the stage 2 docstring and the notes in
+  notebooks 03, 05, 07 and 08 now say which kernel is in use.
+
+#### Stage 1's convergence cross-check switched off (2026-10-14)
+
+- 🔕 **`tris.solver.cross_check: false`.** The exact reference solve (`woodbury_reference`)
+  is no longer computed. With the flag off, stage 1 now skips it entirely instead of only
+  skipping the error. That robustness is not needed yet.
+  - Products record `cross_check: false` and `null` for the comparison.
+  - The progress line says "exact cross-check off".
+  - The manifest's solver note says the maps are limTOD's answer, unverified.
+  - The function and its unit tests stay. Setting the key to `true` restores the check
+    (`TODO.md` S1-8).
+- 🧪 `tests/test_stage_io.py`: the end-to-end test expects `null` when the check is off.
+- 📝 Notebook 03 §1 and its verdict, README, `PIPELINE.md` (§4.4 and the config table),
+  `TRIS_MAP_PROVENANCE.md`, the config comments and `TODO.md` (S1-8, S1-4) all say the
+  check is off.
+
+#### Two-step against one-step beam matching (2026-10-14)
+
+- 🧪 **`notebooks/03_diagnostics.ipynb`, new last section.** Using the pipeline's own
+  `match_to_tris_beam`, Haslam goes either through a survey beam first and then the
+  pipeline, or straight to the target. The survey beam is a Gaussian control or a
+  complicated beam (elliptical main lobe, sidelobe ring, error beam); all three kernels.
+  Plots: the beam, a 2 × 3 grid of difference maps, the difference along the TRIS ring,
+  and a summary.
+- **Findings:**
+  - With a Gaussian survey beam the two paths agree to 0.02% (Gaussian kernels) and 0.14%
+    (the default measured-beam kernel).
+  - With the complicated beam they differ by 0.3–0.5% rms, up to 1–2% on the Galactic
+    plane: the pipeline only knows the main lobe's FWHM.
+- 📝 `PIPELINE.md` Appendix E.
+
+#### Convolve → deconvolve with limTOD (2026-10-14)
+
+- 🔁 **`notebooks/03_diagnostics.ipynb`, new last section.** Every SED map is convolved with
+  limTOD's circular (23.366°) and elliptical (19.155° × 23.366°) Gaussian beams, pointed at
+  every nside 16 pixel with TRIS's geometry. It is then deconvolved with limTOD's
+  `wiener_filter_map` at three noise levels. Plots: the pointed beams and the operators'
+  singular values; input / convolved / deconvolved / residual maps; elliptical − circular
+  for both; transfer function, correlation by ℓ and error by smoothing scale; every map.
+- **Findings:**
+  - Convolution matches `generate_TOD_sky` exactly.
+  - Deconvolution does not return maps pixel by pixel: 14–39% rms, worse than the convolved
+    map at realistic noise.
+  - It returns them on large scales: correlation ≥ 0.9 to ℓ ≈ 21 at 10⁻⁴ noise, and
+    2.8–3.8% at 10° on Haslam.
+  - The elliptical beam passes more modes (377 against 320 above 10⁻²) and recovers better
+    for every map.
+  - Elliptical and circular convolved maps differ by 1.9% rms.
+  - Implication for stage 1's TRIS maps and the map route: `TODO.md` N-10.
+- 📈 **The same round trip along the TRIS ring (LST)**, with each survey's pipeline noise
+  (`sed_prototype.sigma_for`):
+  - Convolution changes the maps mainly at the Cygnus crossing: −45 to −80% at LST ≈ 305°,
+    +15 to +55% beside it, within ±20% elsewhere.
+  - The circular and elliptical beams are nearly identical along the ring, which runs along
+    the H plane.
+  - Deconvolution scatters by 10–25% rms at every LST.
+- 📝 `PIPELINE.md` Appendix D.
+
+#### Harmonic-space checks (2026-10-14)
+
+- 🔭 **`notebooks/03_diagnostics.ipynb`, new section "Harmonic-space checks"**, in response
+  to a collaborator's concern about rotating and convolving in harmonic space. It finds the
+  four harmonic operations in the code (Haslam's `rotate_map_alms`, `hp.smoothing`, and
+  limTOD's beam and horizon pointing via `map2alm`/`rotate_alm`). It tests each with its
+  C_ℓ and against an exact pixel-space calculation:
+  - **H1:** the C_ℓ of every map, raw and smoothed;
+  - **H2:** the TRIS beam's C_ℓ at nside 16–128;
+  - **H3:** limTOD's pointed beam against the exact beam;
+  - **H4:** the TODs;
+  - **H5:** Haslam's rotation ringing;
+  - **H6:** harmonic against real-space smoothing.
+- **Findings:**
+  - Every effect on the nside 16 products is ≤ 0.05% (harmonic smoothing on Haslam ≤ 0.5%,
+    but not ringing).
+  - The smoothed maps' a_ℓm reach 10⁻¹¹–10⁻¹⁶ of the peak by ℓ ≈ 35.
+  - Haslam's full-resolution rotation rings at bright sources: 33 K at Cas A, which reaches
+    notebook 08's Figure 11 (`TODO.md` N-11).
+  - In the TODs, nside 16 sky pixelisation (≤ 0.53%) outweighs every harmonic step
+    (≤ 0.043%).
+  - limTOD's beam orientation confirms the elliptical kernel's +7° E plane.
+- 📝 `PIPELINE.md` Appendix C; `TODO.md` N-11, N-12, S1-7 and N-9 updated.
+
+#### The map route smooths to the measured, elliptical TRIS beam (2026-10-13)
+
+> **Run status (2026-10-14):**
+> - **Done:** `tests/test_elliptical_beam.py` passes (15/15), and notebook 03's elliptical
+>   section ran. The default `scaled_cuts` kernel for broad-beam surveys gives ARCADE 2 an
+>   effective beam 8% / 5% too wide (`TODO.md` N-9).
+> - **Not re-run yet:** stage 2 and notebooks 06–08 (`TODO.md` N-8).
+
+- 🎯 **`beam_matching.kernel`** chooses the shape of the TRIS beam that stage 2 and the map
+  route smooth every survey to. The default changes from the old 23.366° circular Gaussian
+  to **`tris_cuts`**:
+  - it is the measured beam: the archive E/H cuts, blended with cos²φ / sin²φ, the same
+    beam the TOD route and stage 1 use;
+  - it is 19.155° (E, north–south) × 23.366° (H, east–west), with the E plane 7° east of
+    north, as TRIS saw the sky from the zenith;
+  - it is zero beyond 90° (the horizon).
+
+  `elliptical_gaussian` (same widths and orientation, Gaussian shape) and
+  `circular_gaussian` (the original) remain available.
+- 🧮 **New module `src/moonrunes/elliptical_beam.py`.**
+  - `hp.smoothing` cannot apply a kernel that differs by direction, so the elliptical
+    kernels are a **direct sum on the sphere**: normalised convolution over a working grid
+    (`nside_work` 64), evaluated at 2×2 points per nside 16 pixel.
+  - The survey's own beam is allowed for per axis:
+    - beams that widen the E core by ≤ 0.2% are neglected (Haslam, Stockert, Rhodes,
+      CHIPASS);
+    - broader ones get the measured beam compressed to the quadrature widths (LWA1 35/80,
+      Maipu, ARCADE 2: `broad_native_kernel: scaled_cuts`), or the elliptical Gaussian.
+  - Derivation in the module docstring and `PIPELINE.md` Appendix A.9.
+- 🔌 **`stage2_beam_matching.match_to_tris_beam()`**: smooth + mask + regrid for one map,
+  with whichever kernel is configured.
+  - `beam_match()`, `sed_prototype.Inputs` (the map route) and `notebooks/07` all call it,
+    so they cannot drift apart.
+  - The stage 2 npz gains a `kernel` field.
+  - The manifest records, per map, the kernel's widths, its compression, the expected
+    effective beam and why that kernel was chosen.
+- ⚙️ **Config:** `beam_matching.kernel` plus `beam_matching.elliptical.*`, each with its
+  reasoning. `target_fwhm_deg` now applies only to `circular_gaussian`.
+- 🧪 **Tests:**
+  - new `tests/test_elliptical_beam.py`: geometry, exact agreement with limTOD's cut
+    beam, half-power widths, compressed widths, constant-sky and mask-edge behaviour, a
+    point source 19.155° north–south and 23.366° east–west, and the keep/floor rules;
+  - `tests/test_stage_io.py` updated for the kernel choice.
+- 📊 **`notebooks/03_diagnostics.ipynb`, new last section, "The elliptical beam for the map
+  route"**, 7 plots:
+  1. the three kernels on the sky;
+  2. profiles against the archive cuts and the weight in the shoulders;
+  3. the kernel per survey;
+  4. a point source through the real code, for narrow and broad native beams;
+  5. Haslam, old vs new: maps, difference, along the ring;
+  6. ARCADE 2's mask edge;
+  7. the change in every map-route survey.
+- 📝 Notes added to notebooks 05 (circular kernel only), 07 (section 2 now uses
+  `match_to_tris_beam`) and 08 (which kernel the figures use). Updated: README,
+  `PIPELINE.md` (§3, §5, §9, §10, §11, A.8, new A.9), `TODO.md` (N-8 to N-10) and
+  `tris_haslam_pipeline.md` (Step 0.1 marked superseded).
+
+#### Beam-width tests and SED diagnostics (2026-10-12/13)
+
+- 🧪 **`notebooks/09_beam_fwhm_tests.ipynb` and `tests/test_beam_fwhm.py`.** These test the
+  beam widths: the σ ↔ FWHM constant; the FWHM function on Gaussian and archive cuts; deg/rad
+  and σ/FWHM slips; the cut beam's principal planes (φ = 0 → E, 90° → H); smoothing width
+  and quadrature; and a round trip (Gaussian beam map → cuts → FWHM) at nside 16–1024. It
+  passes at 0.1% from nside 128. Findings:
+  - linear-in-dB interpolation on the archive's 2° grid reads widths ~0.08° narrow;
+  - `hp.smoothing` at 23.366° has a real-space FWHM of 23.425°;
+  - a beam map at nside 16 reproduces the Gaussian only to ~1%.
+- 📊 `notebooks/07`: β vs LST with surveys left out (fits with ≥ 3 points).
+- 📊 `notebooks/08`: Figure 13, β from every T–T pair, with bootstrap error bars.
+- 📊 `notebooks/01`: a table of the nside of every file the notebook loads.
+
 #### Notebook 06 on nside 16, TRIS + ARCADE 2 only (2026-10-07)
 
 - 📉 **`notebooks/06_sed_fit.ipynb` ported to nside 16.** It reads the stage 1 and stage 2
@@ -93,7 +258,7 @@ resolve before running anything".
 - 🔁 **The solve is now limTOD's own** — `TRISMapMakingInputs.solve`, wrapping
   `limTOD.wiener_filter_map` (dense, direct). The in-repo matrix-free `krylov_map_solve`
   stays as the test suite's reference implementation but no longer makes the maps. The
-  Woodbury cross-check is retained and repointed at limTOD's answer: a dense factorisation
+  exact-reference cross-check is retained and repointed at limTOD's answer: a dense factorisation
   with `εI` on the diagonal can return a biased result without raising. New key
   `tris.solver.regularization`; the Krylov keys and stage 5's `require_solver_info_zero`
   are marked unused.
@@ -229,9 +394,9 @@ resolve before running anything".
   normal-equation matvec in a `scipy.sparse.linalg.LinearOperator` with a Jacobi
   preconditioner and solves it with GMRES, mirroring `bayesian_skymap`'s amplitude step.
   No dense normal matrix is ever formed (it would be 25705² at the working nside), and
-  the Woodbury acceleration that is wrong by eight orders of magnitude at two channels is
+  the low-rank fast-path acceleration that is wrong by eight orders of magnitude at two channels is
   never on that path.
-- 🔍 **A convergence check that is not "did it finish"** — `woodbury_reference` computes
+- 🔍 **A convergence check that is not "did it finish"** — an exact reference solve computes
   the MAP mean and the full posterior variance exactly via
   `S = P − P Aᵀ (N + A P Aᵀ)⁻¹ A P`, whose inner matrix is only `n_samples × n_samples`
   (120 for a TRIS ring). Stage 1 compares its Krylov answer against it **in posterior σ**
@@ -269,7 +434,7 @@ resolve before running anything".
   pixels touched, 364 fully covered). At nside 16 the TRIS maps are already on the
   `nside_new` grid.
 - ✅ **Tests** (`tests/test_stage_io.py`, 14 of them). The algebra is pinned against dense
-  references — the Krylov solve for all three methods, the Woodbury posterior including
+  references — the Krylov solve for all three methods, the exact reference posterior including
   the regime where pixels outnumber samples, and `lhs_diagonal` against
   `bayesian_func.estimate_diag_precond` — and runs anywhere; the end-to-end tests skip
   themselves without the archive or `pygdsm`.

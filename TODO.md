@@ -86,8 +86,8 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   `cgs` is documented to diverge on this operator. `gibbs.solver: gmres` is already the
   recorded decision; the script still has `cgs` branches at lines 223 and 276.
 
-- [ ] **S4-3 — Keep the Woodbury fast path off (Blocker 3).**
-  `gibbs.use_woodbury: false`. It drops cross-frequency coupling and is wrong by ~8 orders
+- [ ] **S4-3 — Keep the low-rank fast path off (Blocker 3).**
+  It is switched off in the `gibbs` block of the config. It drops cross-frequency coupling and is wrong by ~8 orders
   of magnitude at 2 channels, which is exactly the TRIS regime.
 
 - [ ] **S4-4 — Feed stage 2's `covA` in instead of the hardcoded truth prior.**
@@ -117,6 +117,21 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   draws the beam at the *map* nside before any up-sampling, so `nside_hires` never makes
   the beam itself finer. On the earlier, coarser grid that changed the forward model by 0.34 K rms where the
   ring crosses Cygnus (RA 260–340°), about 4× the residual there.
+  *Measured 2026-10-14 (`notebooks/03`, H2–H4):*
+  - At nside 16 the beam's harmonic power turns **up** just below ℓ_max = 47 (aliasing).
+  - The harmonic beam pointing changes the TODs by only 0.043%.
+  - Putting the **sky** on nside 16 changes them by up to 0.53% (0.17% rms) against an
+    nside 128 reference; at nside 64, 0.026%.
+
+  `nside_hires` = 64, with the TOD sky on 64, removes both.
+
+- [ ] **S1-8 — The convergence cross-check is off.** Since 2026-10-14
+  `tris.solver.cross_check` is `false`: the exact reference solve is not computed, nothing
+  stops a biased solve, and the manifest records the comparison as `null`.
+  - Why off: that robustness is not needed yet.
+  - When last on: limTOD agreed with the reference to ~1×10⁻¹⁰ σ (tolerance 1×10⁻⁴).
+  - Switch it back on (`true`) before any product is used for a result. The code and its
+    tests (`woodbury_reference`) are still there.
 
 - [ ] **S1-2 — Model the asymmetric 820 MHz zero level properly.**
   The archive quotes **+0.430 / −0.300 K**; stage 1 covers both rings with one symmetric
@@ -132,7 +147,8 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
 - [ ] **S1-4 — `bicgstab` stalls on the stage 1 operator; document or drop it.**
   It is in `_SOLVERS` and passes the well-conditioned unit test, but on the real stage 1
   problem it returns `info=1000` at every tolerance tried and sits 5.5e-2 posterior σ from
-  the exact answer. The cross-check catches it, but the option invites a bad run.
+  the exact answer. The cross-check would catch it, but it is off (S1-8), and the option
+  invites a bad run.
 
 - [ ] **S1-5 — `tris.mapmaker: beamwidth_binning` is not wired up.**
   Stage 1 raises on it. `limTOD.tris.tris_beamwidth_binning_map` exists if the simplified
@@ -172,7 +188,62 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   prior width or a beam-error term free would separate them.
 - [ ] **N-7 — The ARCADE 2 ring breaks after smoothing.** On the earlier grid (`notebooks/05`), the
   w ≥ 0.5 floor cut the ring's two narrow junctions, including the Galactic-plane crossing.
-  Re-check at nside 16 before choosing a floor.
+  Re-check at nside 16 before choosing a floor. The elliptical kernel changes this: it is
+  narrower north–south, so plot 6 in `notebooks/03` (last section) shows which pixels it
+  keeps and loses.
+- [ ] **N-8 — Run and check the elliptical kernel (written 2026-10-13; not in use since
+  2026-10-14, when the config went back to `circular_gaussian`).** *Partly done
+  2026-10-14:*
+  - [x] `tests/test_elliptical_beam.py`: 15/15 pass.
+  - [x] `notebooks/03`'s elliptical section, run.
+  - [x] Timing: about 40 s per full-sky map at `nside_work` 64.
+  - [ ] Still to do: `python run_pipeline.py --stage 2 --overwrite`; update `PIPELINE.md`
+    §5.3 and the README's stage 2 output; re-run notebooks 06, 07 and 08; run
+    `tests/test_stage_io.py`.
+
+  Until then the stage 2 product and notebooks 06–08 are from the circular kernel.
+- [ ] **N-9 — Decide `broad_native_kernel` for LWA1, Maipu and ARCADE 2.** *Measured
+  2026-10-14 (`notebooks/03`, plot 4): the default `scaled_cuts` misses the target.*
+  - ARCADE 2's effective beam comes out at **20.64° × 24.39°**, against 19.16° × 23.24°
+    (+8% / +5%).
+  - LWA1 35 MHz comes out at 19.62° × 23.56° (+2.4% / +1.4%).
+  - Convolving a Gaussian with a non-Gaussian kernel does not add widths in quadrature.
+  - `elliptical_gaussian` hits the half-power widths within 0.1°, but has Gaussian
+    shoulders.
+
+  Options:
+  - switch these surveys to `elliptical_gaussian`; or
+  - choose each cut-beam scale numerically so that native ⊛ scaled kernel has the target
+    FWHM, which keeps the measured shoulders.
+
+  ARCADE 2 also keeps 26 fewer stripe pixels (153 → 127) under the current default (plot 6).
+- [ ] **N-10 — The map route's right target resolution.** The elliptical kernel matches
+  every survey to the TRIS *instrument* beam. That is right for the TOD route. The map
+  route compares against stage 1's TRIS *maps*, a Wiener solution on 3.7° pixels whose
+  effective resolution is not the instrument beam (N-2). Measure it: put a point source
+  through stage 1's operator and solve. Then decide whether the map route should match to
+  that instead.
+  *Measured 2026-10-14 (`notebooks/03`, "Convolve → deconvolve"; `PIPELINE.md` App. D),
+  for full-sky sampling, the best case:*
+  - deconvolving a TRIS-width beam at the rings' noise level (~10⁻⁴) keeps structure only
+    to ℓ ≈ 21 (~9°), and agrees with the input to 3–4% at 10° resolution, but only to
+    ~37% pixel by pixel;
+  - stage 1 has one ring, so its maps resolve less than this.
+
+  The map route should compare at ≳ 10° resolution, not per nside 16 pixel.
+- [ ] **N-11 — The full-resolution corrected Haslam carries harmonic-rotation ringing.**
+  `sed_prototype.apply_full_resolution` (notebook 08, Figure 11) rotates the raw nside 512
+  target with `rotate_map_alms`. Haslam's a_ℓm do not fall to zero by ℓ_max = 1535, so the
+  G → C rotation rings at bright compact sources: a round trip is off by 33 K at Cas A on
+  a 4779 K pixel, and 490 pixels by more than 1 K (`notebooks/03`, H5).
+  - Fix: either keep Haslam in Galactic and rotate the smooth nside 16 correction into
+    Galactic (band-limited, so it cannot ring), or rotate the raw map in pixel space.
+  - Everything at nside 16 is unaffected: 5×10⁻⁵ % against smooth-then-rotate.
+- [x] **N-12 — Harmonic-space checks (collaborator comment on a_ℓm, ringing and C_ℓ).**
+  Done 2026-10-14, `notebooks/03` section "Harmonic-space checks", `PIPELINE.md`
+  Appendix C. Four harmonic operations were found and tested. All are ≤ 0.05% on the
+  products the analysis uses, except N-11 (full resolution only). The larger effect is
+  nside 16 sky pixelisation in the TODs, up to 0.5% (see S1-7).
 
 ## Open decisions carried from stage 2
 

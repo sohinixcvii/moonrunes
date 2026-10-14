@@ -114,17 +114,19 @@ nuisance parameter with a Gaussian prior — exactly equivalent to the rank-1 no
 and it hands back the fitted offset.
 
 **The solve is the direct Krylov solve, per Blocker 3.** Not a dense factorisation, and
-not the Woodbury acceleration that is documented wrong by eight orders of magnitude at
+not the low-rank fast-path acceleration that is documented wrong by eight orders of magnitude at
 low channel count: a `scipy.sparse.linalg.LinearOperator` around the MAP normal-equation
 matvec plus a Jacobi-preconditioned GMRES, the same pattern as `bayesian_skymap`'s
 amplitude step, so stage 1 and stage 4 fail the same way if they fail at all.
 
-Because *"it finished"* is not *"it converged"* — this project's own history has silently
-divergent solves accepted as valid samples — every solve is cross-checked against the
-exact Woodbury identity at a single frequency (the inner matrix is only 120×120, so it is
-cheap and is **not** the multi-frequency approximation Blocker 3 rules out). The same
-identity supplies the posterior σ, which a Krylov solve alone cannot give. Stage 1
-refuses to write a product that fails either check.
+**No convergence cross-check runs at the moment.** Stage 1 can compare each solve against
+an exact reference solve (the matrix inversion lemma at a single frequency; the inner matrix
+is only 120×120) and refuse to write a product that disagrees. That robustness is not
+needed yet, so it is **switched off** (`tris.solver.cross_check: false`, 2026-10-14): the
+reference is not computed, nothing can stop the run, and the manifest records the
+comparison as `null`. The maps and their posterior σ are limTOD's answer, unverified.
+When it was last on, limTOD agreed with the reference to ~1×10⁻¹⁰ σ. Set the key to
+`true` to switch it back on (`TODO.md` S1-8).
 
 ### Results at a glance
 
@@ -167,8 +169,17 @@ came through the same beam. The TRIS maps themselves are not touched. Per map:
 1. read it, and check the frame the file declares (`moonrunes.frames.declared_frame`);
 2. rotate it into equatorial, the frame of the TRIS maps: harmonic space for Haslam (full
    sky), mask-aware pixel space for ARCADE 2;
-3. smooth it to the TRIS beam (`beam_matching.target_fwhm_deg` = 23.366°, the larger TRIS
-   axis), with the quadrature kernel √(target² − native²), mask-aware for ARCADE 2;
+3. smooth it to the TRIS beam with the kernel set by `beam_matching.kernel`, mask-aware
+   for ARCADE 2. **In use: `circular_gaussian`**, a 23.366° circular Gaussian
+   (`beam_matching.target_fwhm_deg`, the larger TRIS axis) via `hp.smoothing`, with the
+   quadrature kernel √(target² − native²): 23.35° for Haslam, 20.28° for ARCADE 2. It
+   leaves every map 22% too wide along the TRIS E axis.
+   * **Implemented but not in use:** `tris_cuts`, the measured, elliptical TRIS beam
+     (19.155° north–south × 23.366° east–west, E plane 7° east of north, the beam the TOD
+     route uses), and `elliptical_gaussian`. Both are applied as a direct sum on the sphere
+     (`moonrunes/elliptical_beam.py`, `PIPELINE.md` Appendix A.9). They were the default
+     on 2026-10-13/14 and were switched back on 2026-10-14.
+   * Steps 3–5 are `match_to_tris_beam()`, which the map route also calls;
 4. keep a pixel only if it was **observed** and its smoothed weight reached
    `beam_matching.weight_floor` (0.5);
 5. regrid onto `beam.nside_new` (= `tris.nside` = 16). A coarse pixel gets a value only if
@@ -177,6 +188,9 @@ came through the same beam. The TRIS maps themselves are not touched. Per map:
 ```bash
 python run_pipeline.py --stage 2
 ```
+
+Output with the circular kernel (the last run; the elliptical default has not been run yet,
+and prints the kernel shape, its E × H widths and why it was chosen instead):
 
 ```
 haslam_408     G nside 512  native  0.9333° -> extra kernel 23.3474°
@@ -257,12 +271,13 @@ All are committed **with their outputs**, so they can be read without re-running
 |---|---|
 | `01_explore_data.ipynb` | The inputs, one section per dataset. **01** the four TRIS products, the beam, the temperature convention, the GSM2008 template — and where `zero_level_sigma_k`, `uncertainty_floor_k` and `nside_new` come from. **02** a first look at ARCADE 2 (3.15/3.41 GHz). **03** the Haslam 408 MHz download. **04** the stage 1 TRIS maps. **05** every map in `res/`, discovered automatically: full-sky panels and Dec +30–55° strip slices with the TRIS strip, plus a frequency / frame / nside / beam table. **06** the TRIS TOD each map predicts (limTOD `generate_TOD_sky`), compared by shape and by spectral index against the TRIS 600 MHz ring. |
 | `02_build_berkhijsen_prior.ipynb` | **Superseded, does not run** — imports the deleted `stage2_haslam_prep`. Kept for section 3's circularity measurement. The stage 2 products: the Haslam map, the region operators, the three prior sources compared — and section 3, which *measures* the GSM2008/Haslam circularity instead of asserting it. |
-| `03_diagnostics.ipynb` | The stage 1 results: convergence, χ² and residuals, the zero level against the template deficit, prior→posterior shrinkage and z-scores, the band maps, β between the two solved maps, a preview of the degrade to `nside_new`, the prior-only and high-noise comparison runs, residuals with error bars (with the derivation of their expected scatter) and the RMS maps. |
+| `03_diagnostics.ipynb` | The stage 1 results: convergence, χ² and residuals, the zero level against the template deficit, prior→posterior shrinkage and z-scores, the band maps, β between the two solved maps, a preview of the degrade to `nside_new`, the prior-only and high-noise comparison runs, residuals with error bars (with the derivation of their expected scatter) and the RMS maps. **Last section: the elliptical beam for the map route**: the three kernels on the sky and in profile, the weight in the shoulders, the kernel each survey gets, a point source through the real smoothing code (orientation, widths, broad native beams), and old vs new kernel on Haslam, on ARCADE 2's mask edge and on every map-route survey. **Then: harmonic-space checks** (`PIPELINE.md` Appendix C): the C_ℓ of every map raw and smoothed, the TRIS beam's C_ℓ, limTOD's harmonically pointed beam and its TODs against exact pixel-space versions, Haslam's rotation ringing, and harmonic vs real-space smoothing. **Last: convolve → deconvolve with limTOD** (`PIPELINE.md` Appendix D): every SED map through limTOD's circular and elliptical beams and back through its Wiener map-maker, which scales survive, and how the two beams differ. Run 2026-10-14. |
 | `04_coordinate_frames.ipynb` | What each input's header declares, checked against the sky; the rotation to equatorial (harmonic for Haslam, mask-aware pixel rotation for ARCADE 2); Sgr A*, Cas A and Tau A at their literature positions; the ARCADE 2 zero mask after rotation. |
-| `05_beam_matching.ipynb` | Haslam and ARCADE 2 smoothed to 23.366° in the equatorial frame; UNSEEN counts and the ring's break at its narrow junctions; the final ARCADE 2 mask and the four-way overlap with TRIS. |
+| `05_beam_matching.ipynb` | With the original **circular** kernel: Haslam and ARCADE 2 smoothed to 23.366° in the equatorial frame; UNSEEN counts and the ring's break at its narrow junctions; the final ARCADE 2 mask and the four-way overlap with TRIS. |
 | `06_sed_fit.ipynb` | Stage 3 prototype with the four trusted points only (TRIS 600/820 + ARCADE 2), at nside 16 from the stage 1 and 2 products, fitted at **every** TRIS-stripe pixel (4 points where ARCADE 2 exists, 2 elsewhere): full maps of best-fit Haslam, β, χ², σ(β) and points per fit, and the sensitivity to ẑ and TRIS beam matching. With ARCADE 2: +3.4 K (+9.6%); TRIS only: +31%, driven by ẑ. |
 | `07_sed_calibration.ipynb` | Stage 3 prototype on nside 16, with every usable map in `res/`: the **TOD route** (limTOD TODs → per-sample SED fit → correction TOD → map via the Wiener filter) and the **map route** (per-pixel fit on the TRIS grid), old vs corrected Haslam, and a hybrid map. The TOD route finds Haslam ~18% low along the ring; the map route is circular through stage 1's GSM2008 prior. |
 | `08_paper_plots.ipynb` | Paper figures, target = destriped-only Haslam: the maps used and the target with the TRIS stripe, stripe slices, the TRIS maps and TODs, pixel-by-pixel and sample-by-sample SED fits with residuals, fit-residual maps, old vs best-fit Haslam (both routes), χ² and β maps, full-resolution corrected Haslam (both routes), T–T corner plots (raw and beam-convolved). Saved to `outputs/paper_plots/`. |
+| `09_beam_fwhm_tests.ipynb` | Tests of the beam widths: the σ ↔ FWHM constant, the FWHM function on Gaussian and archive cuts (and its linear-in-dB interpolation bias), degree/radian and σ/FWHM slips, the cut beam's principal planes, `hp.smoothing`'s real-space width, and a round trip (Gaussian beam map → cuts → FWHM) at nside 16–1024. Same checks in `tests/test_beam_fwhm.py`. |
 
 ---
 
@@ -272,7 +287,7 @@ All are committed **with their outputs**, so they can be read without re-running
 |---|---|
 | **1 — beam width mismatch** | Resolved. The fork accepts arbitrary `beam_deg`; the TRIS E/H mean (21.2605°) is passed through as itself. Stage 1 still compares the pinned `nside_new` with `bayesian_func.nside_for_beam`, but since the SED redesign a mismatch is recorded in the manifest and warned about, not fatal. `nside_new` is now 16. |
 | **2 — no "truth" for real data** | **Open, in both stages.** Stage 1 uses GSM2008 as both prior and reference truth (`prior_equals_truth: true`). Stage 2's prior defaults to GSM2008 too, which is not Haslam-independent (`prior_is_haslam_derived: true`, measured at r = 0.993 in `notebooks/02`). `tris_stage1` is the honest interim — independent across the 52% of sky TRIS observed. The real answer stays Berkhuijsen (1972), and swapping it in is one config line. |
-| **3 — Woodbury fast path broken at low channel count** | Resolved by not using it. `gibbs.use_woodbury` is `false` and stage 1 solves with the direct Krylov path. |
+| **3 — low-rank fast path broken at low channel count** | Resolved by not using it. The fast path is switched off in the config and stage 1 solves with the direct Krylov path. |
 
 ---
 
@@ -313,7 +328,7 @@ pytest
 ```
 
 49 tests. The algebra ones — the Krylov solve against a dense reference, the Jacobi
-diagonal against `bayesian_func.estimate_diag_precond`, the Woodbury posterior against a
+diagonal against `bayesian_func.estimate_diag_precond`, the exact reference posterior against a
 dense inverse, stage 2's beam quadrature and masked-smoothing behaviour, and the frame rotations — run
 anywhere. The end-to-end tests skip themselves when the TRIS archive, the FITS downloads,
 or `pygdsm` is absent.

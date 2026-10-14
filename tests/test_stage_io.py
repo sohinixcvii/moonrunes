@@ -254,10 +254,14 @@ def test_stage1_end_to_end_writes_the_expected_product(config, tmp_path):
         assert np.isnan(bundle["sky_full_k"][:, ~bundle["band_mask"]]).all()
 
     for entry in manifest["frequencies"].values():
-        # limTOD's dense solve has no iteration count to check; the Woodbury
-        # cross-check is the whole convergence statement now.
+        # limTOD's dense solve has no iteration count to check.  The exact
+        # cross-check runs only when tris.solver.cross_check is on (off since
+        # 2026-10-14); when off, nothing is computed and the field is None.
         assert entry["solver"]["backend"] == "limtod"
-        assert entry["solver"]["solver_vs_woodbury_sigma"] < 1e-4
+        if entry["solver"]["cross_check"]:
+            assert entry["solver"]["solver_vs_woodbury_sigma"] < 1e-4
+        else:
+            assert entry["solver"]["solver_vs_woodbury_sigma"] is None
     assert manifest["blocker_2_substitute"]["prior_equals_truth"] is True
 
     # The loader the notebooks and stages 3/5 read products through.
@@ -335,6 +339,13 @@ def test_beam_matching_decisions_are_the_recorded_ones(config):
     target = float(config.require("beam_matching.target_fwhm_deg"))
     assert target == pytest.approx(stage2.TRIS_HPBW_H_DEG)
     assert float(config.require("beam_matching.weight_floor")) == 0.5
+    # The kernel choice and the elliptical widths are config decisions too.
+    from moonrunes.elliptical_beam import KERNELS
+    assert config.require("beam_matching.kernel") in KERNELS
+    assert float(config.require("beam_matching.elliptical.fwhm_e_deg")) == pytest.approx(
+        stage2.TRIS_HPBW_E_DEG)
+    assert float(config.require("beam_matching.elliptical.fwhm_h_deg")) == pytest.approx(
+        stage2.TRIS_HPBW_H_DEG)
     # Every dataset's beam comes from a config key, not a literal.
     for dataset in stage2.DATASETS:
         assert float(config.require(dataset.fwhm_key)) > 0.0
@@ -481,11 +492,20 @@ def test_beam_match_runs_over_every_dataset(config):
         good = smoothed != hp.UNSEEN
         assert good.any(), name
         assert np.isfinite(smoothed[good]).all(), name
-        # Every kernel is the quadrature difference, never the raw target.
-        assert entry["extra_fwhm_deg"] < stage2.TARGET_FWHM_DEG
-        assert entry["extra_fwhm_deg"] == pytest.approx(
-            stage2.extra_fwhm_deg(entry["native_fwhm_deg"], stage2.TARGET_FWHM_DEG)
-        )
+        smoothing = entry["smoothing"]
+        if smoothing["kernel"] == "circular_gaussian":
+            # Every kernel is the quadrature difference, never the raw target.
+            assert entry["extra_fwhm_deg"] < stage2.TARGET_FWHM_DEG
+            assert entry["extra_fwhm_deg"] == pytest.approx(
+                stage2.extra_fwhm_deg(entry["native_fwhm_deg"], stage2.TARGET_FWHM_DEG)
+            )
+        else:
+            # Elliptical kernels: never wider than TRIS on either axis, and a survey
+            # with a broad native beam gets a strictly narrower kernel.
+            assert smoothing["kernel_fwhm_e_deg"] <= stage2.TRIS_HPBW_E_DEG + 1e-9, name
+            assert smoothing["kernel_fwhm_h_deg"] <= stage2.TRIS_HPBW_H_DEG + 1e-9, name
+            if entry["native_fwhm_deg"] > 5.0:          # ARCADE 2
+                assert smoothing["kernel_fwhm_e_deg"] < stage2.TRIS_HPBW_E_DEG, name
 
 
 def test_beam_match_erodes_only_the_masked_datasets(config):
