@@ -8,9 +8,9 @@ Gibbs sampler.
 
 **Why this replaced the original plan:** the `bayesian_skymap` Gibbs
 approach hit three real blockers (beam-width hardcoding, no real-data
-prior, a documented Woodbury solver bug at low channel count). A
+prior, a documented bug in the low-rank fast-path solver at low channel count). A
 pixel-by-pixel least-squares SED fit sidesteps all three at once — no
-truth-informed prior needed, no Woodbury solver, and the beam mismatch
+truth-informed prior needed, no fast-path solver, and the beam mismatch
 becomes a smoothing/regridding problem rather than a code-patching one.
 The old blockers are kept below, marked resolved-by-redesign, so the
 reasoning isn't lost.
@@ -77,8 +77,8 @@ The SED fit needs no prior at all — it's anchored directly by TRIS/ARCADE2
 data at each pixel. The Berkhuijsen-prior research is no longer a blocking
 dependency, though it remains a good independent validation cross-check.
 
-### Former Blocker 3 — Woodbury solver bug at low channel count -> moot
-No Gibbs sampler, no Woodbury solver, in this design at all.
+### Former Blocker 3 — fast-path solver bug at low channel count -> moot
+No Gibbs sampler and no fast-path solver in this design at all.
 
 ---
 
@@ -95,6 +95,11 @@ two down to match it, never the reverse.**
    so nothing ends up under-smoothed in either direction. (A proper
    elliptical-beam convolution is more correct but substantially more
    work; flag this as a deliberate simplification, not an oversight.)
+   **Still in use (2026-10-14).** An elliptical convolution was implemented on
+   2026-10-13 (`beam_matching.kernel: tris_cuts`, the measured TRIS beam, E plane
+   7 deg east of north; `src/moonrunes/elliptical_beam.py`, `PIPELINE.md`
+   Appendix A.9), but the config uses the larger-axis circular kernel
+   (`circular_gaussian`), which made the current stage 2 product.
 
 2. **Compute the *additional* smoothing needed, not the raw target FWHM.**
    Gaussian beams add in quadrature: if a map already has native

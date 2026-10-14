@@ -155,7 +155,7 @@ tris:
     absolute_sigma_k: 0.3         # flat term added in quadrature, K
     floor_sigma_k: 1.0e-3         # keeps the prior off a delta function
 
-  # Blocker 3 says never the Woodbury fast path -- use the direct Krylov solve.
+  # Blocker 3 says never the low-rank fast path -- use the direct Krylov solve.
   # Stage 1's MAP operator (A^T N^-1 A + P^-1) is SPD, so cg is also valid; the
   # recorded decision is gmres, matching stage 4.
   solver:
@@ -181,12 +181,17 @@ tris:
     # n_samples (120), so a restart longer than that lets gmres terminate
     # inside one cycle instead of stalling at the default restart of 20.
     restart: null
-    # Cross-check the Krylov answer against the exact Woodbury identity
+    # Cross-check limTOD's answer against an exact reference solve
     # (npix x npix -> n_samples x n_samples, exact, not the Blocker 3 fast
     # path).  This is the "did it actually converge" test, not "did it finish".
-    cross_check: true
-    # Measured in posterior sigma, which is the unit in which a solver error
-    # either matters or does not.  gmres at rtol 1e-12 lands at ~5e-7.
+    # DECISION (2026-10-14) -- OFF for now: that level of robustness is not
+    # needed yet.  With false, the reference is not computed at all, nothing
+    # can stop the run, and the manifest records the comparison as null.  The
+    # maps are limTOD's answer, unverified.  Set true to switch it back on
+    # (TODO.md S1-8); the last products made with it on agreed to ~1e-10 sigma.
+    cross_check: false
+    # Used only when cross_check is true.  Measured in posterior sigma, which is
+    # the unit in which a solver error either matters or does not.
     cross_check_max_sigma: 1.0e-4
 
 
@@ -198,11 +203,70 @@ tris:
 # coarsest, so it sets the target and the other two are smoothed down to it.
 # -----------------------------------------------------------------------------
 beam_matching:
-  # DECISION -- the larger of TRIS's two axes (19.155 E / 23.366 H).  healpy
-  # smooths with one symmetric FWHM, so the elliptical beam cannot be carried
-  # exactly; the larger axis is conservative, leaving nothing under-smoothed in
-  # the narrow direction.  Deliberate simplification, not an oversight.
+  # DECISION (2026-10-14) -- circular_gaussian, the kernel the current stage 2
+  # product was made with.  The elliptical kernels (2026-10-13) are implemented and
+  # tested (notebooks/03, tests/test_elliptical_beam.py) but not in use yet.
+  # The SHAPE of the TRIS beam every map is smoothed to (stage 2 and the map
+  # route; moonrunes.elliptical_beam explains the elliptical ones):
+  #   tris_cuts           the measured beam: the archive E/H cuts, blended with
+  #                       cos^2/sin^2 weights -- the same beam limTOD uses for
+  #                       the TOD route and stage 1.  Elliptical (19.155 x 23.366)
+  #                       and with its real shoulders.
+  #   elliptical_gaussian a Gaussian with the same two widths and orientation.
+  #   circular_gaussian   the original simplification: hp.smoothing at
+  #                       target_fwhm_deg (the larger axis), 22% too wide on E.
+  # The elliptical kernels are applied as a direct sum on the sphere, because
+  # hp.smoothing can only apply a kernel that is the same in every direction.
+  kernel: circular_gaussian
+  # Used by kernel = circular_gaussian (the current choice): the larger of TRIS's two axes
+  # (19.155 E / 23.366 H).  One symmetric FWHM cannot carry the elliptical beam;
+  # the larger axis leaves nothing under-smoothed in the narrow direction.
   target_fwhm_deg: 23.366
+  # Used only by the elliptical kernels.
+  elliptical:
+    # The TRIS half-power widths, from the archive's own cuts
+    # (TRISPrincipalPlaneCuts.half_power_full_width_deg; notebook 09 tests them).
+    # For tris_cuts these must match the cuts to 0.001 deg or the run stops.
+    fwhm_e_deg: 19.155
+    fwhm_h_deg: 23.366
+    # Orientation on the sky.  TRIS points at the zenith; its E plane lies along
+    # the meridian, rolled 7 deg EAST of it (TRIS_Beam_Profile.txt, both ring
+    # headers, limTOD TRIS_E_PLANE_EAST_OF_MERIDIAN_DEG).  At the zenith the
+    # meridian is the hour circle, so: E plane at position angle +7 deg
+    # (north through east), H plane at +97 deg (east-west).
+    e_plane_east_of_meridian_deg: 7.0
+    # The horn sees ground, not sky, below the horizon: at the zenith that is
+    # more than 90 deg from boresight.  The kernel is zero beyond this (as limTOD's
+    # tris_horizon_mask does for the TOD route).  Only matters for tris_cuts,
+    # whose archive floor is ~-60 dB out to 176 deg.
+    horizon_deg: 90.0
+    # limTOD's interpolation between the E and H cuts at intermediate azimuth:
+    # "db" (default, the standard horn construction) or "power".
+    blend: db
+    # The grid the direct sum runs over.  64 = 0.92 deg pixels, 20x finer than
+    # the 19 deg beam (notebook 09, Test 2: a beam map at 64 reproduces the
+    # widths to 0.07%).  128 is 4x slower and needs a smaller chunk.
+    nside_work: 64
+    # Points per output pixel, per side (a power of 2): 2 = 4 points averaged,
+    # so each output value is a pixel average, like the circular path's
+    # all_children regrid.  1 = the pixel centre only (4x faster, no pixel window).
+    eval_subdivision: 2
+    # A survey's own beam widens the result.  If convolving the cut beam with it
+    # widens the narrow E axis by at most this fraction, it is neglected and the
+    # kernel is the cut beam itself.  0.002 (0.2%) = native beams up to ~1.2 deg:
+    # Haslam (0.93 deg, +0.12%), Stockert, CHIPASS, Rhodes.  NOT LWA1 35/80 MHz
+    # (4.65/2.04 deg), Maipu (4.6 deg) or ARCADE 2 (11.6 deg).
+    max_broadening_fraction: 0.002
+    # For those broader beams there is no exact "subtract the native beam" for
+    # the cut beam.  scaled_cuts: the cut beam compressed in angle along E and H
+    # to the quadrature widths sqrt(target^2 - native^2), so the core comes back
+    # to 19.155 x 23.366 and the shoulders keep the measured shape, approximately.
+    # elliptical_gaussian: the per-axis quadrature Gaussian (exact core,
+    # Gaussian shoulders).  Notebook 03 compares the two.
+    broad_native_kernel: scaled_cuts
+    # Evaluation points handled per matrix product.  Memory ~ chunk x 12 x
+    # npix(nside_work) x 8 bytes: ~600 MB at 128 and nside_work 64.
+    chunk: 128
   # Haslam: BEAMSIZE = 56.0 in HDU 1 of the FITS file, in ARCMINUTES.
   haslam_native_fwhm_deg: 0.93333
   # DECISION (2026-10-07): 11.6 deg, as both ARCADE 2 headers state (BEAMSZ,
@@ -356,7 +420,7 @@ gibbs:
   sig2_mk: 910                    # DECISION
   sig3_mk: null                   # confusion noise; null -> script reuses sig2
 
-  # Blocker 3: the Woodbury fast path is wrong by ~8 orders of magnitude at 2
+  # Blocker 3: the low-rank fast path is wrong by ~8 orders of magnitude at 2
   # channels (dropped cross-frequency coupling) and TRIS gives 2.  Never on.
   use_woodbury: false             # DECISION -- do not flip this on
   # The two documented fixes.  cgs is documented to diverge on this operator;
@@ -378,9 +442,9 @@ validate:
   # "Did it finish" is not convergence -- this repo's history has silently
   # divergent solves accepted as valid samples.
   # SUPERSEDED by the move to limTOD's dense solver, which has no iteration
-  # count and no info flag.  The equivalent statement is now stage 1's Woodbury
-  # cross-check (tris.solver.cross_check_max_sigma), which every product must
-  # pass before it is written.
+  # count and no info flag.  The equivalent statement would be stage 1's
+  # exact-reference cross-check (tris.solver.cross_check), which is switched
+  # off since 2026-10-14, so no convergence check currently runs.
   require_solver_info_zero: true  # UNUSED
   lnprob_burn_in_frac: 0.3
   lnprob_rhat_max: 1.1

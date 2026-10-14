@@ -10,15 +10,23 @@ resolution difference between surveys as if it were sky.
 
 This is Step 0 of ``tris_haslam_pipeline.md``, applied.
 
-The target FWHM (Step 0.1)
---------------------------
-``hp.smoothing`` takes one symmetric FWHM, so TRIS's elliptical beam
-(19.155 deg E / 23.366 deg H) cannot be carried through exactly.  The target is
-the **larger** axis: that guarantees the other two surveys end up at least as
-coarse as TRIS along both of its axes, so nothing survives under-smoothed in
-the narrow direction.  A proper elliptical convolution is more correct and
-substantially more work; the pipeline document flags this as a deliberate
-simplification, not an oversight.
+The kernel (Step 0.1)
+---------------------
+``beam_matching.kernel`` chooses the shape of the TRIS beam the maps are
+smoothed to (see :mod:`moonrunes.elliptical_beam` for the full explanation):
+
+* ``tris_cuts`` -- the measured, elliptical TRIS beam
+  (19.155 deg E x 23.366 deg H, with its shoulders), oriented as TRIS saw the
+  sky, applied as a direct sum on the sphere;
+* ``elliptical_gaussian`` -- the same widths and orientation, Gaussian shape;
+* ``circular_gaussian`` -- the original simplification: ``hp.smoothing`` takes
+  one symmetric FWHM, so the target was the **larger** axis (23.366 deg),
+  leaving nothing under-smoothed but everything 22% over-smoothed along E.
+
+:func:`match_to_tris_beam` is the one function that applies whichever is
+configured; :func:`beam_match` and :mod:`moonrunes.sed_prototype` both call it.
+The quadrature, masking and regrid sections below describe the circular path;
+the elliptical path does the same three things, per axis, on the sphere.
 
 The quadrature correction (Step 0.2)
 ------------------------------------
@@ -276,6 +284,119 @@ def regrid_to_nside(
 
 
 # ---------------------------------------------------------------------------
+# smooth + mask + regrid, for one map, with whichever kernel is configured
+# ---------------------------------------------------------------------------
+def match_to_tris_beam(
+    rotated: np.ndarray,
+    observed: np.ndarray,
+    native_fwhm_deg: float,
+    config: Config,
+    *,
+    nside_out: Optional[int] = None,
+    rule: Optional[str] = None,
+    spec=None,
+    full_sky: Optional[bool] = None,
+    target_fwhm_deg: Optional[float] = None,
+) -> Tuple[np.ndarray, np.ndarray, Dict[str, object]]:
+    """Steps 3-5 for one map that is already in equatorial: smooth, mask, regrid.
+
+    ``rotated`` is a RING map at the survey's own nside (``hp.UNSEEN`` or
+    anything where ``observed`` is False).  Returns ``(values, kept, info)``:
+    ``values`` on ``nside_out`` (default ``beam.nside_new``) with ``hp.UNSEEN``
+    where not kept, ``kept`` the boolean mask, and ``info`` a JSON-ready dict of
+    what was done (it goes into the stage 2 manifest).
+
+    **circular_gaussian** -- :func:`smooth_to_target` at the survey's nside with
+    the quadrature kernel; keep a pixel only if it was observed *and* its
+    smoothed weight reached ``beam_matching.weight_floor``; then
+    :func:`regrid_to_nside`.  This is the original stage 2, unchanged.
+
+    **elliptical_gaussian / tris_cuts** --
+    :func:`moonrunes.elliptical_beam.smooth_elliptical` straight onto
+    ``nside_out``.  An output pixel is kept only if (a) all its sub-pixels at
+    the survey's nside were observed (the same ``all_children`` rule, applied to
+    the observed mask) and (b) the observed-weight fraction reached the floor at
+    *every* evaluation point inside it.  Pass ``spec``
+    (:func:`moonrunes.elliptical_beam.beam_spec_from_config`) to avoid re-reading
+    the archive cuts for every map.
+
+    ``full_sky`` (default: ``observed.all()``) only selects whether the circular
+    path smooths with a weight mask, as before.  ``target_fwhm_deg`` overrides
+    ``beam_matching.target_fwhm_deg`` for the circular path only.
+    """
+    import healpy as hp
+
+    kernel_name = str(config.require("beam_matching.kernel"))
+    floor = float(config.require("beam_matching.weight_floor"))
+    nside_out = int(config.require("beam.nside_new")) if nside_out is None else int(nside_out)
+    rule = str(config.require("beam_matching.coarse_pixel_rule")) if rule is None else rule
+    rotated = np.asarray(rotated, dtype=float)
+    observed = np.asarray(observed, dtype=bool)
+    full_sky = bool(observed.all()) if full_sky is None else bool(full_sky)
+
+    if kernel_name == "circular_gaussian":
+        target = (float(config.require("beam_matching.target_fwhm_deg"))
+                  if target_fwhm_deg is None else float(target_fwhm_deg))
+        smoothed = smooth_to_target(rotated, native_fwhm_deg, target,
+                                    weight_mask=None if full_sky else observed,
+                                    weight_floor=floor)
+        passed = smoothed != hp.UNSEEN
+        final = observed & passed
+        values, kept = regrid_to_nside(np.where(final, smoothed, hp.UNSEEN), final,
+                                       nside_out, rule)
+        info = {
+            "kernel": kernel_name,
+            "target_fwhm_deg": target,
+            "extra_fwhm_deg": extra_fwhm_deg(native_fwhm_deg, target),
+            "observed_after": int(final.sum()),
+            "extrapolated_removed": int((passed & ~observed).sum()),
+        }
+        return values, kept, info
+
+    from . import elliptical_beam
+
+    if spec is None:
+        spec = elliptical_beam.beam_spec_from_config(config)
+    if spec.kernel != kernel_name:
+        raise ConfigError("the beam spec is for kernel {!r} but beam_matching.kernel is "
+                          "{!r}".format(spec.kernel, kernel_name))
+
+    # (a) the observed mask under the coarse-pixel rule (values are not used)
+    _, observed_coarse = regrid_to_nside(np.where(observed, rotated, 0.0), observed,
+                                         nside_out, rule)
+    # smoothing, straight onto the output grid
+    smoothed = elliptical_beam.smooth_elliptical(rotated, observed, native_fwhm_deg,
+                                                 spec, nside_out)
+    # (b) the floor, at every evaluation point of the pixel
+    with np.errstate(invalid="ignore"):
+        passed = (np.isfinite(smoothed["values"]) & np.isfinite(smoothed["weight_min"])
+                  & (smoothed["weight_min"] >= floor))
+    kept = observed_coarse & passed
+    values = np.where(kept, smoothed["values"], hp.UNSEEN)
+
+    # The same bookkeeping as the circular path, at the survey's own resolution:
+    # how many observed pixels end up inside a kept output pixel.
+    kept_native = hp.ud_grade(kept.astype(float), int(hp.get_nside(rotated)),
+                              order_in="RING", order_out="RING") > 0.5
+    info = {
+        "kernel": kernel_name,
+        "target_fwhm_e_deg": float(spec.fwhm_e_deg),
+        "target_fwhm_h_deg": float(spec.fwhm_h_deg),
+        "e_plane_east_of_meridian_deg": float(spec.e_plane_east_of_meridian_deg),
+        "horizon_deg": float(spec.horizon_deg),
+        "nside_work": int(spec.nside_work),
+        "eval_subdivision": int(spec.eval_subdivision),
+        "extra_fwhm_deg": None,
+        "observed_after": int((observed & kept_native).sum()),
+        "extrapolated_removed": int((passed & ~observed_coarse).sum()),
+        "weight_min_kept": (float(np.nanmin(smoothed["weight_min"][kept]))
+                            if kept.any() else None),
+    }
+    info.update(smoothed["kernel"].as_dict())
+    return values, kept, info
+
+
+# ---------------------------------------------------------------------------
 # the stage
 # ---------------------------------------------------------------------------
 def beam_match(
@@ -293,12 +414,14 @@ def beam_match(
        (:func:`moonrunes.frames.declared_frame`);
     2. rotate it into equatorial, the frame of stage 1's TRIS maps -- harmonic
        space for a full-sky map, mask-aware pixel space for a partial one;
-    3. smooth it to ``beam_matching.target_fwhm_deg`` (TRIS's beam) with the
-       quadrature kernel, mask-aware for a partial map;
+    3. smooth it to the TRIS beam with the configured ``beam_matching.kernel``
+       (quadrature kernel, mask-aware for a partial map);
     4. keep a pixel only if it was observed before smoothing **and** its
        smoothed weight reached ``beam_matching.weight_floor`` -- never a pixel
        the survey did not see;
     5. regrid onto ``beam.nside_new`` with :func:`regrid_to_nside`.
+
+    Steps 3-5 are :func:`match_to_tris_beam`.
 
     TRIS itself is not touched: everything else is matched to it.  Returns one
     entry per dataset with the final map and the numbers the manifest records.
@@ -310,7 +433,6 @@ def beam_match(
     config = config if config is not None else load_config(config_path)
     if target_fwhm_deg is None:
         target_fwhm_deg = float(config.require("beam_matching.target_fwhm_deg"))
-    weight_floor = float(config.require("beam_matching.weight_floor"))
     nside_out = int(config.require("beam.nside_new"))
     rule = str(config.require("beam_matching.coarse_pixel_rule"))
     tris_nside = int(config.require("tris.nside"))
@@ -321,10 +443,23 @@ def beam_match(
                 nside_out, tris_nside)
         )
 
+    kernel_name = str(config.require("beam_matching.kernel"))
+    spec = None
+    if kernel_name != "circular_gaussian":
+        from . import elliptical_beam
+
+        spec = elliptical_beam.beam_spec_from_config(config)   # reads the cuts once
+
     if verbose:
-        print("stage 2: match to the TRIS beam, {}° (E) x {}° (H); target FWHM "
-              "{:.4f}° (the larger axis)".format(
-                  TRIS_HPBW_E_DEG, TRIS_HPBW_H_DEG, target_fwhm_deg))
+        if kernel_name == "circular_gaussian":
+            print("stage 2: match to the TRIS beam, {}° (E) x {}° (H); circular kernel, "
+                  "target FWHM {:.4f}° (the larger axis)".format(
+                      TRIS_HPBW_E_DEG, TRIS_HPBW_H_DEG, target_fwhm_deg))
+        else:
+            print("stage 2: match to the TRIS beam, {}° (E) x {}° (H); kernel {}, E plane "
+                  "{}° east of north, working grid nside {}".format(
+                      spec.fwhm_e_deg, spec.fwhm_h_deg, kernel_name,
+                      spec.e_plane_east_of_meridian_deg, spec.nside_work))
         print("         output: equatorial, nside {} (the TRIS map grid)\n".format(
             nside_out))
 
@@ -356,22 +491,12 @@ def beam_match(
                 sky, observed_native, (frame, OUTPUT_FRAME))
             rotation = "pixel space, mask-aware (frames.rotate_masked)"
 
-        # 3. to the TRIS beam
-        kernel = extra_fwhm_deg(native_fwhm_deg, target_fwhm_deg)
-        smoothed = smooth_to_target(
-            rotated, native_fwhm_deg, target_fwhm_deg,
-            weight_mask=None if dataset.mask_convention == "full" else observed,
-            weight_floor=weight_floor,
-        )
-
-        # 4. only pixels the survey saw, and the floor kept
-        passed_floor = smoothed != hp.UNSEEN
-        final = observed & passed_floor
-        extrapolated = int((passed_floor & ~observed).sum())
-
-        # 5. onto the TRIS grid
-        values, observed_out = regrid_to_nside(
-            np.where(final, smoothed, hp.UNSEEN), final, nside_out, rule)
+        # 3-5. to the TRIS beam, only pixels the survey saw, onto the TRIS grid
+        values, observed_out, smoothing = match_to_tris_beam(
+            rotated, observed, native_fwhm_deg, config, nside_out=nside_out, rule=rule,
+            spec=spec, full_sky=dataset.mask_convention == "full",
+            target_fwhm_deg=target_fwhm_deg)
+        extrapolated = smoothing["extrapolated_removed"]
 
         results[dataset.name] = {
             "map": values,
@@ -383,18 +508,26 @@ def beam_match(
             "native_nside": native_nside,
             "native_fwhm_deg": native_fwhm_deg,
             "fwhm_source": dataset.fwhm_source,
-            "extra_fwhm_deg": kernel,
+            "extra_fwhm_deg": smoothing["extra_fwhm_deg"],
+            "smoothing": smoothing,
             "units": dataset.units,
             "observed_before": int(observed.sum()),
-            "observed_after": int(final.sum()),
+            "observed_after": smoothing["observed_after"],
             "extrapolated_removed": extrapolated,
             "observed_on_output_grid": int(observed_out.sum()),
         }
 
         if verbose:
             r = results[dataset.name]
-            print("{:<14} {} nside {:<4} native {:7.4f}° -> extra kernel {:7.4f}°".format(
-                dataset.name, frame, native_nside, native_fwhm_deg, kernel))
+            if smoothing["kernel"] == "circular_gaussian":
+                print("{:<14} {} nside {:<4} native {:7.4f}° -> extra kernel {:7.4f}°".format(
+                    dataset.name, frame, native_nside, native_fwhm_deg,
+                    smoothing["extra_fwhm_deg"]))
+            else:
+                print("{:<14} {} nside {:<4} native {:7.4f}° -> {} kernel {:.3f}° x {:.3f}°"
+                      " ({})".format(dataset.name, frame, native_nside, native_fwhm_deg,
+                                     smoothing["kernel_shape"], smoothing["kernel_fwhm_e_deg"],
+                                     smoothing["kernel_fwhm_h_deg"], smoothing["kernel_note"]))
             print("{:<14} observed {} -> {} pixels after smoothing ({} extrapolated "
                   "removed); {} on the nside {} grid".format(
                       "", r["observed_before"], r["observed_after"],
@@ -460,6 +593,7 @@ def run_stage2(
         nside=np.int64(nside_out),
         frame=np.array(OUTPUT_FRAME),
         target_fwhm_deg=np.float64(config.require("beam_matching.target_fwhm_deg")),
+        kernel=np.array(str(config.require("beam_matching.kernel"))),
         maps=np.vstack([results[n]["map"] for n in names]),
         observed=np.vstack([results[n]["observed"] for n in names]),
     )
