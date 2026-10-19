@@ -436,6 +436,19 @@ gibbs:
     skymap_nside: 128             # exported as SKYMAP_NSIDE
 
 # -----------------------------------------------------------------------------
+# Stage 3 prototype -- the SED studies (moonrunes.sed_prototype, notebooks 07, 08, 10)
+# -----------------------------------------------------------------------------
+sed:
+  # DECISION (2026-10-15) -- maps left out of every beam-convolved SED study: the TOD
+  # route, the map route, and the T-T / beta / LST figures built on them.  ARCADE 2
+  # covers ~7% of the sky as a thin ring; on the TRIS ring it has data at only 16-17 of
+  # 120 samples and ~150 stripe pixels, and its very small calibration errors (6-7.5 mK)
+  # let those few points pull the fits (the steps at LST 255-280 and 320-345 deg in
+  # notebooks 07/08).  Filenames as in res/.  Stage 2 and notebook 06 (the TRIS +
+  # ARCADE 2 four-point cross-check) are not affected.
+  exclude_maps: [ARCADE2_315.fits, ARCADE2_341.fits]
+
+# -----------------------------------------------------------------------------
 # Stage 5 -- validation thresholds
 # -----------------------------------------------------------------------------
 validate:

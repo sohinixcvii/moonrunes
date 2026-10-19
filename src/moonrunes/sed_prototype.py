@@ -109,7 +109,10 @@ class Inputs:
         self.band = self.stage1["band_mask"].astype(bool)
         self.all_maps = sky_maps.discover(res_dir)
         self.target = next(m for m in self.all_maps if m["file"] == target_file)
-        self.fit_maps = [m for m in self.all_maps if m["usable"] and m["role"] == "fit"]
+        # sed.exclude_maps: maps left out of every SED study (ARCADE 2 since 2026-10-15).
+        self.excluded = list(config.get_path("sed.exclude_maps", []) or [])
+        self.fit_maps = [m for m in self.all_maps if m["usable"] and m["role"] == "fit"
+                         and m["file"] not in self.excluded]
 
         if verbose:
             print("building the TRIS-grid (beam-matched) and raw nside {} maps...".format(self.nside))
