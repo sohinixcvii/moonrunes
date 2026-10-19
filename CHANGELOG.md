@@ -12,6 +12,32 @@ resolve before running anything".
 
 ### Changed
 
+#### ARCADE 2 excluded from the beam-convolved SED studies (2026-10-15)
+
+- ✂️ **New config key `sed.exclude_maps: [ARCADE2_315.fits, ARCADE2_341.fits]`**, applied
+  by `sed_prototype.Inputs` and by notebook 07's own map list. It covers the TOD route, the
+  map route, and every figure built on them (notebooks 07, 08 and 10).
+  - Why: ARCADE 2 covers ~7% of the sky as a thin ring and reaches only 16–17 of the 120
+    TRIS ring samples, and its 6–7.5 mK errors let those few points pull the fits.
+  - Not affected: stage 2 (still beam-matches it), notebook 06 (the TRIS + ARCADE 2
+    four-point cross-check) and notebook 03's method diagnostics.
+- 🔁 Notebooks 07, 08 and 10 re-run. The SED-fit figures no longer reserve panels for
+  ARCADE 2; notebook 07's stage 2 check and "TRIS + ARCADE 2 only" group handle its
+  absence.
+- **Results:**
+
+  | | with ARCADE 2 | without |
+  |---|---|---|
+  | TOD route, standard Haslam (07): prediction − Haslam | +4.2 K (+17.8%) | **+4.0 K (+17.6%)** |
+  | TOD route, destriped Haslam (08, 10) | +3.8 K (+12.6%) | **+3.7 K (+12.5%)** |
+  | TOD route: median β; χ²/dof | −2.55; up to ~50 at ARCADE 2 | **−2.53; median 3.9** |
+  | map route (07): prediction − Haslam | +0.3 K (+0.9%) | +0.4 K (+1.5%) |
+  | Fig 7d: TRIS 600 / 820 ÷ non-TRIS fit | 1.24 / 1.13 | 1.23 / 1.12 |
+
+  Figure 7d's steps at LST 255–280° and 320–345° are gone.
+- 📝 Readings in notebooks 07 and 08, notes in 10, the paper captions in
+  `moonrunes_paper/figures/README.md`, and `PIPELINE.md` (§1 table, §6) updated.
+
 #### Back to the circular beam-matching kernel (2026-10-14)
 
 - ↩️ **`beam_matching.kernel: circular_gaussian`.** The config goes back to the 23.366°
