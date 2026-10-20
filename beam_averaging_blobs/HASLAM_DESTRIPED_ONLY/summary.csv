@@ -1,0 +1,5 @@
+# map = HASLAM_DESTRIPED_ONLY.fits; shape change = 100*(S_blob/S_control - 1), S = T/mean_LST(T); beam = limTOD TRIS cut beam
+freq_mhz,max_abs_shape_change_pct,at_lst_deg,rms_shape_change_pct,normalisation_change_pct,ratio_blob_min,ratio_blob_max,ratio_control,control_shape_vs_408_max_abs,no_beam_max_abs_shape_change_pct
+408,0,0,0,0,1,1,1,0,0
+600,0.26963011,297,0.11879238,-0.04358589,0.35189424,0.35376565,0.35299948,5.5511151e-16,8.0716356
+820,0.48534188,297,0.21466518,-0.076805025,0.15102137,0.152481,0.15187456,6.6613381e-16,15.070646
