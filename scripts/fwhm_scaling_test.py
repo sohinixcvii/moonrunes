@@ -15,13 +15,24 @@ reruns the same test with the FWHM given to the pipeline set to:
 * arithmetic -- (major + minor) / 2
 * geometric  -- sqrt(major * minor)
 
-and reports the notebook's discrepancy metric, 100 * (two-step / one-step - 1) [%]:
-its median, rms (``np.nanstd``), max |delta| over the sky, and rms in the TRIS stripe.
-The same statistics of the plain difference two-step - one-step [K] are added
-alongside.  Nothing in ``src/`` is modified; the beam and the step-1 convolution are
-copied from the notebook.
+and reports the notebook's discrepancy metric, the fractional difference
+100 * (two-step / one-step - 1) [%]: its median, std (``np.nanstd``, which the notebook
+calls "rms"), max |delta| over the sky, and std in the TRIS stripe.  The same
+statistics of the residual two-step - one-step [K] are added alongside, plus its mean.
+Nothing in ``src/`` is modified; the beam and the step-1 convolution are copied from
+the notebook.
 
-    python scripts/fwhm_scaling_test.py [--out outputs/fwhm_scaling_test]
+Outputs (``--out``, default ``outputs/fwhm_scaling_test/``):
+
+* ``fwhm_scaling_table.csv``         -- one row per kernel x scaling; headers name each statistic
+* ``fwhm_scaling_comparison.png``    -- median / std / max |delta| [%] against the scaling
+* ``fwhm_scaling_residual_maps.png`` -- the residual map [K] of every test, one shared scale
+* ``fwhm_scaling_residual_maps.npz`` -- those maps (nside 16), keyed ``<kernel>__<scaling>``
+
+Run (``limtod`` conda env; ~7.5 min, most of it the elliptical and cut-beam kernels):
+
+    python scripts/fwhm_scaling_test.py [--out DIR]
+    python scripts/fwhm_scaling_test.py --replot-maps   # redraw the residual maps only, seconds
 """
 
 from __future__ import annotations

@@ -11,6 +11,8 @@ Every plot in the project lives in one of three places. Saved files are listed b
 | `moonrunes_paper/figures/` (in `Papers_and_reports`) | the 5 paper figures, PDF + PNG, with captions in its `README.md` | `notebooks/10_paper_plots.ipynb` |
 | `moonrunes/outputs/paper_plots/` | the working figure set (Figures 1–13b), PDF + PNG | `notebooks/08_update_plots.ipynb` |
 | inside each notebook | diagnostic and exploration plots, not saved to files | notebooks 01–09 |
+| `moonrunes/outputs/fwhm_scaling_test/` | the FWHM scaling test (added 2026-10-19) | `scripts/fwhm_scaling_test.py` |
+| `moonrunes/beam_averaging_blobs/<map>/` | the spectral-index blob test (added 2026-10-19/20) | `beam_averaging_blobs/*.py` |
 
 Cell numbers are 0-based, as `nbformat` counts them, and were taken on 2026-10-15. They shift if cells are added above. The section heading is the stable way to find a plot.
 
@@ -139,6 +141,26 @@ Plots stay in the notebooks.
 | 09 beam FWHM tests | 11 | 4. archive-cut beam FWHM | cut beam vs Gaussian, in dB |
 | 09 | 15 | 6. Test 2: round trip | FWHM error vs nside |
 
+## Standalone tests (saved files)
+
+Both are described, with rerun commands, under "Standalone tests" in `README.md`.
+
+**FWHM scaling** — `outputs/fwhm_scaling_test/`, made by `scripts/fwhm_scaling_test.py`
+
+| File | Shows |
+| --- | --- |
+| `fwhm_scaling_comparison.png` | two-step / one-step − 1 [%]: median, std (and std in the TRIS stripe), max \|Δ\|, for each FWHM scaling, one line per kernel |
+| `fwhm_scaling_residual_maps.png` | the residual two-step − one-step [K] on the sky, 3 kernels × 4 scalings, one shared scale |
+
+**Beam averaging with spectral-index blobs** — `beam_averaging_blobs/<map>/` (`HASLAM_DESTRIPED_ONLY/` is the recorded run; `HASLAM/` the earlier one)
+
+| File | Shows | Made by |
+| --- | --- | --- |
+| `plotA_shape_change_vs_lst.png` | change in shape of T vs LST [%] at 600 and 820 MHz, blobs marked, largest change annotated | `replot_from_csv.py` |
+| `plotB_beam_dilution.png` | largest change in shape without vs with the TRIS beam (bars, separate axes) | `replot_from_csv.py` |
+| `t_vs_lst_comparison.png` | per frequency: normalised T, T_ν/T₄₀₈ and shape change vs LST, blobs vs uniform-β control | `beam_averaging_blobs.py` |
+| `beta_map.png` | the β map in equatorial with the TRIS ring | `beam_averaging_blobs.py` |
+
 ## Find a plot by topic
 
 | Question | Where to look |
@@ -160,5 +182,7 @@ Plots stay in the notebooks.
 | Harmonic-space ringing, C_ℓ | 03 cells 64–75 |
 | Convolve then deconvolve | 03 cells 78–89 |
 | Two-step vs one-step beam matching | 03 cells 93–96 |
+| Which FWHM to give the pipeline for an elliptical survey beam | `outputs/fwhm_scaling_test/` |
+| Does beam averaging change the shape of T vs LST with varying β? | `beam_averaging_blobs/HASLAM_DESTRIPED_ONLY/plotA_*`, `plotB_*` |
 | Stage 1 fit quality and residuals | 03 cells 5–37 |
 | Coordinate frames | 04 cells 5–17 |

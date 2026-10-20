@@ -10,6 +10,45 @@ resolve before running anything".
 
 ## [Unreleased]
 
+### Added
+
+#### Beam averaging with spectral-index blobs (2026-10-19/20)
+
+- 🧪 **`beam_averaging_blobs/`, new.** Tests whether beam averaging changes the *shape* of
+  T vs LST across frequencies when regions inside the TRIS beam have different spectral
+  indices.
+  - Haslam 408 MHz is extrapolated with a β map: β₀ = −2.7 plus four 4° blobs on the TRIS
+    stripe, with β from −2.5 to −2.9.
+  - The maps are observed along the ring at 408/600/820 MHz with the TOD route's own code
+    (`sed_prototype.Inputs._native_tod`), and compared with a uniform-β control.
+  - Rerun: `python beam_averaging_blobs/beam_averaging_blobs.py`. Details, parameters and
+    caveats are in `beam_averaging_blobs/README.md`.
+- **Findings** (`HASLAM_DESTRIPED_ONLY.fits`):
+  - The control is shape-invariant to 7×10⁻¹⁶.
+  - With blobs, the shape changes by up to 0.27% / 0.49% (600 / 820 MHz), and the
+    normalisation by less than 0.1%.
+  - Without the beam the shape changes by 8% / 15%, so the beam dilutes the effect strongly.
+  - The largest effect is from the blob next to Cygnus A, which the destriped map keeps:
+    0.49% here against 0.23% on `HASLAM.fits`.
+
+#### Two-step vs one-step beam matching with four FWHM scalings (2026-10-19)
+
+- 🧪 **`scripts/fwhm_scaling_test.py`, new.** Reruns notebook 03's two-step vs one-step
+  test (`PIPELINE.md` App. E) with the complicated survey beam's FWHM given to the pipeline
+  as the major axis (5.010°, as in the notebook), the minor axis (3.007°), the arithmetic
+  mean (4.009°) or the geometric mean (3.881°). All three kernels.
+  - Rerun: `python scripts/fwhm_scaling_test.py` (~7.5 min). `--replot-maps` redraws the
+    residual maps from the saved `.npz`.
+  - Outputs are in `outputs/fwhm_scaling_test/`: a CSV with one row per test, a comparison
+    plot, and a residual map [K] for every test.
+- **Findings:**
+  - The major-axis rows reproduce the notebook's table exactly.
+  - The major axis gives the smallest discrepancy for every kernel and the minor axis the
+    largest; the two means fall in between.
+  - Every scaling still under-corrects (a positive median), because the sidelobes and error
+    beam smooth beyond the main lobe.
+- 📝 README "Standalone tests", `PIPELINE.md` App. E and App. F, `PLOT_INDEX.md`.
+
 ### Changed
 
 #### ARCADE 2 excluded from the beam-convolved SED studies (2026-10-15)

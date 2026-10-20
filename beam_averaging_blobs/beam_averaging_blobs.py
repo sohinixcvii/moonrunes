@@ -16,8 +16,11 @@ Repo code used, read only:
   a stand-in object that carries only the attributes those two methods read;
 * ``limTOD.tris`` (via ``import_limtod_tris``) -- ring LSTs, beam, horizon.
 
-Outputs (this folder): summary.csv, t_vs_lst.csv, t_vs_lst_comparison.png,
-beta_map.png.
+Outputs go to ``beam_averaging_blobs/<map stem>/`` (set by ``HASLAM_FILE``):
+summary.csv, t_vs_lst.csv, t_vs_lst_comparison.png, beta_map.png.  See README.md in
+this folder; ``replot_from_csv.py`` redraws the summary figures from the CSVs.
+
+Run (``limtod`` conda env; a few seconds):
 
     python beam_averaging_blobs/beam_averaging_blobs.py
 """
