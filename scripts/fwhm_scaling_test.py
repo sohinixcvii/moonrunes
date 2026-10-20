@@ -27,6 +27,7 @@ copied from the notebook.
 from __future__ import annotations
 
 import argparse
+import csv
 import os
 import sys
 import time
@@ -41,6 +42,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
@@ -67,6 +69,27 @@ KERNEL_KEY = {"circular Gaussian (old)": "circular_gaussian",
 KCOL = {"circular Gaussian (old)": "#6b7280", "elliptical Gaussian": "#eb6834",
         "TRIS cuts (measured)": "#256abf"}
 SCALING_ORDER = ["minor", "geometric", "arithmetic", "major"]
+KSHORT = {"circular Gaussian (old)": "circular", "elliptical Gaussian": "elliptical",
+          "TRIS cuts (measured)": "TRIS cuts"}
+
+# CSV headers.  "residual" = two-step - one-step [K]; "fractional difference" =
+# two-step / one-step - 1 [%] (the notebook's metric).  "std" is np.nanstd, i.e. the
+# rms about the mean -- what the notebook labels "rms".
+CSV_HEADERS = {
+    "kernel": "pipeline kernel",
+    "scaling": "FWHM scaling",
+    "fwhm_given_deg": "FWHM given to pipeline [deg]",
+    "pct_median": "median of fractional difference (two-step/one-step - 1) [%]",
+    "pct_rms": "std of fractional difference [%]",
+    "pct_max_abs": "max |fractional difference| [%]",
+    "pct_stripe_rms": "std of fractional difference in TRIS stripe [%]",
+    "K_mean": "mean of residual (two-step - one-step) [K]",
+    "K_median": "median of residual [K]",
+    "K_rms": "std of residual [K]",
+    "K_max_abs": "max |residual| [K]",
+    "K_stripe_rms": "std of residual in TRIS stripe [K]",
+    "kernel_applied_deg": "kernel applied by pipeline [deg]",
+}
 
 
 def complicated_beam(theta, psi):
@@ -102,9 +125,13 @@ def stats(d, band):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", default=str(REPO / "outputs" / "fwhm_scaling_test"))
+    ap.add_argument("--replot-maps", action="store_true",
+                    help="only redraw the residual-map figure from the saved .npz and CSV")
     args = ap.parse_args()
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
+    if args.replot_maps:
+        return replot_maps(out_dir)
 
     config = load_config(REPO / "configs" / "run_config.yaml")
     haslam_path = config.resolve_path("paths.haslam_map_fits")
@@ -166,12 +193,13 @@ def main():
     direct = {label: pipeline(sky64, haslam_native, label)[0] for label in specs}
     print(f"one-step reference done in {time.time() - t0:.0f} s")
 
-    rows = []
+    rows, resid = [], {}
     for label in specs:
         for name in SCALING_ORDER:
             two, info = pipeline(pre, scalings[name], label)
+            resid[label, name] = two - direct[label]                     # residual map [K]
             pct = stats(100 * (two / direct[label] - 1), band)
-            kel = stats(two - direct[label], band)
+            kel = {"mean": float(np.nanmean(resid[label, name])), **stats(resid[label, name], band)}
             chose = (f"circular {info['extra_fwhm_deg']:.3f}"
                      if info["kernel"] == "circular_gaussian"
                      else f"{info['kernel_shape']} {info['kernel_fwhm_e_deg']:.3f} x {info['kernel_fwhm_h_deg']:.3f}")
@@ -182,23 +210,28 @@ def main():
         print(f"{label} done in {time.time() - t0:.0f} s")
     print()
 
-    # CSV
+    # CSV (header names in CSV_HEADERS; the metadata line comes first, prefixed with #)
     csv_path = out_dir / "fwhm_scaling_table.csv"
-    cols = list(rows[0])
-    with open(csv_path, "w") as f:
-        f.write(f"# map=Haslam {HASLAM_FREQ_MHZ:.0f} MHz ({haslam_path.name}); test=notebook 03 two-step vs one-step,"
-                f" complicated survey beam; pct_* = 100*(two-step/one-step - 1); K_* = two-step - one-step\n")
-        f.write(",".join(cols) + "\n")
+    cols = list(CSV_HEADERS)
+    with open(csv_path, "w", newline="") as f:
+        f.write(f"# map=Haslam {HASLAM_FREQ_MHZ:.0f} MHz ({haslam_path.name}); test=notebook 03 two-step vs one-step"
+                f" (complicated survey beam); residual = two-step - one-step [K]; nside {NSIDE_OUT} maps\n")
+        w = csv.writer(f)
+        w.writerow([CSV_HEADERS[c] for c in cols])
         for r in rows:
-            f.write(",".join(f"{r[c]:.6g}" if isinstance(r[c], float) else f'"{r[c]}"' for c in cols) + "\n")
+            w.writerow([f"{r[c]:.6g}" if isinstance(r[c], float) else r[c] for c in cols])
+
+    # Residual maps, so the plot can be redone without the 7-minute rerun.
+    np.savez(out_dir / "fwhm_scaling_residual_maps.npz",
+             **{f"{KERNEL_KEY[label]}__{name}": m for (label, name), m in resid.items()})
 
     # Table to stdout
-    print(f"{'kernel':<26}{'scaling':<12}{'FWHM':>8}{'median':>9}{'rms':>8}{'max|Δ|':>9}{'stripe rms':>12}"
-          f"{'rms [K]':>10}{'max|Δ| [K]':>12}")
+    print(f"{'kernel':<26}{'scaling':<12}{'FWHM':>8}{'median':>9}{'std':>8}{'max|Δ|':>9}{'stripe std':>12}"
+          f"{'mean [K]':>10}{'std [K]':>9}{'max|Δ| [K]':>12}")
     for r in rows:
         print(f"{r['kernel']:<26}{r['scaling']:<12}{r['fwhm_given_deg']:7.3f}°{r['pct_median']:+8.2f}%"
               f"{r['pct_rms']:7.2f}%{r['pct_max_abs']:8.2f}%{r['pct_stripe_rms']:11.2f}%"
-              f"{r['K_rms']:10.4f}{r['K_max_abs']:12.4f}")
+              f"{r['K_mean']:+10.4f}{r['K_rms']:9.4f}{r['K_max_abs']:12.4f}")
 
     # Plot: the metric for each scaling (ordered by the FWHM given), one line per kernel.
     # Evenly spaced categories: geometric and arithmetic are only 0.13 deg apart.
@@ -226,7 +259,54 @@ def main():
     png_path = out_dir / "fwhm_scaling_comparison.png"
     fig.savefig(png_path, dpi=150, facecolor="white")
 
-    print(f"\nwrote {csv_path}\nwrote {png_path}")
+    res_path = out_dir / "fwhm_scaling_residual_maps.png"
+    plot_residual_maps(resid, scalings, list(specs), res_path)
+
+    print(f"\nwrote {csv_path}\nwrote {png_path}\nwrote {res_path}"
+          f"\nwrote {out_dir / 'fwhm_scaling_residual_maps.npz'}")
+
+
+def plot_residual_maps(resid, scalings, labels, path):
+    """One panel per test (rows = kernels, columns = scalings), one shared K scale."""
+    divb = LinearSegmentedColormap.from_list("divb", ["#1c5cab", "#86b6ef", "#eeeeec", "#f2a582", "#b2432a"])
+    divb.set_bad("#e8e8e6")
+    span = float(np.nanpercentile(np.abs(np.concatenate([m for m in resid.values()])), 99))
+    nr, nc = len(labels), len(SCALING_ORDER)
+    top_in, bottom_in = 0.5, 0.9                         # room for the title and one shared colour bar
+    fig = plt.figure(figsize=(4.4 * nc, 3.0 * nr + top_in + bottom_in))
+    H = fig.get_figheight()
+    w, h = 1.0 / nc, (1.0 - (top_in + bottom_in) / H) / nr
+    y0 = bottom_in / H
+    for r_, label in enumerate(labels):
+        for c_, name in enumerate(SCALING_ORDER):
+            m = resid[label, name]
+            # Panels placed explicitly (sub=(nr, nc, i) leaves no room for a title or a shared colour bar).
+            hp.mollview(m, fig=fig.number, cmap=divb, min=-span, max=span, cbar=False, notext=True,
+                        title=f"{KSHORT[label]}, {name} ({scalings[name]:.2f}°)\n"
+                              f"mean {np.nanmean(m):+.3f} K, std {np.nanstd(m):.3f} K")
+            plt.gca().set_position([c_ * w + 0.005, y0 + (nr - 1 - r_) * h, w - 0.01, h - 0.07])
+            hp.graticule(dpar=30, dmer=60, color="#9aa0a6", lw=0.3)
+    cax = fig.add_axes([0.3, 0.5 / H, 0.4, 0.16 / H])
+    fig.colorbar(plt.cm.ScalarMappable(norm=plt.Normalize(-span, span), cmap=divb), cax=cax,
+                 orientation="horizontal", label="residual, two-step − one-step [K]")
+    fig.suptitle(f"Residual two-step − one-step [K], Haslam {HASLAM_FREQ_MHZ:.0f} MHz, complicated survey beam, "
+                 f"nside {NSIDE_OUT}  (colour scale ±{span:.2f} K = 99th percentile of |residual|)",
+                 x=0.01, y=0.995, ha="left", va="top", fontsize=11)
+    fig.savefig(path, dpi=150, facecolor="white")
+
+
+def replot_maps(out_dir):
+    """Redraw the residual-map figure from the saved .npz and CSV (no pipeline rerun)."""
+    z = np.load(out_dir / "fwhm_scaling_residual_maps.npz")
+    key_label = {v: k for k, v in KERNEL_KEY.items()}
+    resid = {(key_label[k.split("__")[0]], k.split("__")[1]): z[k] for k in z.files}
+    with open(out_dir / "fwhm_scaling_table.csv") as f:
+        rows = list(csv.DictReader(line for line in f if not line.startswith("#")))
+    scalings = {r[CSV_HEADERS["scaling"]]: float(r[CSV_HEADERS["fwhm_given_deg"]]) for r in rows}
+    labels = [l for l in KERNEL_KEY if any(k[0] == l for k in resid)]
+    path = out_dir / "fwhm_scaling_residual_maps.png"
+    plot_residual_maps(resid, scalings, labels, path)
+    print(f"wrote {path}")
 
 
 if __name__ == "__main__":

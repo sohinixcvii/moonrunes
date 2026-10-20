@@ -1,0 +1,5 @@
+# shape change = 100*(S_blob/S_control - 1), S = T/mean_LST(T); beam = limTOD TRIS cut beam
+freq_mhz,max_abs_shape_change_pct,at_lst_deg,rms_shape_change_pct,normalisation_change_pct,ratio_blob_min,ratio_blob_max,ratio_control,control_shape_vs_408_max_abs,no_beam_max_abs_shape_change_pct
+408,0,0,0,0,1,1,1,0,0
+600,0.22580275,30,0.089239793,-0.0086628229,0.35230491,0.35376591,0.35299948,4.4408921e-16,8.0572486
+820,0.41367424,30,0.16174045,-0.01417334,0.15134202,0.15248121,0.15187456,4.4408921e-16,15.043207
