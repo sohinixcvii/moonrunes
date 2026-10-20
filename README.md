@@ -281,6 +281,31 @@ All are committed **with their outputs**, so they can be read without re-running
 
 ---
 
+## Standalone tests
+
+Scripts outside the notebooks, each self-contained. They import the repo's code read-only
+and change nothing in `src/`. Run them in the `limtod` conda environment.
+
+| Test | What it checks | Rerun | Outputs |
+|---|---|---|---|
+| **FWHM scaling** — `scripts/fwhm_scaling_test.py` (2026-10-19) | Notebook 03's two-step vs one-step beam matching (`PIPELINE.md` App. E), rerun with four FWHMs given to the pipeline for the complicated survey beam: major axis, minor axis, their arithmetic mean and geometric mean. All three kernels; Haslam 408 MHz, nside 64 → 16. | `python scripts/fwhm_scaling_test.py` (~7.5 min); `--replot-maps` redraws the residual maps from the saved `.npz` in seconds | `outputs/fwhm_scaling_test/`: table CSV, comparison plot, residual maps (PNG + `.npz`) |
+| **Beam averaging with spectral-index blobs** — `beam_averaging_blobs/` (2026-10-19/20) | Whether beam averaging changes the *shape* of T vs LST across frequencies when the TRIS beam covers regions of different β. Haslam extrapolated with a blob β map, observed with the TOD route's TRIS beam at 408/600/820 MHz, compared with a uniform-β control. | `python beam_averaging_blobs/beam_averaging_blobs.py` (seconds); `replot_from_csv.py` redraws the summary plots from the CSVs | `beam_averaging_blobs/<map>/`; details in `beam_averaging_blobs/README.md` |
+
+**Findings:**
+
+- **FWHM scaling:** telling the pipeline the **major-axis** FWHM gives the smallest
+  discrepancy for every kernel. The minor axis gives the largest; the two means fall in
+  between.
+  - The std of the residual (two-step − one-step) goes from 0.45 to 0.26 K (circular),
+    0.50 to 0.30 K (elliptical) and 0.37 to 0.17 K (TRIS cuts), minor axis to major axis.
+  - The mean residual is −0.002 to −0.004 K throughout.
+- **Beam averaging:** the shape changes by up to 0.27% (600 MHz) and 0.49% (820 MHz), on
+  `HASLAM_DESTRIPED_ONLY.fits`; the normalisation changes by less than 0.1%. Without the beam
+  the same blobs change the shape by 8% and 15%, so the beam dilutes them strongly. The
+  largest effect comes from a blob next to Cygnus A, which the destriped map keeps.
+
+---
+
 ## The three blockers
 
 | | Status |
@@ -309,6 +334,8 @@ src/moonrunes/
     sed_prototype.py        stage 3 prototype: the TOD route and the map route of the SED calibration
     stage3..stage5          empty
 notebooks/                  analysis and plotting, committed with outputs
+scripts/                    standalone tests (fwhm_scaling_test.py); see "Standalone tests"
+beam_averaging_blobs/       the spectral-index blob test: script, CSVs, plots, README
 external/bayesian_skymap    submodule (patched fork)
 outputs/                    stage products, gitignored
 res/                        input maps: TRIS text products, Haslam, ARCADE 2, Maipu 45 MHz, Stockert 1420 MHz
