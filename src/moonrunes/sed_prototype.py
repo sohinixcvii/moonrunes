@@ -33,10 +33,57 @@ from .stage1_tris_maps import import_limtod_tris, load_stage1
 from .stage2_beam_matching import match_to_tris_beam, regrid_to_nside
 
 NU0_MHZ = 408.0
-#: Error assumed for maps with no published per-pixel error (fraction of T).
+#: Fallback error (fraction of T) for a map with no entry in PUBLISHED_ERRORS.
+#: Since 2026-10-21 every fitted survey has an entry, so nothing in the fit uses it.
 ASSUMED_FRACTION = 0.10
 #: ARCADE 2 calibration uncertainty, Fixsen et al. 2011 Table 3 (K).
 ARCADE_CAL_K = {3150.0: 7.5e-3, 3410.0: 6.0e-3}
+#: Each survey's own published uncertainty, keyed by file (2026-10-21, replacing the 10%
+#: placeholder).  ``scale`` is the temperature-scale (gain) error as a fraction of T,
+#: ``zero_k`` the zero-level error and ``noise_k`` the rms noise, all 1 sigma.
+#: sigma_for combines them as scale*|T| (+) zero_k (+) noise_k, in quadrature, per point.
+#: 0 means the source quotes no such term.  ``choice`` notes where a value is a judgement.
+PUBLISHED_ERRORS: Dict[str, Dict[str, object]] = {
+    "LWA_35MHz.fits": dict(
+        scale=0.20, zero_k=0.0, noise_k=0.0,
+        source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
+               "15-25% (conservative), for both structure and sky-averaged temperature",
+        choice="20% = middle of the quoted 15-25% range; no separate zero level is quoted"),
+    "LWA_80MHz.fits": dict(
+        scale=0.20, zero_k=0.0, noise_k=0.0,
+        source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
+               "15-25% (conservative), for both structure and sky-averaged temperature",
+        choice="20% = middle of the quoted 15-25% range; no separate zero level is quoted"),
+    "MAIPU_45mhZ.fits": dict(
+        scale=0.017, zero_k=39.0, noise_k=0.0,
+        source="Monsalve et al. 2021 (LAMBDA fg_maipu_info): scale 1.076 +/- 0.034 and zero "
+               "level -160 +/- 78 K, both 2 sigma, against EDGES",
+        choice="Guzman et al. 2011 quote no error; these are the 1 sigma errors of Monsalve's "
+               "corrections, which are NOT applied to the map in res/"),
+    "CHIPASS_1400MHz.fits": dict(
+        scale=0.05, zero_k=0.5, noise_k=0.030,
+        source="Calabretta et al. 2014 sec. 4: rms error 30 mK, zero level set to Reich "
+               "et al.'s 1420 MHz map; scale and zero error taken from that map",
+        choice="CHIPASS quotes no scale or zero-level error of its own; Stockert's are used"),
+    "STOCKERT_VILLA_1400MHZ.fits": dict(
+        scale=0.05, zero_k=0.5, noise_k=0.017,
+        source="LAMBDA fg_stockert_villa_info; Testori et al. 2001: gain scale ~5%, zero "
+               "level 0.5 K, sensitivity 50 mK = 3x rms noise",
+        choice="noise = 50 mK / 3"),
+    "RHODES_HARTRAO_2326MHz.fits": dict(
+        scale=0.05, zero_k=0.080, noise_k=0.030,
+        source="Jonas, Baart & Nicolson 1998: temperature scale < 5%, zero level < 80 mK, "
+               "rms noise < 30 mK",
+        choice="the quoted upper limits are used as 1 sigma"),
+    "HASLAM.fits": dict(
+        scale=0.10, zero_k=3.0, noise_k=0.0,
+        source="Haslam et al. 1982: 10% temperature scale, 3 K zero level",
+        choice="target map, not a fit point; used only by notebook 03's noise test"),
+    "HASLAM_DESTRIPED_ONLY.fits": dict(
+        scale=0.10, zero_k=3.0, noise_k=0.0,
+        source="Haslam et al. 1982: 10% temperature scale, 3 K zero level",
+        choice="target map, not a fit point; used only by notebook 03's noise test"),
+}
 MIN_COVERAGE = 0.5
 #: Zero-mean prior on the TOD-route correction: (fraction of target, constant K).
 CORRECTION_PRIOR = (0.10, 0.91)
@@ -70,11 +117,16 @@ def fit_power_law(nu, t, s) -> Optional[Dict[str, object]]:
 
 
 def sigma_for(m: Dict[str, object], t_excess):
-    """Error bar for a non-TRIS point: ARCADE 2 calibration, else the assumed fraction."""
+    """Error bar for a non-TRIS point: ARCADE 2 calibration, else the survey's published
+    scale, zero-level and noise errors (PUBLISHED_ERRORS) in quadrature, else the fallback
+    fraction."""
     t = np.asarray(t_excess, dtype=float)
     if m["freq_mhz"] in ARCADE_CAL_K:
         return np.full_like(t, ARCADE_CAL_K[m["freq_mhz"]])
-    return ASSUMED_FRACTION * np.abs(t)
+    e = PUBLISHED_ERRORS.get(m.get("file"))
+    if e is None:
+        return ASSUMED_FRACTION * np.abs(t)
+    return np.sqrt((e["scale"] * t) ** 2 + e["zero_k"] ** 2 + e["noise_k"] ** 2)
 
 
 def ring_sigma(ring) -> np.ndarray:

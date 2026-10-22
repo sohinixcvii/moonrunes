@@ -51,6 +51,35 @@ resolve before running anything".
 
 ### Changed
 
+#### Survey error bars: published values replace the 10% placeholder (2026-10-21)
+
+- 🔧 **`sed_prototype.sigma_for` now uses each survey's own published uncertainty.**
+  The new table `sed_prototype.PUBLISHED_ERRORS` holds, per file, the temperature-scale
+  error (fraction of T), the zero-level error (K) and the rms noise (K), each with its
+  source. They are added in quadrature for every point: σ = scale·|T| ⊕ zero ⊕ noise.
+
+  | Survey | scale | zero level | noise | source |
+  |---|---|---|---|---|
+  | LWA1 35, 80 MHz | 20% | – | – | Dowell et al. 2017 (LAMBDA: 15–25%; middle used) |
+  | Maipu + MU 45 MHz | 1.7% | 39 K | – | Monsalve et al. 2021 (2σ: ±0.034, ±78 K) |
+  | CHIPASS 1400 MHz | 5% | 0.5 K | 30 mK | Calabretta et al. 2014; scale and zero from Stockert |
+  | Stockert + Villa-Elisa 1420 MHz | 5% | 0.5 K | 17 mK | Testori et al. 2001 / LAMBDA |
+  | Rhodes/HartRAO 2326 MHz | 5% | 80 mK | 30 mK | Jonas et al. 1998 (upper limits) |
+  | Haslam 408 MHz (target; notebook 03 only) | 10% | 3 K | – | Haslam et al. 1982 |
+
+  - TRIS (ring errors, or stage 1 posterior ⊕ ẑ) and ARCADE 2 (Fixsen et al. 2011) are
+    unchanged. `ASSUMED_FRACTION` (10%) stays only as a fallback for a map with no entry.
+  - Judgement calls, recorded in each entry's `choice`: LWA's 20% is the middle of a range;
+    Maipu's are the errors of corrections (×1.076, −160 K) that are **not** applied to the
+    map in `res/`; CHIPASS quotes no scale or zero error of its own; Rhodes's are limits.
+  - The errors are still diagonal: a scale or zero-level error is really common to every
+    point of a survey, but each point is treated as independent.
+- 📝 Notebook 07 (its own copy of `sigma_for`) and notebook 03's noise test now use the
+  same table; their saved outputs were made with the 10% and were not rerun.
+  `model_comparison/error_bars.csv` has the same values (new kind `published`, with
+  `scale_frac`, `zero_level_k`, `noise_k` columns), so no point is a placeholder any more.
+- Effect on the SED fit: `PIPELINE.md` §6.
+
 #### ARCADE 2 excluded from the beam-convolved SED studies (2026-10-15)
 
 - ✂️ **New config key `sed.exclude_maps: [ARCADE2_315.fits, ARCADE2_341.fits]`**, applied
