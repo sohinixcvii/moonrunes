@@ -1,0 +1,54 @@
+# Bayesian comparison of spectral models -- every choice in one place.
+# Nothing here was tuned to the data.
+
+data:
+  # tod: one SED per TRIS ring sample (sed_prototype TOD route: ring data + every map
+  #      observed through the TRIS beam with limTOD).
+  # map: one SED per TRIS-stripe pixel (sed_prototype map route: stage 1 TRIS maps +
+  #      every map beam-matched with match_to_tris_beam).  Many more units, so slower.
+  route: tod
+  # The Haslam map Inputs treats as the target (not a fit point), as sed_prototype does.
+  target_file: HASLAM_DESTRIPED_ONLY.fits
+  # Error bars per input, with a column marking placeholders.
+  error_bars_csv: error_bars.csv
+  # A unit (ring sample or pixel) is fitted only if it has at least this many usable
+  # points, so every model has >= 1 degree of freedom (largest model: 3 parameters).
+  min_points: 4
+  # null = every unit; or a list of ring-sample indices / HEALPix pixels.
+  units: null
+
+zero_level:
+  # TODO N-3: is stage 1's fitted zero level z-hat sky (add it to the TRIS temperatures)
+  # or instrument (leave it out)?  Applies to the MAP route only: the TOD route fits the
+  # archive ring data, which contain no z-hat (sed_prototype.py:255-258).
+  # true reproduces sed_prototype's current map-route behaviour (sed_prototype.py:144-146).
+  add_zhat_to_tris: true
+
+models:
+  # Pivot frequency for every model (sed_prototype.NU0_MHZ).  x = ln(nu / nu0).
+  nu0_mhz: 408.0
+  # Moment expansion order: 2 -> omega2 only; 3 -> omega2 and omega3.
+  moment_order: 2
+  # Spectral index the moment expansion is expanded about (beta-bar, Chluba et al. 2017).
+  #   a number (e.g. -2.7): beta is FIXED at this value and the first moment omega1 is
+  #                         a free parameter (prior below);
+  #   null:                 beta is free and omega1 is fixed at 0 (the free beta absorbs it).
+  # Change this value to test other expansion points.
+  moment_beta_fixed: -2.7
+
+# All priors.  "uniform" is flat in the value; "loguniform" is flat in log(value).
+# The x^2 coefficients are given matching ranges: C in [-0.5, 0.5] and omega2/2 in
+# [-0.5, 0.5], so neither model gets a wider prior on curvature than the other.
+priors:
+  A_K:      {type: loguniform, low: 1.0,  high: 1000.0}   # CMB-removed RJ temperature at nu0
+  beta:     {type: uniform,    low: -3.5, high: -1.5}
+  C:        {type: uniform,    low: -0.5, high: 0.5}      # curved power law
+  omega1:   {type: uniform,    low: -1.0, high: 1.0}      # moment expansion, 1st order (only if moment_beta_fixed is set)
+  omega2:   {type: uniform,    low: -1.0, high: 1.0}      # moment expansion, 2nd order
+  omega3:   {type: uniform,    low: -1.0, high: 1.0}      # moment expansion, 3rd order (if used)
+
+sampler:
+  # UltraNest defaults, not tuned.
+  min_num_live_points: 400
+  dlogz: 0.5
+  log_dir: null          # null = keep nothing on disk

@@ -89,7 +89,12 @@ KSHORT = {"circular Gaussian (old)": "circular", "elliptical Gaussian": "ellipti
 CSV_HEADERS = {
     "kernel": "pipeline kernel",
     "scaling": "FWHM scaling",
+    "survey_beam": "survey beam (what the sky is first smoothed with)",
+    "target_beam": "target beam (what the pipeline smooths the map to)",
+    "fwhm_axis": "survey beam width told to the pipeline (which axis)",
     "fwhm_given_deg": "FWHM given to pipeline [deg]",
+    "compared_against": "compared against (the one-step reference)",
+    "kernel_applied": "smoothing the pipeline actually applied to the two-step map",
     "pct_median": "median of fractional difference (two-step/one-step - 1) [%]",
     "pct_rms": "std of fractional difference [%]",
     "pct_max_abs": "max |fractional difference| [%]",
@@ -99,8 +104,41 @@ CSV_HEADERS = {
     "K_rms": "std of residual [K]",
     "K_max_abs": "max |residual| [K]",
     "K_stripe_rms": "std of residual in TRIS stripe [K]",
-    "kernel_applied_deg": "kernel applied by pipeline [deg]",
 }
+
+
+def survey_beam_text():
+    return (f"made-up 'complicated' survey beam: oval main lobe {CB['major']:g} x {CB['minor']:g} deg "
+            f"(long axis tilted {CB['pa']:g} deg east of north), plus a ring {CB['ring_r']:g} deg out "
+            f"({CB['ring_db']:g} dB) and a broad {CB['shoulder_fwhm']:g} deg halo ({CB['shoulder_db']:g} dB)")
+
+
+def target_beam_text(kernel_key, fwhm_e, fwhm_h, target_circ):
+    if kernel_key == "circular_gaussian":
+        return (f"TRIS beam approximated as a round Gaussian, {target_circ:.3f} deg wide in every direction "
+                f"(the wider of the two TRIS widths)")
+    if kernel_key == "elliptical_gaussian":
+        return f"TRIS beam approximated as an oval Gaussian, {fwhm_e:.3f} deg (E plane) x {fwhm_h:.3f} deg (H plane)"
+    return (f"the real, measured TRIS beam (from the archive's E- and H-plane cuts), "
+            f"{fwhm_e:.3f} deg (E plane) x {fwhm_h:.3f} deg (H plane) at half power")
+
+
+def fwhm_axis_text(name, s):
+    return {"major": f"long axis of the survey beam's main lobe ({s['major']:.3f} deg, measured)",
+            "minor": f"short axis of the survey beam's main lobe ({s['minor']:.3f} deg, measured)",
+            "arithmetic": f"average of the long and short axes: ({s['major']:.3f} + {s['minor']:.3f}) / 2 "
+                          f"= {s['arithmetic']:.3f} deg",
+            "geometric": f"geometric mean of the long and short axes: sqrt({s['major']:.3f} x {s['minor']:.3f}) "
+                         f"= {s['geometric']:.3f} deg"}[name]
+
+
+def kernel_applied_text(info):
+    if info["kernel"] == "circular_gaussian":
+        return f"round Gaussian, {info['extra_fwhm_deg']:.3f} deg wide"
+    e, h = info["kernel_fwhm_e_deg"], info["kernel_fwhm_h_deg"]
+    if info["kernel_shape"] == "tris_cuts":
+        return f"measured TRIS beam narrowed to {e:.3f} x {h:.3f} deg"
+    return f"oval Gaussian, {e:.3f} x {h:.3f} deg"
 
 
 def complicated_beam(theta, psi):
@@ -186,6 +224,9 @@ def main():
         return c
 
     configs = {label: config_with_kernel(KERNEL_KEY[label]) for label in specs}
+    target_circ = float(config.require("beam_matching.target_fwhm_deg"))
+    fwhm_e = float(config.require("beam_matching.elliptical.fwhm_e_deg"))
+    fwhm_h = float(config.require("beam_matching.elliptical.fwhm_h_deg"))
 
     sky64 = hp.ud_grade(frames.rotate_full_sky(hp.read_map(haslam_path), ("G", "C")), NS64)
     ones64 = np.ones(sky64.size, bool)
@@ -211,13 +252,16 @@ def main():
             resid[label, name] = two - direct[label]                     # residual map [K]
             pct = stats(100 * (two / direct[label] - 1), band)
             kel = {"mean": float(np.nanmean(resid[label, name])), **stats(resid[label, name], band)}
-            chose = (f"circular {info['extra_fwhm_deg']:.3f}"
-                     if info["kernel"] == "circular_gaussian"
-                     else f"{info['kernel_shape']} {info['kernel_fwhm_e_deg']:.3f} x {info['kernel_fwhm_h_deg']:.3f}")
-            rows.append(dict(kernel=label, scaling=name, fwhm_given_deg=scalings[name],
+            rows.append(dict(kernel=label, scaling=name,
+                             survey_beam=survey_beam_text(),
+                             target_beam=target_beam_text(KERNEL_KEY[label], fwhm_e, fwhm_h, target_circ),
+                             fwhm_axis=fwhm_axis_text(name, scalings),
+                             fwhm_given_deg=scalings[name],
+                             compared_against=(f"Haslam smoothed straight to the same target beam "
+                                               f"(pipeline told Haslam's own {haslam_native:.3f} deg beam)"),
+                             kernel_applied=kernel_applied_text(info),
                              **{f"pct_{k}": v for k, v in pct.items()},
-                             **{f"K_{k}": v for k, v in kel.items()},
-                             kernel_applied_deg=chose))
+                             **{f"K_{k}": v for k, v in kel.items()}))
         print(f"{label} done in {time.time() - t0:.0f} s")
     print()
 
@@ -225,8 +269,12 @@ def main():
     csv_path = out_dir / "fwhm_scaling_table.csv"
     cols = list(CSV_HEADERS)
     with open(csv_path, "w", newline="") as f:
-        f.write(f"# map=Haslam {HASLAM_FREQ_MHZ:.0f} MHz ({haslam_path.name}); test=notebook 03 two-step vs one-step"
-                f" (complicated survey beam); residual = two-step - one-step [K]; nside {NSIDE_OUT} maps\n")
+        f.write(f"# Each row: the sky (Haslam {HASLAM_FREQ_MHZ:.0f} MHz, {haslam_path.name}) is smoothed with the "
+                f"survey beam and then the pipeline smooths it to the target beam, told the survey beam is the width "
+                f"given (= two-step). That is compared with Haslam smoothed straight to the target beam (= one-step). "
+                f"residual = two-step - one-step [K]; fractional difference = two-step / one-step - 1 [%]; "
+                f"std = standard deviation; all on nside {NSIDE_OUT} maps. Test from notebooks/03 "
+                f"(two-step vs one-step beam matching).\n")
         w = csv.writer(f)
         w.writerow([CSV_HEADERS[c] for c in cols])
         for r in rows:

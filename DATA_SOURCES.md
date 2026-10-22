@@ -132,6 +132,29 @@ git-ignored. Download it from the LAMBDA page above and save it under that name.
 FITS image in the HPX projection, in mK, with a 14.4′ beam and the CMB included
 (Calabretta et al. 2014). `moonrunes.sky_maps` converts it back to HEALPix.
 
+## Survey uncertainties used in the SED fit
+
+None of the survey files carries an error or standard-deviation column (only temperature,
+plus `N_OBS` for ARCADE 2), so the error bars come from each survey's own publication.
+They are in `moonrunes.sed_prototype.PUBLISHED_ERRORS`, with the source and any judgement
+recorded in each entry, and are combined per point as scale·|T| ⊕ zero level ⊕ noise. Before
+2026-10-21 every survey below used an assumed 10% of T instead.
+
+| Survey | Temperature scale | Zero level | rms noise | Where it comes from |
+|---|---|---|---|---|
+| LWA1 35, 80 MHz | 20% | not quoted | not quoted | LAMBDA `fg_lwa1_radio_maps_info` (Dowell et al. 2017): "a conservative estimate of the calibration accuracy … 15–25 per cent", for structure and sky average. 20% is the middle. The paper's per-pixel uncertainty maps are not in `res/`. |
+| Maipu + MU 45 MHz | 1.7% | 39 K | not quoted | Guzmán et al. 2011 quote no error. Monsalve et al. 2021 (LAMBDA `fg_maipu_info`) find the map needs ×1.076 ± 0.034 and −160 ± 78 K (2σ) to match EDGES; the 1σ halves are used. **The corrections themselves are not applied to the map.** |
+| CHIPASS 1400 MHz | 5% | 0.5 K | 30 mK | Calabretta et al. 2014 §4: "a typical rms error of 30 mK", zero level set to Reich et al.'s 1420 MHz map. It quotes no scale or zero-level error, so Stockert's are used. |
+| Stockert + Villa-Elisa 1420 MHz | 5% | 0.5 K | 17 mK | LAMBDA `fg_stockert_villa_info`; Testori et al. 2001: gain scale ≈ 5%, zero level 0.5 K, sensitivity 50 mK = 3× rms. |
+| Rhodes/HartRAO 2326 MHz | 5% | 80 mK | 30 mK | Jonas, Baart & Nicolson 1998: scale < 5%, zero level < 80 mK, rms < 30 mK. The limits are used as 1σ. |
+| ARCADE 2 3.15, 3.41 GHz | – | 7.5, 6.0 mK | – | Fixsen et al. 2011 Table 3 (unchanged; excluded from the fit by `sed.exclude_maps`). |
+| Haslam 408 MHz | 10% | 3 K | not quoted | Haslam et al. 1982. The target, never a fit point; used only by notebook 03's noise test. |
+| TRIS 600, 820 MHz | – | 0.066 K; +0.43/−0.30 K | per sample | The archive files themselves (see the TRIS section). |
+
+Caveats: the scale and zero-level errors are common to every point of a survey, but the fit
+treats each point as independent. At 1420 MHz the 0.5 K zero level is comparable to the
+CMB-free sky on the TRIS ring, so Stockert carries little weight.
+
 ## Not on LAMBDA
 
 * **Berkhuijsen (1972), 820 MHz** — the one genuinely Haslam-independent prior basis, and

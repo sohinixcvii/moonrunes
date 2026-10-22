@@ -1,0 +1,4 @@
+model,sum_logZ,sum_logZ_err,logZ_minus_power_law,units_won,n_units,route,add_zhat_to_tris,placeholder_points,n_points
+power law,-3982.56574043637,2.85152411828228,0.0,77,120,tod,True,0,720
+curved power law,-3984.6061528176774,2.986776255577729,-2.0404123813073056,43,120,tod,True,0,720
+moment expansion (order 2),-4083.18374408905,3.1601210500983634,-100.61800365267982,0,120,tod,True,0,720

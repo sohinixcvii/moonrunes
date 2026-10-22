@@ -244,6 +244,49 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   Appendix C. Four harmonic operations were found and tested. All are ≤ 0.05% on the
   products the analysis uses, except N-11 (full resolution only). The larger effect is
   nside 16 sky pixelisation in the TODs, up to 0.5% (see S1-7).
+- [x] **N-13 — Replace the 10% placeholder survey errors.** Done 2026-10-21:
+  `sed_prototype.PUBLISHED_ERRORS` gives each survey its published scale, zero-level and
+  noise errors (sources in `DATA_SOURCES.md`, "Survey uncertainties used in the SED fit";
+  effect in `PIPELINE.md` §6 and `CHANGELOG.md`). `ASSUMED_FRACTION` is now only a fallback.
+- [ ] **N-14 — Re-run what still shows the 10% errors.** The code uses the new errors on its
+  next run, but these saved outputs predate N-13:
+  - [ ] `notebooks/07` (its own `sigma_for` copy, already updated);
+  - [ ] `notebooks/08` → `outputs/paper_plots/`;
+  - [ ] `notebooks/10` → the paper's `figures/` folder (back the old figures up first);
+  - [ ] `notebooks/03`, the "Along the TRIS ring (LST)" noise test only;
+  - [ ] `model_comparison/run_comparison.py` → `model_comparison/results/` (the 2026-10-20
+    run had 480 of 720 points on placeholders).
+- [ ] **N-15 — Treat survey scale and zero-level errors as common to all of a survey's
+  points.** Since N-13 the error bars are mostly scale and zero-level terms, which are the
+  same offset for every point of a survey, yet the fit adds them per point as independent
+  noise. The same holds for TRIS's zero level along a ring. A nuisance parameter per survey
+  (gain, offset) or a full covariance would do it properly. Until then the χ²/dof (0.99 TOD
+  route, 0.47 map route) is not a goodness-of-fit test.
+- [ ] **N-16 — Decide whether to apply Monsalve et al. 2021's corrections to Maipu 45 MHz.**
+  The map in `res/` needs ×1.076 and −160 K to match EDGES, but they are not applied. N-13
+  uses only their uncertainties (1.7%, 39 K), and Maipu now carries most of the
+  low-frequency weight, so the uncorrected offset matters.
+- [ ] **N-17 — Check the judgement calls in `PUBLISHED_ERRORS`.**
+  - LWA1: 20% is the middle of the LAMBDA page's 15–25%. Dowell et al. 2017 also publish
+    per-pixel uncertainty maps, which are not in `res/`; using them would replace the
+    single number.
+  - CHIPASS: quotes no scale or zero-level error of its own; Stockert's are borrowed.
+  - Rhodes: the published upper limits are used as 1σ.
+  - Stockert: `PIPELINE.md` App. D quotes 2.8%; the published values are 5% and 0.5 K.
+    Find where 2.8% came from or correct App. D.
+- [ ] **N-18 — Map-route TRIS error leaves out the pixel–ẑ covariance.**
+  `sed_prototype` combines the stage 1 pixel σ and σ(ẑ) in quadrature, while `PIPELINE.md`
+  and `notebooks/06` include 2Σ_pz (`inputs_audit/inputs_audit.md`).
+- [ ] **N-19 — Record main-beam vs full-beam temperature scale per survey.** Not recorded
+  in the code for any map; only `DATA_SOURCES.md` notes Stockert as full-beam
+  (`inputs_audit/inputs_audit.md`).
+- [ ] **N-20 — Model comparison (`model_comparison/`) is a skeleton, not a result.**
+  - The per-sample log-evidences are summed as if independent, but ring samples 3° apart
+    under a ~20° beam are strongly correlated, so the totals overstate the evidence.
+  - The result depends on the prior ranges in `config.yaml` (not tuned).
+  - The zero-level switch (`add_zhat_to_tris`, N-3) affects only the map route, which has
+    not been run.
+  - Re-run after N-14 (UltraNest is now in the `limtod` env, H6).
 
 ## Open decisions carried from stage 2
 
@@ -292,3 +335,9 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
 - [ ] **H5 — Decide the CI story for the end-to-end tests.**
   6 of the 26 tests skip themselves without the TRIS archive, the cached Haslam map, or
   `pygdsm`. The algebra tests run anywhere; the pipeline tests only run where the data is.
+
+- [x] **H6 — UltraNest is not in the environment.** Done 2026-10-21: UltraNest 4.6.3 is
+  installed in the `limtod` env. *(Original note:)* `model_comparison/` needs it. There is
+  no prebuilt wheel for the `limtod` env's Python 3.14, so it builds from source
+  (`python -m pip install ultranest`, about a minute). Add it to `environment.yml` if the
+  module stays. *(Not yet in `environment.yml`.)*
