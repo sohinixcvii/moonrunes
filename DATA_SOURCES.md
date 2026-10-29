@@ -132,28 +132,86 @@ git-ignored. Download it from the LAMBDA page above and save it under that name.
 FITS image in the HPX projection, in mK, with a 14.4′ beam and the CMB included
 (Calabretta et al. 2014). `moonrunes.sky_maps` converts it back to HEALPix.
 
-## Survey uncertainties used in the SED fit
+## Uncertainties (noise model) for every map
 
-None of the survey files carries an error or standard-deviation column (only temperature,
-plus `N_OBS` for ARCADE 2), so the error bars come from each survey's own publication.
-They are in `moonrunes.sed_prototype.PUBLISHED_ERRORS`, with the source and any judgement
-recorded in each entry, and are combined per point as scale·|T| ⊕ zero level ⊕ noise. Before
-2026-10-21 every survey below used an assumed 10% of T instead.
+*Updated 2026-10-28.* No map file in `res/` carries an error, variance or standard-deviation column (only
+temperature, plus `N_OBS` for ARCADE 2), so every map's uncertainty comes from its own publication; TRIS's come from
+the archive files. This section is the single reference for what each map is given and where.
 
-| Survey | Temperature scale | Zero level | rms noise | Where it comes from |
-|---|---|---|---|---|
-| LWA1 35, 80 MHz | 20% | not quoted | not quoted | LAMBDA `fg_lwa1_radio_maps_info` (Dowell et al. 2017): "a conservative estimate of the calibration accuracy … 15–25 per cent", for structure and sky average. 20% is the middle. The paper's per-pixel uncertainty maps are not in `res/`. |
-| Maipu + MU 45 MHz | 1.7% | 39 K | not quoted | Guzmán et al. 2011 quote no error. Monsalve et al. 2021 (LAMBDA `fg_maipu_info`) find the map needs ×1.076 ± 0.034 and −160 ± 78 K (2σ) to match EDGES; the 1σ halves are used. **The corrections themselves are not applied to the map.** |
-| CHIPASS 1400 MHz | 5% | 0.5 K | 30 mK | Calabretta et al. 2014 §4: "a typical rms error of 30 mK", zero level set to Reich et al.'s 1420 MHz map. It quotes no scale or zero-level error, so Stockert's are used. |
-| Stockert + Villa-Elisa 1420 MHz | 5% | 0.5 K | 17 mK | LAMBDA `fg_stockert_villa_info`; Testori et al. 2001: gain scale ≈ 5%, zero level 0.5 K, sensitivity 50 mK = 3× rms. |
-| Rhodes/HartRAO 2326 MHz | 5% | 80 mK | 30 mK | Jonas, Baart & Nicolson 1998: scale < 5%, zero level < 80 mK, rms < 30 mK. The limits are used as 1σ. |
-| ARCADE 2 3.15, 3.41 GHz | – | 7.5, 6.0 mK | – | Fixsen et al. 2011 Table 3 (unchanged; excluded from the fit by `sed.exclude_maps`). |
-| Haslam 408 MHz | 10% | 3 K | not quoted | Haslam et al. 1982. The target, never a fit point; used only by notebook 03's noise test. |
-| TRIS 600, 820 MHz | – | 0.066 K; +0.43/−0.30 K | per sample | The archive files themselves (see the TRIS section). |
+### The error model
 
-Caveats: the scale and zero-level errors are common to every point of a survey, but the fit
-treats each point as independent. At 1420 MHz the 0.5 K zero level is comparable to the
-CMB-free sky on the TRIS ring, so Stockert carries little weight.
+For a survey map, the 1σ uncertainty of one point (a ring sample or a stripe pixel) with CMB-free Rayleigh–Jeans
+temperature T is
+
+    σ = sqrt( (scale · |T|)² + zero_level² + noise² )
+
+(`sed_prototype.sigma_for`). The three terms, all 1σ:
+
+* **scale** — the temperature-scale (gain) error, a fraction of T;
+* **zero level** — the error of the map's absolute offset, in K;
+* **noise** — the rms receiver noise, in K.
+
+A term the publication does not quote is 0. The values are in `moonrunes.sed_prototype.PUBLISHED_ERRORS` (one entry
+per file, with its source and any judgement call) and, for the model comparison, in `model_comparison/error_bars.csv`
+(kind `published`, the same numbers). ARCADE 2 is the exception: a constant calibration error
+(`sed_prototype.ARCADE_CAL_K`). A map with no entry falls back to 10% of T (`ASSUMED_FRACTION`); since 2026-10-21 no
+fitted map uses it. Before 2026-10-21 every survey used that 10% placeholder.
+
+For TRIS (`sed_prototype.ring_sigma`), per ring sample:
+
+    σ = sqrt( statistical² + zero_level² )
+
+* **statistical** — the archive's per-sample column. Each ring has exactly one row with 0.000 K, so values of 0 are
+  replaced by the ring's smallest positive value (0.004 K at both frequencies);
+* **zero level** — the archive's per-ring value, 0.066 K at 600 MHz and +0.43/−0.30 K at 820 MHz, of which the larger
+  side (0.43 K) is used.
+
+### Per map
+
+| Map (file) | ν [MHz] | Scale | Zero level | Noise | Typical σ on the TRIS ring | Source, and judgement calls | Used in |
+|---|---|---|---|---|---|---|---|
+| LWA1 35 MHz (`LWA_35MHz.fits`) | 35 | 20% | — | — | 20% (≈ 2 840 K of 14 100 K) | LAMBDA `fg_lwa1_radio_maps_info` (Dowell et al. 2017): "a conservative estimate of the calibration accuracy … 15–25 per cent", for structure and sky average. **20% is the middle of that range.** No zero level or noise is quoted. The paper's per-pixel uncertainty maps are not in `res/`. | SED fits, model comparison, T–T fits |
+| Maipu + MU 45 MHz (`MAIPU_45mhZ.fits`) | 45 | 1.7% | 39 K | — | 1.8% (≈ 134 K of 7 500 K) | Guzmán et al. 2011 quote no error. **The 1σ halves of the corrections Monsalve et al. 2021 find against EDGES** (×1.076 ± 0.034 and −160 ± 78 K, 2σ; LAMBDA `fg_maipu_info`). **The corrections themselves are not applied** (TODO N-16). | SED fits, model comparison, T–T fits |
+| LWA1 80 MHz (`LWA_80MHz.fits`) | 80 | 20% | — | — | 20% (≈ 428 K of 2 140 K) | As LWA1 35 MHz. | SED fits, model comparison, T–T fits |
+| Haslam 408 MHz, destriped (`HASLAM_DESTRIPED_ONLY.fits`) and original (`HASLAM.fits`) | 408 | 10% | 3 K | — | 14% (≈ 4.2 K of 29 K) | Haslam et al. 1982. Never a fit point (it is the map being tested). | T–T fits (notebooks 14, 10), Haslam's error band in plots, notebook 03's noise test |
+| TRIS 600 MHz (ring data) | 600.5 | — | 0.066 K | per sample (0.004–0.020 K, median 0.010 K) | 0.5% (0.066–0.069 K, median 0.067 K, of 12.4 K) | The archive file `TRIS_absolute_600.txt` (Zannoni et al. 2008). The zero-level term dominates. | everything with TRIS ring data |
+| TRIS 820 MHz (ring data) | 817.8 | — | +0.43/−0.30 K (0.43 K used) | per sample (0.004–0.041 K, median 0.011 K) | 8.5% (0.430–0.432 K, median 0.430 K, of 5.1 K) | The archive file `TRIS_absolute_820.txt`. **The larger side of the asymmetric zero level is used.** | everything with TRIS ring data |
+| CHIPASS 1400 MHz (`CHIPASS_1400MHz.fits`) | 1400 | 5% | 0.5 K | 30 mK | — (does not reach the ring) | Calabretta et al. 2014 §4: "a typical rms error of 30 mK"; zero level tied to the 1420 MHz map. **It quotes no scale or zero-level error, so Stockert's are used.** | map route only (the southern edge of the stripe; never ≥ half a beam on the ring) |
+| Stockert + Villa-Elisa 1420 MHz (`STOCKERT_VILLA_1400MHZ.fits`) | 1420 | 5% | 0.5 K | 17 mK | 47% (≈ 0.50 K of 1.07 K) | LAMBDA `fg_stockert_villa_info`; Testori et al. 2001: gain scale ≈ 5%, zero level 0.5 K, sensitivity 50 mK = 3 × rms. **Noise = 50 mK / 3.** | SED fits, model comparison, T–T fits |
+| Rhodes/HartRAO 2326 MHz (`RHODES_HARTRAO_2326MHz.fits`) | 2326 | 5% | 80 mK | 30 mK | — (does not reach the ring) | Jonas, Baart & Nicolson 1998: scale < 5%, zero level < 80 mK, rms < 30 mK. **The upper limits are used as 1σ.** | map route only (the southern edge of the stripe) |
+| ARCADE 2 (`ARCADE2_315.fits`, `ARCADE2_341.fits`) | 3150, 3410 | — | — | 7.5, 6.0 mK (constant) | — | Fixsen et al. 2011 Table 3, used as a constant σ. | nothing: excluded by `sed.exclude_maps` since 2026-10-15 |
+| Juno 600, 1248 MHz (`Juno_600MHz.fits`, `Juno_1248MHz.fits`) | 600, 1248 | — | — | — | — | No entry (unit, frame and beam unknown, so not usable); would fall back to 10%. | nothing: unusable, and in `sed.exclude_maps` |
+| WMAP K, Ka (`WMAP_K.fits`, `WMAP_Ka.fits`) | — | — | — | — | — | No entry: unusable (frequency contradicted, monopole removed). | nothing |
+
+"Typical σ on the TRIS ring" is the median over the 120 beam-matched ring samples (notebook 10's input table,
+2026-10-28). The percentages for the scale-only surveys are exactly their scale term.
+
+TRIS **maps** (the map route only) use a different error: the stage 1 Wiener map's posterior σ per pixel, plus the
+fitted zero level's σ in quadrature when the zero level is added (`model_comparison/config.yaml`
+`zero_level.add_zhat_to_tris`).
+
+### Where the errors enter
+
+* **SED fits** (`sed_prototype.tod_route` / `map_route`; notebooks 07, 08): `sigma_for` for the surveys,
+  `ring_sigma` (or the stage 1 σ) for TRIS.
+* **Model comparison** (`model_comparison/run_comparison.py`; notebooks 11, 15): `error_bars.csv` for the surveys (the
+  same numbers), `ring_sigma` for TRIS, in a Gaussian likelihood.
+* **T–T fits** (notebooks 14, 10): `sigma_for` on both axes, including Haslam (10% ⊕ 3 K).
+* **Sky models against TRIS** (notebook 14 Plots 6a–6d; notebooks 12, 13): only the TRIS `ring_sigma`; the models carry
+  no error.
+
+### What the error model leaves out
+
+* **Correlations.** The scale and zero-level terms are the same offset or factor for every point of a survey (and the
+  TRIS zero level for the whole ring), but each point is treated as independent (TODO N-15). Ring samples 3° apart
+  under a ~20° beam are also correlated, so fitted uncertainties are underestimated by roughly ×2.6.
+* **Noise after beam matching.** The noise term is the survey's per-pixel rms at its native resolution, applied
+  unchanged to the beam-averaged ring TOD. Averaging over the ~20° TRIS beam would reduce it a great deal; it is
+  negligible next to the scale and zero-level terms anyway (17–30 mK).
+* **Main-beam vs full-beam scale.** Every map is treated as full-beam; for LWA1 and Maipu, which state no scale, that is
+  an assumption (TODO N-19).
+* **Stockert's weight.** At 1420 MHz the 0.5 K zero level is about half the CMB-free sky on the ring, so Stockert
+  carries little weight in any fit.
 
 ## Not on LAMBDA
 

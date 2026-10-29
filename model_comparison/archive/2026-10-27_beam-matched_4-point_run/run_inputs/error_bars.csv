@@ -1,0 +1,11 @@
+key,name,freq_mhz,kind,value,scale_frac,zero_level_k,noise_k,is_placeholder,source
+TRIS_600,TRIS 600 MHz,600.5,tris,,,,,false,"ring data: sed_prototype.ring_sigma (statistical + published zero level); map: stage 1 posterior sigma (+ z-hat sigma if added)"
+TRIS_820,TRIS 820 MHz,817.8,tris,,,,,false,"ring data: sed_prototype.ring_sigma (statistical + published zero level, larger side); map: stage 1 posterior sigma (+ z-hat sigma if added)"
+LWA_35MHz.fits,LWA1 35 MHz,35.0,published,,0.20,0,0,false,"Dowell et al. 2017 via LAMBDA: calibration 15-25% (conservative); 20% = middle of range"
+MAIPU_45mhZ.fits,Maipu + MU 45 MHz,45.0,published,,0.017,39.0,0,false,"Monsalve et al. 2021: scale +/-0.034 and zero level +/-78 K at 2 sigma (corrections not applied to the map)"
+LWA_80MHz.fits,LWA1 80 MHz,80.0,published,,0.20,0,0,false,"Dowell et al. 2017 via LAMBDA: calibration 15-25% (conservative); 20% = middle of range"
+CHIPASS_1400MHz.fits,CHIPASS 1400 MHz,1400.0,published,,0.05,0.5,0.030,false,"Calabretta et al. 2014: rms 30 mK; zero level tied to Stockert, so Stockert's 5% and 0.5 K used"
+STOCKERT_VILLA_1400MHZ.fits,Stockert + Villa-Elisa 1420 MHz,1420.0,published,,0.05,0.5,0.017,false,"Testori et al. 2001 / LAMBDA: gain scale 5%, zero level 0.5 K, sensitivity 50 mK = 3x rms"
+RHODES_HARTRAO_2326MHz.fits,Rhodes/HartRAO 2326 MHz,2326.0,published,,0.05,0.080,0.030,false,"Jonas et al. 1998: scale < 5%, zero level < 80 mK, rms < 30 mK (limits used as 1 sigma)"
+ARCADE2_315.fits,ARCADE 2 3.15 GHz,3150.0,absolute_k,0.0075,,,,false,"Fixsen et al. 2011 Table 3 (sed_prototype.py:39); excluded by sed.exclude_maps"
+ARCADE2_341.fits,ARCADE 2 3.41 GHz,3410.0,absolute_k,0.0060,,,,false,"Fixsen et al. 2011 Table 3 (sed_prototype.py:39); excluded by sed.exclude_maps"

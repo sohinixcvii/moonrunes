@@ -1,0 +1,6 @@
+comparison (A − B),strongly favours A (> 2),favours A (1 to 2),tie (−1 to 1),favours B (−2 to −1),strongly favours B (< −2),median ΔlnZ,mean ΔlnZ,min ΔlnZ,RA of min [deg],max ΔlnZ,RA of max [deg],samples with ΔlnZ > 0
+curved PL − power law,0,0,113,7,0,-0.357,-0.348,-1.428,270.0,0.962,302.75,23
+moment 2nd − power law,0,0,86,34,0,-0.788,-0.777,-1.67,270.0,0.466,300.0,4
+moment 3rd − power law,0,0,87,33,0,-0.825,-0.802,-1.612,279.0,0.113,300.0,2
+moment 2nd − curved PL,0,0,120,0,0,-0.42,-0.429,-0.923,182.75,0.129,285.0,4
+moment 3rd − moment 2nd,0,0,120,0,0,-0.042,-0.025,-0.582,216.0,0.567,9.0,53

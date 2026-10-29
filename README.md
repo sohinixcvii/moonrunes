@@ -13,6 +13,7 @@ the TRIS drift rings, and those maps become `bayesian_skymap`'s `data1`/`sky_low
 implements. `configs/run_config.yaml` is the single source of truth for every decision it
 flags as "decide rather than default".
 
+Note: We exclude maps below 80MHz based on beta values determined from T-T plots. 
 ---
 
 ## Status

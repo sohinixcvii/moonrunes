@@ -1,4 +1,5 @@
-model,sum_logZ,sum_logZ_err,logZ_minus_power_law,units_won,n_units,route,add_zhat_to_tris,placeholder_points,n_points
-power law,-3982.56574043637,2.85152411828228,0.0,77,120,tod,True,0,720
-curved power law,-3984.6061528176774,2.986776255577729,-2.0404123813073056,43,120,tod,True,0,720
-moment expansion (order 2),-4083.18374408905,3.1601210500983634,-100.61800365267982,0,120,tod,True,0,720
+model,sum_logZ,sum_logZ_err,logZ_minus_power_law,units_won,n_units,route,add_zhat_to_tris,placeholder_points,n_points,moment_beta_fixed,tod_beam,datasets
+power law,-3529.55626868385,2.0515565417728676,0.0,120,120,tod,True,0,480,-2.7,beam_matched,LWA_35MHz.fits;MAIPU_45mhZ.fits;LWA_80MHz.fits;STOCKERT_VILLA_1400MHZ.fits
+curved power law,-3607.819286549712,2.3468025335346914,-78.26301786586237,0,120,tod,True,0,480,-2.7,beam_matched,LWA_35MHz.fits;MAIPU_45mhZ.fits;LWA_80MHz.fits;STOCKERT_VILLA_1400MHZ.fits
+moment expansion (order 2),-3647.418179475641,2.198365050110446,-117.86191079179116,0,120,tod,True,0,480,-2.7,beam_matched,LWA_35MHz.fits;MAIPU_45mhZ.fits;LWA_80MHz.fits;STOCKERT_VILLA_1400MHZ.fits
+moment expansion (order 3),-3663.587270421022,2.1459465395784374,-134.03100173717212,0,120,tod,True,0,480,-2.7,beam_matched,LWA_35MHz.fits;MAIPU_45mhZ.fits;LWA_80MHz.fits;STOCKERT_VILLA_1400MHZ.fits

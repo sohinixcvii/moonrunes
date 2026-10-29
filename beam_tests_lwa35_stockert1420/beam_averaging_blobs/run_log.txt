@@ -1,0 +1,41 @@
+==============================================================================
+MAP:          LWA1 35 MHz  (/Users/user/Documents/Codes/project3/moonrunes/res/LWA_35MHz.fits)
+              nside 256, frame C, native FWHM 4.650°, 140800 unobserved pixels, CMB included (RJ 2.725 K at 35 MHz)
+FREQUENCIES:  35, 600, 820 MHz  (35 = reference = the map's own)
+BLOBS:        beta0 = -2.7; RA 30°, FWHM 4°, β -2.50; RA 120°, FWHM 4°, β -2.90; RA 210°, FWHM 4°, β -2.60; RA 300°, FWHM 4°, β -2.80
+==============================================================================
+
+[as given] min observed beam weight along the ring 1.0000; control max |S_nu/S_ref − 1| = 8.88e-16
+ nu [MHz] ln(nu/nu0)  max shape Δ   at LST     rms    norm Δ   no-beam
+     35.0     +0.000       0.000%     0.0°  0.000%   +0.000%     0.00%
+    600.0     +2.842       1.936%    30.0°  0.788%   -0.172%    78.01%
+    820.0     +3.154       2.176%    30.0°  0.876%   -0.182%    89.53%
+
+[CMB removed] min observed beam weight along the ring 1.0000; control max |S_nu/S_ref − 1| = 5.55e-16
+ nu [MHz] ln(nu/nu0)  max shape Δ   at LST     rms    norm Δ   no-beam
+     35.0     +0.000       0.000%     0.0°  0.000%   +0.000%     0.00%
+    600.0     +2.842       1.936%    30.0°  0.788%   -0.172%    78.01%
+    820.0     +3.154       2.176%    30.0°  0.876%   -0.182%    89.53%
+
+wrote /Users/user/Documents/Codes/project3/moonrunes/beam_tests_lwa35_stockert1420/beam_averaging_blobs/LWA_35MHz
+==============================================================================
+MAP:          Stockert + Villa-Elisa 1420 MHz  (/Users/user/Documents/Codes/project3/moonrunes/res/STOCKERT_VILLA_1400MHZ.fits)
+              nside 256, frame G, native FWHM 0.590°, 47 unobserved pixels, CMB included (RJ 2.692 K at 1420 MHz)
+FREQUENCIES:  1420, 600, 820 MHz  (1420 = reference = the map's own)
+BLOBS:        beta0 = -2.7; RA 30°, FWHM 4°, β -2.50; RA 120°, FWHM 4°, β -2.90; RA 210°, FWHM 4°, β -2.60; RA 300°, FWHM 4°, β -2.80
+==============================================================================
+
+[as given] min observed beam weight along the ring 0.9992; control max |S_nu/S_ref − 1| = 6.66e-16
+ nu [MHz] ln(nu/nu0)  max shape Δ   at LST     rms    norm Δ   no-beam
+   1420.0     +0.000       0.000%     0.0°  0.000%   +0.000%     0.00%
+    600.0     -0.861       0.479%   120.0°  0.204%   +0.018%    18.62%
+    820.0     -0.549       0.307%    30.0°  0.130%   +0.010%    11.51%
+
+[CMB removed] min observed beam weight along the ring 0.9992; control max |S_nu/S_ref − 1| = 6.66e-16
+ nu [MHz] ln(nu/nu0)  max shape Δ   at LST     rms    norm Δ   no-beam
+   1420.0     +0.000       0.000%     0.0°  0.000%   +0.000%     0.00%
+    600.0     -0.861       0.507%    30.0°  0.212%   +0.050%    18.49%
+    820.0     -0.549       0.326%    30.0°  0.135%   +0.030%    11.43%
+
+wrote /Users/user/Documents/Codes/project3/moonrunes/beam_tests_lwa35_stockert1420/beam_averaging_blobs/STOCKERT_VILLA_1400MHZ
+wrote /Users/user/Documents/Codes/project3/moonrunes/beam_tests_lwa35_stockert1420/beam_averaging_blobs/comparison_with_haslam.csv and .png

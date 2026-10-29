@@ -1,0 +1,13 @@
+prediction from,gain form,Haslam version,median (Haslam − prediction) [K],rms [K]
+GSM2008,constant gain,Haslam (uncorrected),-3.398041062934251,3.4871900483774394
+GSM2008,constant gain,"Haslam, Carter correction",-1.6503201315991998,1.7334967632523988
+GSM2008,constant gain,"Haslam, Irfan correction",-9.582339795738312,9.588279442103799
+GSM2008,gain × (ν/408)^δ,Haslam (uncorrected),-11.094159850126886,11.626575695983764
+GSM2008,gain × (ν/408)^δ,"Haslam, Carter correction",-9.345463535064475,9.887646489507002
+GSM2008,gain × (ν/408)^δ,"Haslam, Irfan correction",-17.278458582931044,17.561461952475007
+GSM2016,constant gain,Haslam (uncorrected),-1.4150973346330158,1.7776631067628137
+GSM2016,constant gain,"Haslam, Carter correction",0.15489154651773873,0.8208860347342603
+GSM2016,constant gain,"Haslam, Irfan correction",-7.599396067436789,7.80632830512683
+GSM2016,gain × (ν/408)^δ,Haslam (uncorrected),-4.844447745819341,5.222305392337477
+GSM2016,gain × (ν/408)^δ,"Haslam, Carter correction",-2.935432206989871,3.5017948538876635
+GSM2016,gain × (ν/408)^δ,"Haslam, Irfan correction",-11.028746478623136,11.265435401323776
