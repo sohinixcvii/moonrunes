@@ -1,0 +1,12 @@
+# Haslam rows read from beam_averaging_blobs/HASLAM_DESTRIPED_ONLY/summary.csv (not rerun). shape change = 100*(S_blob/S_control - 1); per unit ln ratio = max |shape change| / |ln(nu/nu_ref)|
+map,variant,reference frequency [MHz],frequency [MHz],ln(nu / nu_ref),max |shape change| [%],at LST [deg],rms shape change [%],max |shape change| per unit |ln(nu/nu_ref)| [%],normalisation change [%],max |shape change| without the beam [%]
+Haslam 408 MHz (destriped only),as given,408,600,0.385662,0.26963,297,0.118792,0.699135,-0.0435859,8.07164
+Haslam 408 MHz (destriped only),as given,408,820,0.698037,0.485342,297,0.214665,0.695295,-0.076805,15.0706
+LWA1 35 MHz,as given,35,600,2.84158,1.93567,30,0.787826,0.681193,-0.171599,78.0142
+LWA1 35 MHz,as given,35,820,3.15396,2.1759,30,0.876083,0.689894,-0.182135,89.5325
+LWA1 35 MHz,CMB removed,35,600,2.84158,1.93569,30,0.787844,0.681202,-0.171641,78.0147
+LWA1 35 MHz,CMB removed,35,820,3.15396,2.17593,30,0.876103,0.689903,-0.182182,89.533
+Stockert + Villa-Elisa 1420 MHz,as given,1420,600,-0.861482,0.479399,120,0.204487,0.556481,0.0177342,18.6213
+Stockert + Villa-Elisa 1420 MHz,as given,1420,820,-0.549108,0.306895,30,0.130202,0.558898,0.0100623,11.5098
+Stockert + Villa-Elisa 1420 MHz,CMB removed,1420,600,-0.861482,0.506941,30,0.212376,0.588452,0.0495722,18.4854
+Stockert + Villa-Elisa 1420 MHz,CMB removed,1420,820,-0.549108,0.326476,30,0.135234,0.594557,0.0303031,11.4276

@@ -10,7 +10,78 @@ resolve before running anything".
 
 ## [Unreleased]
 
+### Changed
+
+#### Model comparison: choose the data sets (2026-10-28)
+
+- **`model_comparison/config.yaml`: `data.datasets`,** the list of data sets that go into every SED (keys as in
+  `error_bars.csv`; TRIS bands included). It overrides `sed.exclude_maps` for the comparison only;
+  `run_config.yaml` is not edited. `null` keeps the old behaviour. Set to the current 6: TRIS 600, TRIS 820,
+  LWA1 35, Maipu 45, LWA1 80, Stockert 1420.
+- **`run_comparison.py`:** new `select_datasets()`; `tod_units()` / `map_units()` take the TRIS bands to include
+  (default both, so notebooks calling them are unchanged); summaries get a `datasets` column.
+
+#### Model comparison without the Occam penalty (2026-10-28)
+
+- **`model_comparison/config.yaml`: new `comparison` block, `statistic: max_likelihood`.** The models are now
+  compared on each one's best fit (minimum χ² inside the prior box, ΔlnL_max = −Δχ²/2 against the power law),
+  so no model is penalised for having more parameters. `statistic: evidence` gives the UltraNest ln Z
+  comparison as before. `ml_starts: 24` optimiser starts per fit.
+- **`model_comparison/run_comparison.py`:** new `max_likelihood()` (L-BFGS-B in the prior's unit cube, the same
+  fitter as notebook 11 Part 5) and `write_maxlike()`; writes `results/maxlike_per_unit_<route>.csv` (χ², ln L_max,
+  degrees of freedom, best-fit parameters per unit and model) and `results/maxlike_summary_<route>.csv` (medians
+  and counts, no sums). The `evidence_*` files are not touched by a max-likelihood run. `models.py` and the
+  priors are unchanged. Not yet run on the data.
+- Why: the evidence's Occam cost for C (prior ±0.5, posterior about ±0.07) is about 1.7 in ln Z, which cancelled
+  the curved power law's typical χ² gain of about 3 and gave ties on most of the ring.
+
+#### Notebook 11 diagnoses the order-3 moment expansion (2026-10-28)
+
+- **`notebooks/11_model_comparison_diagnostics.ipynb`: four models.** The order-3 moment expansion
+  (`models.moment_orders: [2, 3]`) is now in every part except Part 3 (the C prior test): Figs 1–3 get an
+  order-3 panel, Fig 4 two more comparisons (order 3 − power law, order 3 − order 2), Figs 5–6 and the Part 4
+  convergence checks and Fig 9 include it. The exact grid integral uses 25 / 41 points per axis for the
+  4-parameter model (41 / 81 for the others); `convergence_check1_exact.csv` now has the columns
+  `grid points per axis`, `grid ln Z (coarse)`, `grid ln Z (fine)`.
+- **Fix: `ImportError: cannot import name 'tod_method_key'` in cell 15.** A kernel that had imported
+  `sed_prototype` before 2026-10-27 kept the old module. Cell 15 now drops the already-loaded `moonrunes`,
+  `models` and `run_comparison` modules and imports them again.
+- Its saved figures and the "Part 4 in plain numbers" / Summary text are from earlier runs until it is rerun.
+
+#### More maps left out of the SED fits (2026-10-27)
+
+- **`sed.exclude_maps`** in `configs/run_config.yaml` now also lists `LWA_35MHz.fits`, `MAIPU_45mhZ.fits`,
+  `Juno_600MHz.fits` and `Juno_1248MHz.fits` (besides ARCADE 2). Each TOD-route ring sample now has 4 points
+  (TRIS 600/820, LWA1 80, Stockert 1420), so the order-3 moment expansion has no degrees of freedom left.
+  `model_comparison/results/` (2026-10-27 17:13) was made this way. The reason is not yet recorded.
+
+#### Beam-matched ring TODs everywhere (2026-10-27)
+
+- **`sed_prototype.Inputs.ring_tod`, new; `sed.tod_beam: beam_matched` in `run_config.yaml`.** Every ring TOD
+  is now stage 2's beam matching (`tris_cuts` kernel, the map's own beam taken out) evaluated at the 120 ring
+  pointings, as notebook 18 built them. Checked equal to notebook 18's cache to 0 K for every survey, Haslam
+  and the 408 MHz sky models. The older route (native map observed with limTOD) stays as
+  `sed.tod_beam: native` / `Inputs._native_tod`.
+- **Users:** `run_comparison.py` (prints the TOD method, and writes it to the summary CSV as `tod_beam`),
+  notebooks 07 (its own copy of the TOD code), 08 (sky-model TODs), 10, 11 and 12 (sky-model TODs, with the
+  pygdsm models' native beams). Notebooks 13 and 15–17 read notebook 12's cache.
+- **Caches** in notebooks 11, 12 and 15 now store a `tod_key` (`sed_prototype.tod_method_key`), and entries made
+  from other TODs are redone. Notebook 15 stops if notebook 12's cache is stale.
+- **Notebook 18** compares against a snapshot of the old TODs, `model_comparison/beam_matched_tods/old_native_tods.npz`.
+- **Not changed:** the map route and stage 2 (`beam_matching.kernel: circular_gaussian`), and the beam studies
+  (notebooks 01, 03, 09 and `beam_averaging_blobs/`).
+
 ### Added
+
+#### Beam tests on LWA1 35 MHz and Stockert 1420 MHz (2026-10-28)
+
+- 🧪 **`beam_tests_lwa35_stockert1420/`, new.** The FWHM-scaling test (two-step vs one-step beam matching,
+  `scripts/fwhm_scaling_test.py`) and the β-blob beam-averaging test (`beam_averaging_blobs/`) rerun on the lowest- and
+  highest-frequency maps that reach the TRIS ring, importing the original code unchanged. Adds masked-map handling, a
+  "survey ⊕ own beam" width variant and a CMB-removed variant. Write-up and numbers in its `README.md`.
+- **Findings:** the Haslam ranking holds at both ends (TRIS-cut kernel and major axis best); LWA1 35's own 4.65° beam
+  must be included in the width (TRIS-stripe spread 0.48% → 0.20%). The blob shape change is ≈ 0.6–0.7% per unit
+  ln(ν/ν_ref) on all three maps: 1.9–2.2% from LWA1 35 to TRIS, 0.3–0.5% from Stockert.
 
 #### Beam averaging with spectral-index blobs (2026-10-19/20)
 

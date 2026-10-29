@@ -446,7 +446,16 @@ sed:
   # let those few points pull the fits (the steps at LST 255-280 and 320-345 deg in
   # notebooks 07/08).  Filenames as in res/.  Stage 2 and notebook 06 (the TRIS +
   # ARCADE 2 four-point cross-check) are not affected.
-  exclude_maps: [ARCADE2_315.fits, ARCADE2_341.fits]
+  exclude_maps: [ARCADE2_315.fits, ARCADE2_341.fits, Juno_1248MHz.fits, Juno_600MHz.fits]
+  # DECISION (2026-10-27) -- how every map becomes a TRIS ring TOD (sed_prototype.Inputs.ring_tod;
+  # the TOD route, run_comparison.py and notebooks 07, 08, 10-17).
+  #   beam_matched  stage 2's beam matching with the tris_cuts kernel (beam_matching.elliptical),
+  #                 evaluated at the 120 ring pointings on the nside_work grid: the TRIS cut beam
+  #                 with each map's own beam taken out (scaled_cuts for natives above ~1.2 deg),
+  #                 so every TOD sees the TRIS beam once, as the TRIS ring data do.  Notebook 18.
+  #   native        the older route: the map at its own resolution, degraded to tris.nside and
+  #                 observed with limTOD's TRIS beam, so the map's own beam stays in on top.
+  tod_beam: beam_matched
 
 # -----------------------------------------------------------------------------
 # Stage 5 -- validation thresholds

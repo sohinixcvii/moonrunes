@@ -1,0 +1,140 @@
+==============================================================================
+Spectral model comparison (UltraNest evidence)
+  route:        tod
+  zero level:   add z-hat to TRIS = True  (no effect on the TOD route: ring data contain no z-hat)
+  models:       power law, curved power law, moment expansion (order 2), moment expansion (order 3)
+  moment exp.:  orders 2, 3, beta fixed at -2.7, omega1 free
+  error bars:   error_bars.csv
+  data sets:    LWA_35MHz.fits, MAIPU_45mhZ.fits, LWA_80MHz.fits, STOCKERT_VILLA_1400MHZ.fits  (config.yaml data.datasets)
+  ring TODs:    beam_matched (run_config.yaml sed.tod_beam)
+==============================================================================
+building the TRIS-grid (beam-matched) and raw nside 16 maps...
+making the TRIS ring TODs of every map (beam_matched)...
+  unit     0: 4 points, logZ -29.70  -29.90  -30.35  -30.67 -- 12 s
+  unit     1: 4 points, logZ -29.39  -29.99  -30.24  -30.52 -- 23 s
+  unit     2: 4 points, logZ -29.23  -29.70  -30.39  -30.44 -- 35 s
+  unit     3: 4 points, logZ -29.32  -29.71  -30.34  -30.46 -- 47 s
+  unit     4: 4 points, logZ -29.29  -29.83  -30.34  -30.49 -- 60 s
+  unit     5: 4 points, logZ -29.31  -29.71  -30.33  -30.37 -- 72 s
+  unit     6: 4 points, logZ -29.34  -29.83  -30.55  -30.63 -- 85 s
+  unit     7: 4 points, logZ -29.35  -30.05  -30.35  -30.34 -- 97 s
+  unit     8: 4 points, logZ -29.27  -29.84  -30.61  -30.64 -- 110 s
+  unit     9: 4 points, logZ -29.42  -29.86  -30.43  -30.39 -- 121 s
+  unit    10: 4 points, logZ -29.48  -29.84  -30.62  -30.75 -- 135 s
+  unit    11: 4 points, logZ -29.28  -30.35  -30.89  -30.70 -- 147 s
+  unit    12: 4 points, logZ -29.49  -30.11  -30.55  -30.56 -- 159 s
+  unit    13: 4 points, logZ -29.42  -30.44  -31.06  -30.98 -- 174 s
+  unit    14: 4 points, logZ -29.84  -30.44  -30.79  -30.93 -- 959 s
+  unit    15: 4 points, logZ -29.45  -30.28  -30.67  -30.93 -- 970 s
+  unit    16: 4 points, logZ -29.73  -30.18  -30.75  -31.11 -- 982 s
+  unit    17: 4 points, logZ -29.78  -30.13  -31.11  -30.94 -- 3943 s
+  unit    18: 4 points, logZ -29.70  -30.46  -30.83  -30.86 -- 3963 s
+  unit    19: 4 points, logZ -29.71  -30.38  -31.05  -31.02 -- 3976 s
+  unit    20: 4 points, logZ -29.94  -30.29  -31.03  -31.11 -- 8249 s
+  unit    21: 4 points, logZ -29.84  -30.60  -31.08  -31.16 -- 8275 s
+  unit    22: 4 points, logZ -29.90  -30.75  -30.98  -31.14 -- 9189 s
+  unit    23: 4 points, logZ -29.52  -30.50  -31.23  -31.34 -- 11284 s
+  unit    24: 4 points, logZ -29.85  -30.69  -30.85  -31.23 -- 13403 s
+  unit    25: 4 points, logZ -29.55  -30.24  -31.20  -30.85 -- 14935 s
+  unit    26: 4 points, logZ -29.83  -30.42  -30.85  -30.87 -- 14951 s
+  unit    27: 4 points, logZ -29.46  -30.23  -30.98  -30.99 -- 14966 s
+  unit    28: 4 points, logZ -29.52  -30.38  -30.86  -30.61 -- 16019 s
+  unit    29: 4 points, logZ -29.58  -30.31  -30.65  -30.67 -- 17978 s
+  unit    30: 4 points, logZ -29.45  -29.98  -30.51  -30.78 -- 21006 s
+  unit    31: 4 points, logZ -29.06  -29.94  -30.19  -30.65 -- 22534 s
+  unit    32: 4 points, logZ -29.24  -29.95  -30.13  -30.54 -- 22547 s
+  unit    33: 4 points, logZ -29.15  -29.86  -30.17  -30.38 -- 22562 s
+  unit    34: 4 points, logZ -28.83  -29.75  -29.93  -30.00 -- 22574 s
+  unit    35: 4 points, logZ -28.94  -29.59  -30.00  -29.95 -- 24568 s
+  unit    36: 4 points, logZ -28.81  -29.40  -29.55  -30.06 -- 26722 s
+  unit    37: 4 points, logZ -28.80  -29.40  -29.51  -29.63 -- 28782 s
+  unit    38: 4 points, logZ -28.51  -29.35  -29.61  -29.71 -- 29804 s
+  unit    39: 4 points, logZ -28.58  -29.08  -29.28  -29.67 -- 29830 s
+  unit    40: 4 points, logZ -28.58  -29.22  -29.37  -29.78 -- 30757 s
+  unit    41: 4 points, logZ -28.61  -29.10  -29.24  -29.80 -- 32722 s
+  unit    42: 4 points, logZ -28.68  -29.31  -29.51  -29.35 -- 32983 s
+  unit    43: 4 points, logZ -28.73  -29.16  -29.39  -29.50 -- 32997 s
+  unit    44: 4 points, logZ -28.61  -29.37  -29.45  -29.48 -- 33011 s
+  unit    45: 4 points, logZ -28.80  -29.20  -29.41  -29.71 -- 33458 s
+  unit    46: 4 points, logZ -28.57  -29.39  -29.58  -29.64 -- 33471 s
+  unit    47: 4 points, logZ -28.55  -29.38  -29.41  -29.73 -- 33485 s
+  unit    48: 4 points, logZ -29.26  -29.48  -29.50  -29.70 -- 35336 s
+  unit    49: 4 points, logZ -29.00  -29.53  -29.53  -29.76 -- 37118 s
+  unit    50: 4 points, logZ -28.98  -29.67  -29.84  -29.95 -- 37136 s
+  unit    51: 4 points, logZ -29.14  -29.60  -29.60  -29.82 -- 37149 s
+  unit    52: 4 points, logZ -29.06  -29.64  -29.66  -29.94 -- 37161 s
+  unit    53: 4 points, logZ -29.06  -29.64  -29.56  -30.06 -- 37181 s
+  unit    54: 4 points, logZ -28.81  -29.36  -29.86  -29.82 -- 37199 s
+  unit    55: 4 points, logZ -28.87  -29.52  -29.67  -29.73 -- 38179 s
+  unit    56: 4 points, logZ -28.95  -29.43  -29.54  -29.70 -- 40197 s
+  unit    57: 4 points, logZ -28.82  -29.61  -29.57  -29.82 -- 40787 s
+  unit    58: 4 points, logZ -28.91  -29.50  -29.34  -29.70 -- 40810 s
+  unit    59: 4 points, logZ -28.84  -29.02  -29.34  -29.50 -- 41741 s
+  unit    60: 4 points, logZ -28.62  -29.19  -29.23  -29.50 -- 43674 s
+  unit    61: 4 points, logZ -28.71  -28.99  -29.35  -29.54 -- 44448 s
+  unit    62: 4 points, logZ -28.52  -28.92  -29.01  -29.57 -- 44464 s
+  unit    63: 4 points, logZ -28.54  -29.01  -29.24  -29.26 -- 44476 s
+  unit    64: 4 points, logZ -28.32  -29.12  -29.24  -29.32 -- 44514 s
+  unit    65: 4 points, logZ -28.35  -28.89  -28.87  -29.29 -- 44531 s
+  unit    66: 4 points, logZ -28.27  -29.00  -28.86  -29.18 -- 44550 s
+  unit    67: 4 points, logZ -28.25  -28.77  -28.84  -29.33 -- 44979 s
+  unit    68: 4 points, logZ -28.15  -28.93  -28.97  -29.22 -- 44995 s
+  unit    69: 4 points, logZ -28.10  -28.77  -29.17  -29.41 -- 45013 s
+  unit    70: 4 points, logZ -28.10  -28.85  -28.74  -29.22 -- 46936 s
+  unit    71: 4 points, logZ -28.28  -28.88  -28.90  -29.19 -- 46948 s
+  unit    72: 4 points, logZ -28.24  -28.72  -28.94  -29.09 -- 46958 s
+  unit    73: 4 points, logZ -28.46  -28.82  -28.99  -28.93 -- 46970 s
+  unit    74: 4 points, logZ -28.66  -28.96  -29.01  -29.33 -- 46981 s
+  unit    75: 4 points, logZ -28.48  -28.81  -29.17  -29.61 -- 46992 s
+  unit    76: 4 points, logZ -28.66  -29.03  -29.14  -29.20 -- 47003 s
+  unit    77: 4 points, logZ -28.40  -29.00  -29.14  -29.33 -- 47014 s
+  unit    78: 4 points, logZ -28.45  -29.22  -29.34  -29.41 -- 47025 s
+  unit    79: 4 points, logZ -28.61  -29.15  -29.61  -29.35 -- 47035 s
+  unit    80: 4 points, logZ -29.02  -29.40  -29.56  -29.46 -- 47047 s
+  unit    81: 4 points, logZ -28.76  -29.40  -29.45  -29.56 -- 47057 s
+  unit    82: 4 points, logZ -29.03  -29.56  -29.57  -29.73 -- 47068 s
+  unit    83: 4 points, logZ -29.03  -29.84  -29.66  -29.62 -- 47078 s
+  unit    84: 4 points, logZ -29.01  -30.08  -29.91  -29.88 -- 47089 s
+  unit    85: 4 points, logZ -29.24  -30.18  -30.06  -29.88 -- 47099 s
+  unit    86: 4 points, logZ -29.36  -30.02  -30.20  -30.08 -- 47110 s
+  unit    87: 4 points, logZ -29.13  -30.05  -30.36  -30.42 -- 47121 s
+  unit    88: 4 points, logZ -29.45  -29.99  -30.51  -30.62 -- 47131 s
+  unit    89: 4 points, logZ -29.51  -30.31  -30.34  -30.59 -- 47142 s
+  unit    90: 4 points, logZ -29.71  -30.53  -30.46  -30.75 -- 47152 s
+  unit    91: 4 points, logZ -29.72  -30.73  -30.89  -30.50 -- 47164 s
+  unit    92: 4 points, logZ -29.92  -30.83  -30.89  -30.76 -- 47175 s
+  unit    93: 4 points, logZ -30.15  -31.09  -31.22  -31.10 -- 47186 s
+  unit    94: 4 points, logZ -30.20  -31.01  -31.47  -31.27 -- 47197 s
+  unit    95: 4 points, logZ -30.40  -31.21  -31.29  -31.67 -- 47209 s
+  unit    96: 4 points, logZ -30.50  -31.72  -31.97  -32.00 -- 47221 s
+  unit    97: 4 points, logZ -30.94  -31.85  -32.00  -32.30 -- 47233 s
+  unit    98: 4 points, logZ -31.12  -31.97  -32.46  -32.49 -- 47245 s
+  unit    99: 4 points, logZ -31.36  -32.44  -33.12  -32.95 -- 47257 s
+  unit   100: 4 points, logZ -31.80  -32.22  -32.98  -33.27 -- 47270 s
+  unit   101: 4 points, logZ -31.73  -32.56  -33.22  -33.34 -- 47281 s
+  unit   102: 4 points, logZ -31.77  -32.62  -33.15  -33.39 -- 47294 s
+  unit   103: 4 points, logZ -31.78  -32.65  -33.30  -33.43 -- 47306 s
+  unit   104: 4 points, logZ -31.74  -32.38  -33.17  -33.20 -- 47318 s
+  unit   105: 4 points, logZ -31.45  -32.40  -32.98  -33.42 -- 47329 s
+  unit   106: 4 points, logZ -31.27  -32.07  -32.86  -33.16 -- 47340 s
+  unit   107: 4 points, logZ -31.18  -31.95  -32.53  -32.75 -- 47351 s
+  unit   108: 4 points, logZ -30.96  -31.40  -32.52  -32.40 -- 47363 s
+  unit   109: 4 points, logZ -30.56  -31.49  -31.87  -32.26 -- 47375 s
+  unit   110: 4 points, logZ -30.68  -31.20  -31.72  -32.00 -- 47386 s
+  unit   111: 4 points, logZ -30.32  -30.97  -31.73  -31.82 -- 47397 s
+  unit   112: 4 points, logZ -30.13  -30.82  -31.35  -31.41 -- 47408 s
+  unit   113: 4 points, logZ -29.99  -30.96  -31.30  -31.22 -- 47418 s
+  unit   114: 4 points, logZ -29.79  -30.56  -31.04  -31.27 -- 47429 s
+  unit   115: 4 points, logZ -29.58  -30.15  -30.74  -30.92 -- 47440 s
+  unit   116: 4 points, logZ -29.79  -30.45  -30.85  -30.94 -- 47451 s
+  unit   117: 4 points, logZ -29.55  -29.93  -30.51  -30.66 -- 47462 s
+  unit   118: 4 points, logZ -29.44  -30.02  -30.83  -30.63 -- 47472 s
+  unit   119: 4 points, logZ -29.64  -29.93  -30.38  -30.58 -- 47484 s
+120 units fitted (0 skipped with < 4 points), 480 data points, 47484 s
+
+model                               sum ln Z     ± err  ln Z − power law     units won
+power law                           -3529.56      2.05              0.00           120
+curved power law                    -3607.82      2.35            -78.26             0
+moment expansion (order 2)          -3647.42      2.20           -117.86             0
+moment expansion (order 3)          -3663.59      2.15           -134.03             0
+wrote /Users/user/Documents/Codes/project3/moonrunes/model_comparison/results

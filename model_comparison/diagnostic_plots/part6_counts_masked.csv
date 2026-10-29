@@ -1,0 +1,19 @@
+statistic,comparison,samples,n,favours model,tie,favours power law,borderline (within 0.4 of ±1)
+evidence (ΔlnZ),curved PL vs power law,all samples,120,0,114,6,68
+evidence (ΔlnZ),curved PL vs power law,excl. ±15°,110,0,106,4,59
+evidence (ΔlnZ),curved PL vs power law,excl. ±25°,103,0,99,4,53
+evidence (ΔlnZ),moment (2nd order) vs power law,all samples,120,0,58,62,90
+evidence (ΔlnZ),moment (2nd order) vs power law,excl. ±15°,110,0,57,53,85
+evidence (ΔlnZ),moment (2nd order) vs power law,excl. ±25°,103,0,56,47,81
+evidence (ΔlnZ),moment (3rd order) vs power law,all samples,120,0,41,79,95
+evidence (ΔlnZ),moment (3rd order) vs power law,excl. ±15°,110,0,41,69,92
+evidence (ΔlnZ),moment (3rd order) vs power law,excl. ±25°,103,0,39,64,89
+max likelihood (ΔlnL_max),curved PL vs power law,all samples,120,0,120,0,0
+max likelihood (ΔlnL_max),curved PL vs power law,excl. ±15°,110,0,110,0,0
+max likelihood (ΔlnL_max),curved PL vs power law,excl. ±25°,103,0,103,0,0
+max likelihood (ΔlnL_max),moment (2nd order) vs power law,all samples,120,0,120,0,0
+max likelihood (ΔlnL_max),moment (2nd order) vs power law,excl. ±15°,110,0,110,0,0
+max likelihood (ΔlnL_max),moment (2nd order) vs power law,excl. ±25°,103,0,103,0,0
+max likelihood (ΔlnL_max),moment (3rd order) vs power law,all samples,120,23,97,0,19
+max likelihood (ΔlnL_max),moment (3rd order) vs power law,excl. ±15°,110,23,87,0,17
+max likelihood (ΔlnL_max),moment (3rd order) vs power law,excl. ±25°,103,23,80,0,15

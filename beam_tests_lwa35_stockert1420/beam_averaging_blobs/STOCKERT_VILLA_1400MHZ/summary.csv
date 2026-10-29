@@ -1,0 +1,8 @@
+# map = STOCKERT_VILLA_1400MHZ.fits; reference = the map's own 1420 MHz; shape change = 100*(S_blob/S_control - 1), S = T/mean_LST(T); beam = limTOD TRIS cut beam (sed_prototype.Inputs._native_tod)
+map,variant,ref_freq_mhz,freq_mhz,ln_freq_ratio,max_abs_shape_change_pct,signed_at_max_pct,at_lst_deg,rms_shape_change_pct,max_abs_shape_change_per_unit_ln_ratio_pct,normalisation_change_pct,control_shape_vs_ref_max_abs,no_beam_max_abs_shape_change_pct,min_beam_coverage
+Stockert + Villa-Elisa 1420 MHz,as given,1420,1420,0,0,0,0,0,0,0,0,0,0.99919673
+Stockert + Villa-Elisa 1420 MHz,as given,1420,600,-0.8614825,0.4793988,0.4793988,120,0.20448703,0.55648119,0.017734202,4.4408921e-16,18.621332,0.99919673
+Stockert + Villa-Elisa 1420 MHz,as given,1420,820,-0.54910781,0.30689541,-0.30689541,30,0.13020233,0.55889827,0.010062297,6.6613381e-16,11.509778,0.99919673
+Stockert + Villa-Elisa 1420 MHz,CMB removed,1420,1420,0,0,0,0,0,0,0,0,0,0.99919673
+Stockert + Villa-Elisa 1420 MHz,CMB removed,1420,600,-0.8614825,0.50694107,-0.50694107,30,0.21237603,0.58845196,0.049572237,4.4408921e-16,18.485422,0.99919673
+Stockert + Villa-Elisa 1420 MHz,CMB removed,1420,820,-0.54910781,0.32647569,-0.32647569,30,0.13523437,0.59455664,0.030303096,6.6613381e-16,11.427609,0.99919673

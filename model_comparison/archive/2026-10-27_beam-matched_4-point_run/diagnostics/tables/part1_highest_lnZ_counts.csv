@@ -1,0 +1,5 @@
+model,samples with the highest lnZ,median lnZ error
+power law,97,0.216
+curved power law,23,0.226
+moment expansion (order 2),0,0.22
+moment expansion (order 3),0,0.222

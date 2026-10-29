@@ -1,6 +1,6 @@
 # moonrunes — plot index
 
-As of 2026-10-15. Online copy: <https://claude.ai/code/artifact/a5a7762b-b179-4813-8aa6-d3ea8d198d39>
+As of 2026-10-28 (notebooks 11–18 and the five project steps added; ring TODs beam-matched in the pipeline; notebook 11 with the order-3 moment expansion). The online copy <https://claude.ai/code/artifact/a5a7762b-b179-4813-8aa6-d3ea8d198d39> is the 2026-10-15 version.
 
 ## How to use this index
 
@@ -8,29 +8,135 @@ Every plot in the project lives in one of three places. Saved files are listed b
 
 | Where | What is there | Made by |
 | --- | --- | --- |
-| `moonrunes_paper/figures/` (in `Papers_and_reports`) | the 5 paper figures, PDF + PNG, with captions in its `README.md` | `notebooks/10_paper_plots.ipynb` |
+| `moonrunes_paper/Figures/` (in `Papers_and_reports`) | the 6 paper figures, PDF + PNG, under the names `main.tex` includes (all maps over the TRIS slice §2.2; TRIS maps §3.3; sky models vs TRIS §3.4.2; β matrix and β vs frequency §4.1; model-comparison fits vs TRIS §5.1); rebuilt 2026-10-28 | `notebooks/10_paper_plots.ipynb` |
 | `moonrunes/outputs/paper_plots/` | the working figure set (Figures 1–13b), PDF + PNG | `notebooks/08_update_plots.ipynb` |
 | inside each notebook | diagnostic and exploration plots, not saved to files | notebooks 01–09 |
 | `moonrunes/outputs/fwhm_scaling_test/` | the FWHM scaling test (added 2026-10-19) | `scripts/fwhm_scaling_test.py` |
 | `moonrunes/beam_averaging_blobs/<map>/` | the spectral-index blob test (added 2026-10-19/20) | `beam_averaging_blobs/*.py` |
+| `moonrunes/beam_tests_lwa35_stockert1420/` | the FWHM-scaling (beam matching) and blob (beam averaging) tests on LWA1 35 MHz and Stockert 1420 MHz, compared with Haslam; write-up in its `README.md` (added 2026-10-28) | `beam_tests_lwa35_stockert1420/*.py` |
+| `moonrunes/model_comparison/diagnostic_plots/` | Bayesian model comparison diagnostics and convergence tests | `notebooks/11_model_comparison_diagnostics.ipynb` |
+| `moonrunes/model_comparison/sky_models_408/` | sky models at 408 MHz against the power-law and curved fits; the fit and TOD cache | `notebooks/12_sky_models_vs_fit_408.ipynb` |
+| `moonrunes/model_comparison/phil_plots/` | plots 1–3 (sky models vs the power-law prediction), plots 4–6 (T–T β, models at the TRIS frequencies) | `notebooks/13`, `notebooks/14` |
+| `moonrunes/model_comparison/model_choice/` | the model-choice decision sheet | `notebooks/15_model_choice_decision_sheet.ipynb` |
+| `moonrunes/model_comparison/plot3_haslam_vs_fit/` | Haslam and the sky models in the scale–offset plane against the power-law prediction | `notebooks/16_haslam_vs_power_law_408.ipynb` |
+| `moonrunes/model_comparison/plot3_haslam_calibration/` | Haslam gain–offset calibration | `notebooks/17_haslam_gain_offset_calibration.ipynb` |
+| `moonrunes/model_comparison/archive/<run>/` | frozen copies of a model comparison run and its notebook 11 figures, with a write-up (`README.md`); first: `2026-10-27_beam-matched_4-point_run/` | copied from `results/` and `diagnostic_plots/` |
+| `moonrunes/model_comparison/beam_matched_tods/` | beam-matched ring TODs of every survey and sky model, and their change from the old TODs | `notebooks/18_beam_matched_tods.ipynb` |
 
 Cell numbers are 0-based, as `nbformat` counts them, and were taken on 2026-10-15. They shift if cells are added above. The section heading is the stable way to find a plot.
 
-All SED results here exclude ARCADE 2 (`sed.exclude_maps`) and use the 23.366° circular beam-matching kernel (`beam_matching.kernel: circular_gaussian`).
+All SED results here exclude ARCADE 2 (`sed.exclude_maps`); since 2026-10-27 that list also excludes LWA1 35, Maipu 45 and Juno, so the SED fits have 4 points per ring sample (TRIS 600/820, LWA1 80, Stockert 1420). They use the 23.366° circular beam-matching kernel (`beam_matching.kernel: circular_gaussian`) on the map route.
 
-## Paper figures — `moonrunes_paper/figures/`
+**Which TODs a plot uses.** Since 2026-10-27 the pipeline itself makes *beam-matched* ring TODs (`sed.tod_beam: beam_matched` in `configs/run_config.yaml`, `sed_prototype.Inputs.ring_tod`): the measured TRIS cut beam with each map's own beam taken out, on a 0.92° grid, the same TODs as `notebooks/18`. Everything built from `sed_prototype.Inputs` uses them when rerun: `run_comparison.py` (the `model_comparison/results/` CSVs of 2026-10-27 17:13 already do, `tod_beam` column), notebooks 07, 08, 10, 11, 12, and notebook 14. Caches in notebooks 11, 12 and 15 carry a `tod_key` and are redone when the TODs change. **Not yet rerun** (still the earlier limTOD TODs and the 6-point SEDs): notebook 12's fit cache and so the saved plots of notebooks 12, 13, 15, 16 and 17; notebook 11's saved figures (fig1–4 show three models, fig5–9 the old TODs) until it is run again. The TOD difference itself is small (T–T β change by ≤ 0.01; Haslam −0.02 K median, LWA1 35 −30 K of ~14 000 K); dropping LWA1 35 and Maipu from the fits matters more.
 
-Five figures, made by `notebooks/10_paper_plots.ipynb`, drawn at the MNRAS full width (174 mm). Full captions are in `figures/README.md`.
+## Plots by project step
 
-| File | Shows | Notebook 10 cell |
+The five steps of the paper (`PAPER_OUTLINE.md`).
+
+| Step | Question | Plots |
 | --- | --- | --- |
-| `tris_maps.pdf` | TRIS 600 and 820 MHz maps from stage 1 (limTOD), and the six 2.5 GHz samples vs RA | 3 |
-| `beam_matching_stockert.pdf` | Stockert + Villa-Elisa 1420 MHz before and after matching to the 23.366° TRIS beam | 5 |
-| `sed_fit_tod_route.pdf` | SED fits at six TRIS ring samples (TOD route), with residuals | 9 |
-| `sed_fit_map_route.pdf` | SED fits at six TRIS-stripe pixels (map route), with residuals | 11 |
-| `tods_all_maps.pdf` | every survey observed through the TRIS beam with limTOD, vs RA, with the TRIS ring data | 13 |
+| 1 | Which sky models, or models + corrections, stretched to 600/820 MHz, agree with the TRIS TODs? | `phil_plots/plot6_tods_600_820_data_vs_models.png` (14, Plot 6); `plot6a_tris_minus_calibrated_models.png`, `plot6b_gsm_correction.png`, `plot6c_predicted_408_vs_haslam.png` (14, Plots 6a–6c); `phil_plots/plot5_beta_matrix_data_vs_models.png` (14, Plot 5) |
+| 2 | β from T–T plots, and which maps to put in the SED fit | `phil_plots/plot4_tt_ring_all_pairs.png`, `plot4a_beta_vs_pair_frequency.png`, `plot4c_beta_vs_mean_frequency_span.png`, `plot4b_beta_matrix_ra_split.png`, and without the Maipu / RA splits `plot4d_*`, `plot4e_*`, `plot4f_*` (14); 08 Figs 12, 13, 13b |
+| 3 | Model comparison with the selected maps, and the winner | `model_choice/decision_sheet.png`, `dlnZ_vs_RA_with_windows.png`, `stacked_residuals_vs_freq.png` (15); `diagnostic_plots/fig1`–`fig9` (11) |
+| 4 | The SED-fit sky model against the existing models at 408 MHz | `phil_plots/plot1_legacy_models_vs_fit.png`, `plot2_corrected_models_vs_fit.png`, `plot3_chi2_vs_power_law.png` (13); `plot3_haslam_vs_fit/fig1`–`fig3` (16); `plot3_haslam_calibration/fig1`–`fig3` (17); `sky_models_408/fig1`–`fig3` (12) |
+| 5 | Foreground predictions for RHINO | not made yet (placeholder in `moonrunes_paper/figures/README.md`) |
+| — | Beam matching of the TODs | `beam_matched_tods/fig1_beam_matched_minus_old.png` (18) |
 
-The README also holds three empty placeholder sections for planned figures: best-fit 408 MHz TOD, reforming the 408 MHz map, and extending to the RHINO band.
+## Notebooks 11–18 (saved files)
+
+Cell numbers are 0-based, taken on 2026-10-27. Every figure is a PNG.
+
+**Notebook 11 — model comparison diagnostics** → `model_comparison/diagnostic_plots/`
+
+| File | Shows | Cell |
+| --- | --- | --- |
+| `fig1_dlogZ_vs_ra` | ΔlnZ (curved − PL, moment order 2 − PL, moment order 3 − PL) per ring sample vs RA, tie band, Cygnus A | 6 |
+| `fig2_logZ_vs_ra` | ln Z of each of the four models vs RA | 8 |
+| `fig3_dlogZ_histograms` | histograms of ΔlnZ, three panels (curved, moment 2nd, moment 3rd − PL) | 10 |
+| `fig4_preference_counts` | samples per evidence category, five comparisons (incl. moment 3rd − PL, moment 3rd − 2nd) | 12 |
+| `fig5_sed_fits_per_unit` | SED fits of the four models with 68% bands at six ring samples; Haslam plotted, not fitted | 17 |
+| `fig6_maxlogl_vs_logZ` | fit gain (Δ max ln L) vs evidence gain; Occam penalty | 19 |
+| `fig7_C_posterior` | posterior of the curvature C with the prior | 21 |
+| `fig8_prior_sensitivity_C` | curved − PL ΔlnZ vs C prior width | 25 |
+| `fig9_convergence_dlogZ` | ΔlnZ (curved, moment 2nd, moment 3rd − PL) from repeated / re-tuned UltraNest runs vs the exact grid integral; tables `convergence_check1`–`4*.csv` | 37 |
+| `fig10_models_at_tris_frequencies` | Part 5: each model's maximum-likelihood fit at every ring sample, at 600.5 / 817.8 MHz, with the TRIS rings (published σ); model − TRIS [K]; tables `part5_model_tods_at_tris.csv`, `part5_model_minus_tris_summary.csv` | 42 |
+| `fig11_chi2_per_sample` | Part 5: χ² and χ²/ν of every fit along the ring; tables `part5_chi2_summary.csv`, `part5_chi2_per_sample.csv` (with each point's χ² contribution and the best-fit parameters) | 44 |
+
+**Notebook 12 — sky models vs the fits at 408 MHz** → `model_comparison/sky_models_408/`
+
+| File | Shows | Cell |
+| --- | --- | --- |
+| `fig1_T408_vs_ra` | PL and curved 408 MHz predictions with ±1σ, seven sky models, TRIS scaled with β = −2.7 (labelled) | 9 |
+| `fig2_residual_vs_ra` | sky model − fit [K], against each fit | 11 |
+| `fig3_chi2_per_sample` | χ²/N per model and fit; table `chi2_sky_models_vs_fits.csv` | 15 |
+
+**Notebook 13 — sky models vs the power-law prediction** → `model_comparison/phil_plots/`
+
+| File | Shows | Cell |
+| --- | --- | --- |
+| `plot1_legacy_models_vs_fit` | Haslam, GSM2008, GSM2016, LFSM vs the PL prediction; residual [K] | 6 |
+| `plot2_corrected_models_vs_fit` | Carter, Irfan, GINAN (and Haslam) vs the PL prediction; residual [K] | 8 |
+| `plot3_chi2_vs_power_law` | χ² contribution per ring sample, and χ²/N per model; table `residual_stats.csv` | 12 |
+
+**Notebook 14 — T–T β along the ring, and models at the TRIS frequencies** → `model_comparison/phil_plots/` (beam-matched TODs)
+
+| File | Shows | Cell |
+| --- | --- | --- |
+| `plot4_tt_ring_all_pairs` | T–T plots for every survey pair, York fits; table `plot4_tt_betas_data.csv` | 8 |
+| `plot4a_beta_vs_pair_frequency` | β of every pair vs √(ν₁ν₂), labelled pairs | 10 |
+| `plot4c_beta_vs_mean_frequency_span` | β vs √(ν₁ν₂), horizontal bar from ν₁ to ν₂ | 12 |
+| `plot4b_beta_matrix_ra_split` | β matrices for RA < 200° and > 200°; table `plot4b_tt_betas_ra_split.csv` | 14 |
+| `plot4d_beta_vs_pair_frequency_all_pairs` | Plot 4a with every pair alike (no Maipu split) | 16 |
+| `plot4e_beta_vs_mean_frequency_span_all_pairs` | Plot 4c with every pair alike (no Maipu split) | 17 |
+| `plot4f_beta_matrix_whole_ring` | β matrix over the whole ring (no RA = 200° split) | 18 |
+| `plot6_tods_600_820_data_vs_models` | TRIS 600/820 MHz TODs with GSM2008, GSM2016, the stretched Carter / Irfan / GINAN corrections and stretched LFSM; model − TRIS [K] | 23 |
+| `plot6a_tris_minus_calibrated_models` | TRIS − (a·model + b) after fitting each Plot 6 model to TRIS at each frequency; table `plot6a_models_fitted_to_tris.csv` | 25 |
+| `plot6b_gsm_correction` | suggested GSM2008 / GSM2016 correction: one constant offset with a constant gain or a gain × (ν/408)^δ, carried to 408 MHz; table `plot6b_gsm_corrections.csv` | 27 |
+| `plot6c_predicted_408_vs_haslam` | 408 MHz TOD from the TRIS-corrected GSMs against Haslam, Carter and Irfan; table `plot6c_haslam_vs_predicted_408.csv` | 29 |
+| `plot5_beta_matrix_data_vs_models` | β matrix: data pairs and model-implied β; table `plot5_model_implied_betas.csv` | 33 |
+
+**Notebook 15 — model-choice decision sheet** → `model_comparison/model_choice/`
+
+| File | Shows | Cell |
+| --- | --- | --- |
+| `decision_sheet.png` | five criteria × three sample sets (all, Cygnus ±15°, ±25° excluded) | 20 |
+| `stacked_residuals_vs_freq.png` | stacked (data − model)/σ per survey, three models, error scales | 22 |
+| `dlnZ_vs_RA_with_windows.png` | ΔlnZ per sample with the exclusion windows; tables `decision_summary.csv`, `per_sample_values.csv`, `loo_standardised_errors.csv`, `stacked_residuals.csv` | 24 |
+
+**Notebook 16 — Haslam vs the power-law prediction** → `model_comparison/plot3_haslam_vs_fit/`
+
+| File | Shows | Cell |
+| --- | --- | --- |
+| `fig1_haslam_vs_power_law_tt` | Haslam (uncorrected, Carter, Irfan) vs the PL prediction, York fit | 7 |
+| `fig2_scale_offset_plane` | all seven 408 MHz models in the (a, b) plane | 9 |
+| `fig3_ratio_along_ring` | model / prediction along the ring; table `haslam_vs_power_law_fits.csv` | 11 |
+
+**Notebook 17 — Haslam gain–offset calibration** → `model_comparison/plot3_haslam_calibration/`
+
+| File | Shows | Cell |
+| --- | --- | --- |
+| `fig1_haslam_vs_power_law_tt` | Haslam vs the PL prediction with the gain–offset fit | 9 |
+| `fig2_calibration_plane` | fitted (s, o) with its ellipse, and the published corrections | 11 |
+| `fig3_along_ring` | Haslam versions and the fitted correction along the ring; table `haslam_calibration.csv` | 13 |
+
+**Notebook 18 — beam-matched ring TODs** → `model_comparison/beam_matched_tods/`
+
+| File | Shows | Cell |
+| --- | --- | --- |
+| `fig1_beam_matched_minus_old` | beam-matched − old TOD [K] for the surveys and the 408 MHz models; tables `beam_matched_minus_old.csv`, `beam_matched_tods.csv`, `beam_matched_tods_meta.csv` | 9 |
+
+## Paper figures — `moonrunes_paper/Figures/`
+
+Six figures, made by `notebooks/10_paper_plots.ipynb` (rebuilt 2026-10-28), drawn at their printed MNRAS size, PDF + PNG, under the file names `main.tex` includes. Captions are in `main.tex`. Each notebook section starts with a note on where the figure is featured.
+
+| File | Shows | Paper section (label) | Notebook 10 cell |
+| --- | --- | --- | --- |
+| `fig1_all_maps_tris_slice` | the five surveys that reach the ring, native resolution, over the TRIS declination band | 2.2 Surveys (`fig:maps-slice`) | 5 |
+| `tris_maps` | TRIS 600 and 820 MHz maps from stage 1 (no 2.5 GHz panel any more) | 3.3 Maps from the TRIS rings (`fig:tris-maps`) | 7 |
+| `plot6_tods_600_820_data_vs_models` | sky models and stretched corrections at 600.5 / 817.8 MHz vs TRIS; model − TRIS [K] | 3.4.2 The TOD comparison (`fig:tods-600-820`) | 9 |
+| `plot4f_beta_matrix_whole_ring` | T–T β ± σ and χ²/ν for every survey pair, whole ring | 4.1 T–T fits (`fig:beta-matrix-ring`) | 13 |
+| `plot4c_beta_vs_mean_frequency_span` | T–T β vs √(ν₁ν₂), bar from ν₁ to ν₂; one column wide | 4.1 T–T fits (`fig:beta-vs-freq`) | 15 |
+| `model_comparison_fits_vs_tris` | maximum-likelihood power law, curved power law and moment expansion at 600.5 / 817.8 MHz vs TRIS; model − TRIS [K] | 5.1 Models, priors and sampler (`fig:modelcomp-tris`) | 17 |
 
 ## Notebook 08 — update plots (`outputs/paper_plots/`)
 
@@ -170,9 +276,14 @@ Both are described, with rerun commands, under "Standalone tests" in `README.md`
 | Which surveys disagree with the power law? | 08 Figs 6, 6b, 8; 08 Fig 13b |
 | How does β vary along the ring / over the sky? | 08 Fig 10; 07 cell 12 (β with surveys left out) |
 | Is one power law a good fit? | 08 Fig 9 (χ²); 07 cell 12 |
-| How do TRIS, Haslam and the sky models compare? | 08 Fig 7d |
+| How do TRIS, Haslam and the sky models compare? | 08 Fig 7d; at 600/820 MHz: 14 Plot 6; at 408 MHz vs the fit: 13 Plots 1–3, 16, 17 |
+| Which sky model or correction agrees best with TRIS? | 14 Plot 6 (step 1) |
+| Which spectral model wins (power law, curved, moment)? | 15 decision sheet; 11 Figs 1–8 |
+| Is the Bayesian evidence converged? | 11 Fig 9 and `convergence_check*.csv` |
+| Haslam's gain and offset against the SED fit | 16 Figs 1–3; 17 Figs 1–3 |
+| How much does beam matching change the TODs? | 18 Fig 1 |
 | Where are the Haslam survey zones along the ring? | 08 Fig 7d (dashed lines); `outputs/paper_plots/haslam_zones_tris_ring_check.png` |
-| β from T–T plots, and vs the SED fit | 08 Figs 12, 13, 13b |
+| β from T–T plots, and vs the SED fit | 14 Plots 4, 4a, 4c, 4b, 5 (beam-matched); 08 Figs 12, 13, 13b |
 | The corrected Haslam map | 08 Figs 7, 11; 07 cell 18 |
 | What the TRIS maps look like | paper `tris_maps`; 08 Fig 4; 01 cell 37 |
 | What beam matching does to a map | paper `beam_matching_stockert`; 05 cells 9–10 |

@@ -1,0 +1,5 @@
+model,parameters,median_chi2,median_chi2_per_dof,median_dlnLmax_vs_power_law,units_dlnLmax_gt_1,units_tie,units_dlnLmax_lt_-1,units_best,n_units,route,add_zhat_to_tris,placeholder_points,n_points,moment_beta_fixed,tod_beam,datasets
+power law,2,1.0666275690654572,0.5333137845327286,0.0,0,120,0,0,120,tod,True,0,480,-2.7,beam_matched,LWA_35MHz.fits;MAIPU_45mhZ.fits;LWA_80MHz.fits;STOCKERT_VILLA_1400MHZ.fits
+curved power law,3,0.4275250157837015,0.4275250157837015,0.30068025438994006,0,120,0,0,120,tod,True,0,480,-2.7,beam_matched,LWA_35MHz.fits;MAIPU_45mhZ.fits;LWA_80MHz.fits;STOCKERT_VILLA_1400MHZ.fits
+moment expansion (order 2),3,0.5227915333801354,0.5227915333801354,0.24711853005802809,0,120,0,0,120,tod,True,0,480,-2.7,beam_matched,LWA_35MHz.fits;MAIPU_45mhZ.fits;LWA_80MHz.fits;STOCKERT_VILLA_1400MHZ.fits
+moment expansion (order 3),4,1.7795680161646394e-07,inf,0.5280233083971879,23,97,0,120,120,tod,True,0,480,-2.7,beam_matched,LWA_35MHz.fits;MAIPU_45mhZ.fits;LWA_80MHz.fits;STOCKERT_VILLA_1400MHZ.fits

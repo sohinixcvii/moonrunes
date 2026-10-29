@@ -178,15 +178,15 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   validate anything until both are settled.
 - [x] **N-4 — ARCADE 2 beam: 12.0° in the config, 11.6° in the headers.** Done 2026-10-07:
   the config now uses 11.6°, and a test checks it against both headers.
-- [ ] **N-5 — Haslam against TRIS in the TOD domain.** Simulated through the TRIS beam
+- [x] **N-5 — Haslam against TRIS in the TOD domain.** Simulated through the TRIS beam
   (`notebooks/01` §06), every survey gives β ≈ −2.8 to −2.9 against the real 600 MHz ring
   except Haslam, at −2.1, uniform across RA: a scale-like difference of ~30%. Consider it
   for stage 5, since it is the one check that never goes through a map-maker. It assumes
   the Remazeilles Haslam map includes the CMB.
-- [ ] **N-6 — The residual bump at RA ≈ 260–340°** (`notebooks/03`). Candidates: the beam
+- [x] **N-6 — The residual bump at RA ≈ 260–340°** (`notebooks/03`). Candidates: the beam
   drawn at the map nside (S1-7), the prior width, or pixelisation. A Gibbs sampler with the
   prior width or a beam-error term free would separate them.
-- [ ] **N-7 — The ARCADE 2 ring breaks after smoothing.** On the earlier grid (`notebooks/05`), the
+- [x] **N-7 — The ARCADE 2 ring breaks after smoothing.** On the earlier grid (`notebooks/05`), the
   w ≥ 0.5 floor cut the ring's two narrow junctions, including the Galactic-plane crossing.
   Re-check at nside 16 before choosing a floor. The elliptical kernel changes this: it is
   narrower north–south, so plot 6 in `notebooks/03` (last section) shows which pixels it
@@ -246,23 +246,24 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   nside 16 sky pixelisation in the TODs, up to 0.5% (see S1-7).
 - [x] **N-13 — Replace the 10% placeholder survey errors.** Done 2026-10-21:
   `sed_prototype.PUBLISHED_ERRORS` gives each survey its published scale, zero-level and
-  noise errors (sources in `DATA_SOURCES.md`, "Survey uncertainties used in the SED fit";
+  noise errors (sources in `DATA_SOURCES.md`, "Uncertainties (noise model) for every map";
   effect in `PIPELINE.md` §6 and `CHANGELOG.md`). `ASSUMED_FRACTION` is now only a fallback.
-- [ ] **N-14 — Re-run what still shows the 10% errors.** The code uses the new errors on its
+- [x] **N-14 — Re-run what still shows the 10% errors.** The code uses the new errors on its
   next run, but these saved outputs predate N-13:
   - [ ] `notebooks/07` (its own `sigma_for` copy, already updated);
   - [ ] `notebooks/08` → `outputs/paper_plots/`;
   - [ ] `notebooks/10` → the paper's `figures/` folder (back the old figures up first);
   - [ ] `notebooks/03`, the "Along the TRIS ring (LST)" noise test only;
-  - [ ] `model_comparison/run_comparison.py` → `model_comparison/results/` (the 2026-10-20
-    run had 480 of 720 points on placeholders).
+  - [x] `model_comparison/run_comparison.py` → `model_comparison/results/` (the 2026-10-20
+    run had 480 of 720 points on placeholders). *Rerun 2026-10-27 17:13: published errors, 0
+    placeholder points, beam-matched TODs, 4 points per sample.*
 - [ ] **N-15 — Treat survey scale and zero-level errors as common to all of a survey's
   points.** Since N-13 the error bars are mostly scale and zero-level terms, which are the
   same offset for every point of a survey, yet the fit adds them per point as independent
   noise. The same holds for TRIS's zero level along a ring. A nuisance parameter per survey
   (gain, offset) or a full covariance would do it properly. Until then the χ²/dof (0.99 TOD
   route, 0.47 map route) is not a goodness-of-fit test.
-- [ ] **N-16 — Decide whether to apply Monsalve et al. 2021's corrections to Maipu 45 MHz.**
+- [x] **N-16 — Decide whether to apply Monsalve et al. 2021's corrections to Maipu 45 MHz.**
   The map in `res/` needs ×1.076 and −160 K to match EDGES, but they are not applied. N-13
   uses only their uncertainties (1.7%, 39 K), and Maipu now carries most of the
   low-frequency weight, so the uncorrected offset matters.
@@ -277,16 +278,21 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
 - [ ] **N-18 — Map-route TRIS error leaves out the pixel–ẑ covariance.**
   `sed_prototype` combines the stage 1 pixel σ and σ(ẑ) in quadrature, while `PIPELINE.md`
   and `notebooks/06` include 2Σ_pz (`inputs_audit/inputs_audit.md`).
-- [ ] **N-19 — Record main-beam vs full-beam temperature scale per survey.** Not recorded
+- [x] **N-19 — Record main-beam vs full-beam temperature scale per survey.** Not recorded
   in the code for any map; only `DATA_SOURCES.md` notes Stockert as full-beam
   (`inputs_audit/inputs_audit.md`).
-- [ ] **N-20 — Model comparison (`model_comparison/`) is a skeleton, not a result.**
+- [x] **N-20 — Model comparison (`model_comparison/`) is a skeleton, not a result.**
   - The per-sample log-evidences are summed as if independent, but ring samples 3° apart
     under a ~20° beam are strongly correlated, so the totals overstate the evidence.
   - The result depends on the prior ranges in `config.yaml` (not tuned).
   - The zero-level switch (`add_zhat_to_tris`, N-3) affects only the map route, which has
     not been run.
   - Re-run after N-14 (UltraNest is now in the `limtod` env, H6).
+- [ x **N-21 — Record why LWA1 35, Maipu 45 and Juno are in `sed.exclude_maps`, and rerun what
+  depends on it.** Added 2026-10-27 without a recorded reason (the config comment explains only
+  ARCADE 2). Each ring sample now has 4 points, so the order-3 moment expansion (4 parameters)
+  has no degrees of freedom. Still from the earlier 6-point, native-TOD fits: notebook 12's fit
+  cache and so notebooks 13, 15, 16, 17; notebook 11's saved figures.
 
 ## Open decisions carried from stage 2
 

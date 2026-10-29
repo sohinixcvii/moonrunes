@@ -1,0 +1,216 @@
+# Beam-matching and beam-averaging tests at the ends of the frequency range: LWA1 35 MHz and Stockert 1420 MHz
+
+Run 2026-10-28. The two beam tests that were first run on Haslam 408 MHz, repeated on the lowest- and highest-frequency
+maps that reach the TRIS ring:
+
+1. **Beam matching:** two-step vs one-step matching to the TRIS beam, with four ways of quoting an elliptical survey
+   beam's width (`scripts/fwhm_scaling_test.py`, Haslam results in `outputs/fwhm_scaling_test/`).
+2. **Beam averaging:** whether small regions of different spectral index inside the TRIS beam change the *shape* of
+   T vs LST across frequencies (`beam_averaging_blobs/`, Haslam results in `beam_averaging_blobs/HASLAM_DESTRIPED_ONLY/`).
+
+The original scripts are imported, not changed; the Haslam results are read from their CSVs, not rerun. The blob
+parameters are the original ones (not tuned).
+
+| Map | Frequency | Own beam | Sky coverage | Frame |
+|---|---|---|---|---|
+| LWA1 35 MHz (`LWA_35MHz.fits`, Dowell et al. 2017) | 35 MHz | 4.65° | 82% (no far south) | equatorial |
+| Stockert + Villa-Elisa (`STOCKERT_VILLA_1400MHZ.fits`) | 1420 MHz | 0.59° | all but 47 pixels | Galactic |
+| *for reference:* Haslam 408 MHz, destriped only | 408 MHz | 0.93° | full | Galactic |
+
+## Summary
+
+- **Beam matching works the same way at both ends.** The ranking found on Haslam holds for both maps: the measured
+  TRIS-cut kernel is best and the elliptical Gaussian worst, and quoting the survey beam's major axis gives the smallest
+  error, the minor axis the largest. With the TRIS-cut kernel and the major axis, the two-step map differs from the
+  one-step map by a median of +0.05% (LWA1 35, with its own beam included) and +0.02% (Stockert), with a spread in the
+  TRIS stripe of 0.20% and 0.07%. Haslam: +0.11%, 0.24%.
+- **For a map with a broad beam, the map's own beam must be included.** LWA1 35's 4.65° beam is as wide as the test's
+  5 × 3° survey beam. Telling the pipeline only the survey beam's width (as the Haslam test did) leaves the TRIS-stripe
+  spread at 0.48%; adding the map's own beam in quadrature brings it down to 0.20%. For Stockert (0.59°) it makes no
+  difference.
+- **Beam averaging changes the shape in proportion to the frequency lever arm, by about the same amount per unit
+  ln(ν/ν_ref) on all three maps:** 0.68–0.69% (LWA1 35), 0.56–0.59% (Stockert) and 0.70% (Haslam) of largest shape
+  change per unit |ln(ν/ν_ref)|. So the largest shape change from LWA1 35 to the TRIS frequencies is 1.9% (600 MHz) and
+  2.2% (820 MHz), because 35 → 600 MHz is a long way (ln ratio 2.84); from Stockert down to TRIS it is 0.3–0.5%.
+- **The normalisation hardly changes** (−0.17 to −0.18% for LWA1 35, +0.01 to +0.05% for Stockert), and the uniform-β
+  control is shape-invariant to 10⁻¹⁵ on both maps. The beam dilutes the blobs' effect about 40× (LWA1 35: 78–90%
+  without the beam, 1.9–2.2% with it).
+- **Removing the CMB first changes nothing for LWA1 35** (2.7 K of ~14 000 K) and little for Stockert (largest shape
+  change 0.48 → 0.51% at 600 MHz), even though the CMB is most of Stockert's temperature.
+
+## 1. Beam matching: two-step vs one-step, four FWHM scalings
+
+### What the test does
+
+The same steps as the Haslam test (`notebooks/03`, "Two-step against one-step beam matching"; `PIPELINE.md` App. E):
+
+1. **Step 1:** smooth the map with a made-up "complicated" survey beam: a 5 × 3° oval main lobe with its long axis
+   30° east of north, a −15 dB ring at 7° and a −25 dB 20° halo. Its measured main-lobe widths are 5.010° (major)
+   and 3.007° (minor); the arithmetic and geometric means are 4.009° and 3.881°.
+2. **Two-step:** match that map to the TRIS beam with the pipeline's `match_to_tris_beam`, telling it one width for the
+   survey beam: major, minor, arithmetic or geometric mean.
+3. **One-step (reference):** match the map to the TRIS beam directly, telling the pipeline the map's own beam.
+4. **Compare** on the nside 16 grid: the fractional difference 100 × (two-step / one-step − 1) [%] (median, std over
+   the sky, std in the TRIS stripe, max |Δ|) and the residual two-step − one-step [K].
+
+Each step uses the three pipeline kernels: the old circular Gaussian, an elliptical Gaussian, and the measured TRIS
+beam cuts (`tris_cuts`, the one the pipeline now uses).
+
+**What is different from the Haslam test:**
+
+- **Masks.** The maps are rotated to equatorial with the pipeline's own rotation (masked rotation for Stockert's 47
+  empty pixels) and degraded to nside 64 with the pipeline's `all_children` rule. Step 1 averages observed pixels only
+  and keeps a pixel where at least half the survey beam's weight was observed (the pipeline's `weight_floor`, 0.5).
+  The statistics use the pixels kept in both maps: for LWA1 35 that is 81.5% of the sky, with the whole TRIS stripe.
+- **Two variants of the width told to the pipeline:** `survey only`, as in the Haslam test, and `survey + native`,
+  √(width² + own beam²). The step-1 map has really been smoothed by the map's own beam too, so the second is the
+  correct input. The Haslam test ignored Haslam's 0.93° beam; that was a small error there.
+
+### Results
+
+Fractional difference two-step / one-step − 1 [%], **TRIS-cut kernel** (the pipeline's), from
+`fwhm_scaling/<map>/fwhm_scaling_table.csv` and `fwhm_scaling/comparison_with_haslam.csv`:
+
+| Map, width given | minor | geometric | arithmetic | major |
+|---|---|---|---|---|
+| **median** | | | | |
+| Haslam, survey only (earlier run) | +0.24 | +0.19 | +0.18 | +0.11 |
+| LWA1 35, survey only | +0.18 | +0.16 | +0.16 | +0.13 |
+| LWA1 35, survey + native | +0.11 | +0.09 | +0.08 | +0.05 |
+| Stockert, survey only | +0.04 | +0.03 | +0.03 | +0.02 |
+| Stockert, survey + native | +0.04 | +0.03 | +0.03 | +0.02 |
+| **std in the TRIS stripe** | | | | |
+| Haslam, survey only (earlier run) | 0.50 | 0.40 | 0.39 | 0.24 |
+| LWA1 35, survey only | 0.68 | 0.61 | 0.60 | 0.48 |
+| LWA1 35, survey + native | 0.41 | 0.33 | 0.31 | 0.20 |
+| Stockert, survey only | 0.15 | 0.12 | 0.11 | 0.07 |
+| Stockert, survey + native | 0.14 | 0.12 | 0.11 | 0.07 |
+
+All three kernels and both statistics, against the scaling, for the three maps:
+
+![Two-step vs one-step on three maps](fwhm_scaling/comparison_with_haslam.png)
+
+- **The same ordering on every map:** major < arithmetic ≈ geometric < minor, and TRIS cuts < circular < elliptical
+  (e.g. LWA1 35, survey + native, major: TRIS-stripe std 0.20%, circular 0.29%, elliptical 0.34%). Quoting the major
+  axis is the best choice at all three frequencies.
+- **The median is always positive and small** (two-step slightly too bright where the map is bright; at most +0.19% for
+  the elliptical kernel on LWA1 35).
+- **LWA1 35 needs its own beam in the width.** Without it the TRIS-stripe std is 0.48–0.68%; with it 0.20–0.41%.
+  In kelvin the residual's std is 45 K (TRIS cuts, major, survey + native) to 194 K (elliptical, minor, survey only)
+  on a sky of ~14 000 K; its mean is within ±1 K.
+- **Stockert is the easiest case** (0.07–0.19% TRIS-stripe std; residual std 4.5–14 mK, mean −0.1 mK). Its own beam is
+  small, so both variants agree to 0.01%. Part of why its percentages are small: the CMB, which is the same in both
+  maps, is about three-quarters of its temperature away from the plane.
+- **Where the error is (residual maps):** along the Galactic plane, largest towards the bright inner Galaxy
+  (RA ≈ 250–290°, the Galactic-centre region), with the same pattern for every kernel and scaling; it shrinks as the
+  width given grows.
+
+LWA1 35 MHz, residual maps (grey: not observed):
+
+![LWA1 35 residual maps, survey + native](fwhm_scaling/LWA_35MHz/fwhm_scaling_residual_maps_survey_plus_native.png)
+
+Per-map figures: `fwhm_scaling/<map>/fwhm_scaling_comparison.png` (solid: survey only, dashed: survey + native) and
+`fwhm_scaling_residual_maps_survey_only.png` / `_survey_plus_native.png`.
+
+## 2. Beam averaging with spectral-index blobs
+
+### What the test does
+
+The same steps as `beam_averaging_blobs/beam_averaging_blobs.py`, with the map at its own frequency ν_map as the
+template instead of Haslam at 408 MHz:
+
+1. **Spectral-index map** on the map's own grid: β₀ = −2.7 plus four 4° Gaussian blobs on the TRIS stripe
+   (Dec 42.43°) at RA 30°, 120°, 210°, 300° with β = −2.5, −2.9, −2.6, −2.8 at their centres (the original
+   parameters, imported unchanged).
+2. **Extrapolate:** T_ν = T_map · (ν/ν_map)^β(pixel) at ν = ν_map, 600 and 820 MHz. For LWA1 35 that is up by
+   ×17–23 in frequency; for Stockert down by ×0.42–0.58.
+3. **Observe along the ring** with the TOD route's limTOD observer (`sed_prototype.Inputs._native_tod`: the TRIS cut
+   beam, zenith pointing, horizon mask, nside 16), as the Haslam test did. LWA1 35's missing south is handled by the
+   observer (observed pixels only); its observed beam weight is 1.000 along the ring, Stockert's ≥ 0.999.
+4. **Control** at uniform β = −2.7; **shape change** = 100 (S_blob / S_control − 1), S = T / mean over the ring;
+   **normalisation change** = mean T_blob / mean T_control − 1; **no-beam** = the same at the ring points without the
+   beam.
+5. **Two variants:** `as given` (the power law applied to the map with its CMB, as in the Haslam test) and
+   `CMB removed` (the CMB's RJ temperature at ν_map subtracted first and not added back).
+
+### Results
+
+From `beam_averaging_blobs/comparison_with_haslam.csv`:
+
+| Map (variant) | ν | ln(ν/ν_ref) | largest shape change | at LST | per unit \|ln ratio\| | normalisation | without beam |
+|---|---|---|---|---|---|---|---|
+| Haslam 408 (as given; earlier run) | 600 | +0.39 | 0.27% | 297° | 0.70% | −0.04% | 8.1% |
+| | 820 | +0.70 | 0.49% | 297° | 0.70% | −0.08% | 15.1% |
+| LWA1 35 (as given) | 600 | +2.84 | 1.94% | 30° | 0.68% | −0.17% | 78.0% |
+| | 820 | +3.15 | 2.18% | 30° | 0.69% | −0.18% | 89.5% |
+| LWA1 35 (CMB removed) | 600 | +2.84 | 1.94% | 30° | 0.68% | −0.17% | 78.0% |
+| | 820 | +3.15 | 2.18% | 30° | 0.69% | −0.18% | 89.5% |
+| Stockert 1420 (as given) | 600 | −0.86 | 0.48% | 120° | 0.56% | +0.02% | 18.6% |
+| | 820 | −0.55 | 0.31% | 30° | 0.56% | +0.01% | 11.5% |
+| Stockert 1420 (CMB removed) | 600 | −0.86 | 0.51% | 30° | 0.59% | +0.05% | 18.5% |
+| | 820 | −0.55 | 0.33% | 30° | 0.59% | +0.03% | 11.4% |
+
+Shape change along the ring, the three maps together:
+
+![Shape change from the same blobs on three maps](beam_averaging_blobs/comparison_with_haslam.png)
+
+- **The control is exact** on both maps (largest |S_ν / S_ref − 1| = 9 × 10⁻¹⁶ and 7 × 10⁻¹⁶): the method adds no
+  shape change of its own.
+- **Every blob leaves a bump or dip about one beam wide,** at the blob's LST. For LWA1 35 they are large because the
+  extrapolation spans a factor of 17–23 in frequency: +1.9% at the β = −2.5 blob (LST 30°), −1.1% at β = −2.9 (120°),
+  +1.0% at −2.6 (210°), −1.6% at −2.8 (300°), at 600 MHz.
+- **For Stockert the signs are reversed,** because it is extrapolated *down* in frequency: a flatter blob (β = −2.5)
+  now gives a dip (−0.48% at 600 MHz, LST 30°).
+- **Per unit ln(ν/ν_ref) the effect is nearly the same on all three maps** (0.56–0.70%): it is set by the blob size
+  against the beam and by β_blob − β₀, not much by the map. Haslam's largest change is at the blob near Cygnus A
+  (LST 297°, its map keeps the point sources); for LWA1 35 and Stockert the largest is at LST 30°, the flattest blob.
+- **CMB:** removing it makes no difference for LWA1 35 and changes Stockert's numbers by at most 0.03 percentage
+  points; the location of Stockert's largest change at 600 MHz moves from the 120° dip (−0.48%) to the 30° dip (−0.51%),
+  which are almost equal.
+
+Per-map figures: `beam_averaging_blobs/<map>/t_vs_lst_comparison_as_given.png` and `_cmb_removed.png` (normalised T,
+T_ν / T_ref and shape change vs LST, per frequency).
+
+### What it means for the analysis
+
+A spectral-index variation of ±0.2 over a 4° patch changes the shape of the beam-averaged ring by about 0.6–0.7% per
+unit of ln(ν₂/ν₁). Between LWA1 35 and TRIS (ln ratio ≈ 3) that is ~2%, ten times smaller than LWA1's 20% scale error.
+Between TRIS 600 and 820 MHz (ln ratio 0.31) it is ~0.2%, below the TRIS 820 MHz σ/T (4–9%).
+
+## Caveats
+
+- **The complicated survey beam and the blobs are made up,** the same as in the Haslam tests, so the numbers measure the
+  method, not the real surveys' beams or the real sky's β structure.
+- **LWA1 35 coverage:** pixels near its southern edge (Dec ≈ −40°) are left out of the beam-matching comparison where less
+  than half of a beam was observed; the TRIS stripe is far from the edge.
+- **Percentages depend on the map's contrast.** A map with a large uniform part (the CMB in Stockert) gives smaller
+  fractional differences for the same absolute error; compare the kelvin columns of the CSVs too.
+- **The TRIS beam is the same at 35, 600, 820 and 1420 MHz** in the beam-averaging test, as everywhere in the pipeline.
+- **Nominal TRIS frequencies** (600, 820 MHz) in the beam-averaging test, as in the original.
+- **The beam-averaging test uses the older limTOD observer** (`_native_tod`), as the Haslam test did, so the three maps
+  are compared like for like. The pipeline's ring TODs are now beam-matched (`sed.tod_beam`); the TRIS beam is the same
+  measured cut beam in both.
+
+## Files
+
+| Path | What it is |
+|---|---|
+| `fwhm_scaling_test_maps.py` | the beam-matching test on both maps (~15 min per map); `--replot-maps` redraws the residual maps |
+| `beam_averaging_blobs_maps.py` | the beam-averaging test on both maps (seconds) |
+| `fwhm_scaling/<map>/fwhm_scaling_table.csv` | one row per variant × kernel × scaling: widths, statistics in % and K, pixels compared |
+| `fwhm_scaling/<map>/fwhm_scaling_comparison.png` | median and std vs scaling, both variants |
+| `fwhm_scaling/<map>/fwhm_scaling_residual_maps_*.png`, `.npz` | residual maps per variant (and the maps themselves) |
+| `fwhm_scaling/comparison_with_haslam.csv`, `.png` | the three maps side by side |
+| `fwhm_scaling/run_log.txt` | the run's printed output |
+| `beam_averaging_blobs/<map>/summary.csv` | per variant and frequency: shape change (largest, rms, per unit ln ratio), normalisation, control check, no-beam |
+| `beam_averaging_blobs/<map>/t_vs_lst_<variant>.csv` | per LST and frequency: T (blob, control), S, shape change, T difference |
+| `beam_averaging_blobs/<map>/t_vs_lst_comparison_<variant>.png` | per-frequency curves |
+| `beam_averaging_blobs/comparison_with_haslam.csv`, `.png` | the three maps side by side |
+| `beam_averaging_blobs/run_log.txt` | the run's printed output |
+
+Rerun (`limtod` environment, from the repo root):
+
+```bash
+python beam_tests_lwa35_stockert1420/fwhm_scaling_test_maps.py
+python beam_tests_lwa35_stockert1420/beam_averaging_blobs_maps.py
+```

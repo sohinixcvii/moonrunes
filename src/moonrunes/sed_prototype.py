@@ -10,10 +10,11 @@ makes are the module constants below.
   kernel set by ``beam_matching.kernel`` -- the measured elliptical TRIS beam
   by default), TRIS from the stage 1 maps + the fitted zero level, and a power
   law fitted at every TRIS-stripe pixel.
-* **TOD route** (:func:`tod_route`): limTOD observes every map at its native
-  resolution through the TRIS beam, a power law is fitted at every ring sample
-  against the real TRIS data, and the correction TOD (predicted - target) is
-  mapped with limTOD's Wiener filter and a zero-mean prior.
+* **TOD route** (:func:`tod_route`): every map is beam-matched to the TRIS
+  beam at the ring pointings (``sed.tod_beam``, :meth:`Inputs.ring_tod`), a
+  power law is fitted at every ring sample against the real TRIS data, and the
+  correction TOD (predicted - target) is mapped with limTOD's Wiener filter and
+  a zero-mean prior.
 
 Temperatures in the fits are Rayleigh-Jeans with the CMB removed
 (:func:`moonrunes.sky_maps.rj_excess`).  Predictions are quoted in the target's
@@ -85,6 +86,30 @@ PUBLISHED_ERRORS: Dict[str, Dict[str, object]] = {
         choice="target map, not a fit point; used only by notebook 03's noise test"),
 }
 MIN_COVERAGE = 0.5
+#: Every value ``sed.tod_beam`` may take (see :meth:`Inputs.ring_tod`).
+TOD_BEAMS = ("beam_matched", "native")
+
+
+def tod_beam(config: Config) -> str:
+    """``sed.tod_beam``: how a map becomes a ring TOD (default ``beam_matched``)."""
+    value = str(config.get_path("sed.tod_beam", "beam_matched"))
+    if value not in TOD_BEAMS:
+        raise ValueError("sed.tod_beam {!r} is not one of {}".format(value, TOD_BEAMS))
+    return value
+
+
+def tod_method_key(config: Config) -> str:
+    """A string that changes whenever the ring TODs would: for cache keys."""
+    import json
+
+    method = tod_beam(config)
+    if method == "native":
+        return json.dumps({"tod_beam": method, "nside": int(config.require("tris.nside"))})
+    spec = elliptical_beam.beam_spec_from_config(config, kernel="tris_cuts")
+    return json.dumps({"tod_beam": method, "spec": [
+        spec.kernel, spec.fwhm_e_deg, spec.fwhm_h_deg, spec.nside_work, spec.eval_subdivision,
+        spec.broad_native_kernel, spec.max_broadening_fraction]}, sort_keys=True)
+
 #: Zero-mean prior on the TOD-route correction: (fraction of target, constant K).
 CORRECTION_PRIOR = (0.10, 0.91)
 
@@ -182,11 +207,19 @@ class Inputs:
         self.hires = int(config.require("tris.nside_hires"))
         self.beam = self.tris.tris_cut_beam_map(self.cuts, nside=self.nside, normalization="peak")
         self.horizon = self.tris.tris_horizon_mask(self.nside)
+        # The ring TODs (sed.tod_beam): beam-matched to the TRIS cut beam at the ring
+        # pointings (zenith drift: RA = LST, Dec = site latitude), or the older native route.
+        self.tod_beam = tod_beam(config)
+        self.tod_key = tod_method_key(config)
+        if self.tod_beam == "beam_matched":
+            self.tod_spec = elliptical_beam.beam_spec_from_config(config, kernel="tris_cuts")
+            self.ring_vec = hp.ang2vec(np.radians(90.0 - float(self.geom.latitude_deg)) * np.ones_like(self.ra),
+                                       np.radians(np.asarray(self.geom.lst_deg, dtype=float)))
         if verbose:
-            print("simulating TRIS TODs of every map with limTOD...")
+            print("making the TRIS ring TODs of every map ({})...".format(self.tod_beam))
         self.tods: Dict[str, Dict[str, np.ndarray]] = {}
         for m in self.fit_maps + [self.target]:
-            tod, cov = self._native_tod(m)
+            tod, cov = self.ring_tod(m)
             self.tods[m["name"]] = dict(tod=tod, coverage=cov, good=cov >= MIN_COVERAGE)
 
         self.tris_map: Dict[float, tuple] = {}
@@ -235,7 +268,29 @@ class Inputs:
             g.selfrot_deg, nside_hires=self.hires, normalize_beam=True,
             horizontal_mask=self.horizon))
 
+    def ring_tod(self, m):
+        """``(TOD, coverage)`` of map ``m`` along the ring, as ``sed.tod_beam`` says.
+
+        ``beam_matched`` (:meth:`_beam_matched_tod`) needs ``m["fwhm_deg"]``, the map's
+        own beam; ``native`` (:meth:`_native_tod`) is the older route.  ``coverage`` is
+        the observed-weight fraction; a sample is used when it is >= MIN_COVERAGE."""
+        if self.tod_beam == "beam_matched":
+            return self._beam_matched_tod(m)
+        return self._native_tod(m)
+
+    def _beam_matched_tod(self, m):
+        """Stage 2's beam matching (``tris_cuts`` kernel, :mod:`moonrunes.elliptical_beam`)
+        evaluated at the ring pointings: the TRIS cut beam with the map's own beam taken
+        out, so every TOD sees the TRIS beam once.  Notebook 18 builds the same TODs."""
+        rotated, observed = self._rotated(m)
+        r = elliptical_beam.smooth_at_positions(np.where(observed, rotated, 0.0), observed,
+                                                float(m["fwhm_deg"]), self.tod_spec, self.ring_vec)
+        return np.asarray(r["values"], dtype=float), np.asarray(r["weight"], dtype=float)
+
     def _native_tod(self, m):
+        """The older TOD: the map at its own resolution, on the nside grid, observed with
+        limTOD's TRIS beam -- so the map's own beam stays in on top of the TRIS beam.
+        Kept for ``sed.tod_beam: native`` and for beam tests that want exactly that."""
         import healpy as hp
 
         observed = np.isfinite(m["sky"])

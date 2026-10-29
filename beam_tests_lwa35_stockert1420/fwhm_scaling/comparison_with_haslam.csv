@@ -1,0 +1,62 @@
+# Haslam rows read from outputs/fwhm_scaling_test/fwhm_scaling_table.csv (not rerun; survey width only, Haslam's own beam ignored). pct = two-step / one-step - 1 [%].
+map,FWHM given to the pipeline,pipeline kernel,FWHM scaling,median of fractional difference [%],std of fractional difference [%],std of fractional difference in TRIS stripe [%],max |fractional difference| [%]
+Haslam 408 MHz,survey only,circular Gaussian (old),minor,0.262145,0.725835,0.586451,2.20489
+Haslam 408 MHz,survey only,circular Gaussian (old),geometric,0.226953,0.62406,0.505375,1.92846
+Haslam 408 MHz,survey only,circular Gaussian (old),arithmetic,0.221148,0.607096,0.491851,1.88222
+Haslam 408 MHz,survey only,circular Gaussian (old),major,0.16305,0.454846,0.370277,1.4636
+Haslam 408 MHz,survey only,elliptical Gaussian,minor,0.2757,0.820088,0.676911,2.81132
+Haslam 408 MHz,survey only,elliptical Gaussian,geometric,0.240881,0.706582,0.584858,2.43999
+Haslam 408 MHz,survey only,elliptical Gaussian,arithmetic,0.23505,0.687644,0.569487,2.37778
+Haslam 408 MHz,survey only,elliptical Gaussian,major,0.178031,0.517447,0.431093,1.81353
+Haslam 408 MHz,survey only,TRIS cuts (measured),minor,0.23515,0.603038,0.498346,1.8531
+Haslam 408 MHz,survey only,TRIS cuts (measured),geometric,0.190324,0.484206,0.401245,1.582
+Haslam 408 MHz,survey only,TRIS cuts (measured),arithmetic,0.182678,0.464371,0.385037,1.53778
+Haslam 408 MHz,survey only,TRIS cuts (measured),major,0.10864,0.286598,0.239807,1.13209
+LWA1 35 MHz,survey only,circular Gaussian (old),minor,0.184901,0.694716,0.683345,2.34145
+LWA1 35 MHz,survey only,circular Gaussian (old),geometric,0.16736,0.629161,0.621054,2.12415
+LWA1 35 MHz,survey only,circular Gaussian (old),arithmetic,0.164202,0.618202,0.610637,2.08761
+LWA1 35 MHz,survey only,circular Gaussian (old),major,0.140002,0.519142,0.516386,1.75428
+LWA1 35 MHz,survey only,elliptical Gaussian,minor,0.190141,0.78318,0.800386,3.05389
+LWA1 35 MHz,survey only,elliptical Gaussian,geometric,0.173019,0.710496,0.728466,2.77251
+LWA1 35 MHz,survey only,elliptical Gaussian,arithmetic,0.169633,0.698336,0.716425,2.72509
+LWA1 35 MHz,survey only,elliptical Gaussian,major,0.144847,0.588278,0.607308,2.29105
+LWA1 35 MHz,survey only,TRIS cuts (measured),minor,0.180866,0.67758,0.684404,2.6317
+LWA1 35 MHz,survey only,TRIS cuts (measured),geometric,0.159718,0.600657,0.607893,2.36672
+LWA1 35 MHz,survey only,TRIS cuts (measured),arithmetic,0.155738,0.587777,0.595074,2.32204
+LWA1 35 MHz,survey only,TRIS cuts (measured),major,0.126071,0.471113,0.478827,1.91304
+LWA1 35 MHz,survey + native,circular Gaussian (old),minor,0.1245,0.457905,0.458037,1.54523
+LWA1 35 MHz,survey + native,circular Gaussian (old),geometric,0.106899,0.391384,0.394545,1.31506
+LWA1 35 MHz,survey + native,circular Gaussian (old),arithmetic,0.103454,0.380299,0.383951,1.27634
+LWA1 35 MHz,survey + native,circular Gaussian (old),major,0.0790876,0.280896,0.288649,0.922958
+LWA1 35 MHz,survey + native,elliptical Gaussian,minor,0.128948,0.520118,0.539594,2.01751
+LWA1 35 MHz,survey + native,elliptical Gaussian,geometric,0.109783,0.44596,0.465767,1.7151
+LWA1 35 MHz,survey + native,elliptical Gaussian,arithmetic,0.106909,0.433591,0.453434,1.66411
+LWA1 35 MHz,survey + native,elliptical Gaussian,major,0.0818695,0.322478,0.342284,1.19697
+LWA1 35 MHz,survey + native,TRIS cuts (measured),minor,0.107524,0.398826,0.406627,1.65517
+LWA1 35 MHz,survey + native,TRIS cuts (measured),geometric,0.0850434,0.320142,0.327868,1.36996
+LWA1 35 MHz,survey + native,TRIS cuts (measured),arithmetic,0.0811271,0.307025,0.314713,1.32185
+LWA1 35 MHz,survey + native,TRIS cuts (measured),major,0.05065,0.189908,0.196606,0.881049
+Stockert + Villa-Elisa 1420 MHz,survey only,circular Gaussian (old),minor,0.0463393,0.231593,0.170766,1.11954
+Stockert + Villa-Elisa 1420 MHz,survey only,circular Gaussian (old),geometric,0.0401695,0.196324,0.145338,0.932591
+Stockert + Villa-Elisa 1420 MHz,survey only,circular Gaussian (old),arithmetic,0.0391885,0.190439,0.141098,0.901198
+Stockert + Villa-Elisa 1420 MHz,survey only,circular Gaussian (old),major,0.0296039,0.137554,0.103054,0.615386
+Stockert + Villa-Elisa 1420 MHz,survey only,elliptical Gaussian,minor,0.0499856,0.258329,0.193515,1.25085
+Stockert + Villa-Elisa 1420 MHz,survey only,elliptical Gaussian,geometric,0.0433475,0.219506,0.165261,1.04343
+Stockert + Villa-Elisa 1420 MHz,survey only,elliptical Gaussian,arithmetic,0.0422699,0.213023,0.160545,1.00856
+Stockert + Villa-Elisa 1420 MHz,survey only,elliptical Gaussian,major,0.0313122,0.154719,0.118179,0.690584
+Stockert + Villa-Elisa 1420 MHz,survey only,TRIS cuts (measured),minor,0.0430627,0.195732,0.145769,1.01025
+Stockert + Villa-Elisa 1420 MHz,survey only,TRIS cuts (measured),geometric,0.0339837,0.155983,0.116846,0.807092
+Stockert + Villa-Elisa 1420 MHz,survey only,TRIS cuts (measured),arithmetic,0.0325728,0.149341,0.112018,0.772944
+Stockert + Villa-Elisa 1420 MHz,survey only,TRIS cuts (measured),major,0.0193349,0.0897039,0.0688024,0.500105
+Stockert + Villa-Elisa 1420 MHz,survey + native,circular Gaussian (old),minor,0.0459648,0.229559,0.169299,1.1088
+Stockert + Villa-Elisa 1420 MHz,survey + native,circular Gaussian (old),geometric,0.0398667,0.194283,0.143868,0.921713
+Stockert + Villa-Elisa 1420 MHz,survey + native,circular Gaussian (old),arithmetic,0.0387815,0.188397,0.139628,0.890295
+Stockert + Villa-Elisa 1420 MHz,survey + native,circular Gaussian (old),major,0.0292896,0.135529,0.1016,0.604258
+Stockert + Villa-Elisa 1420 MHz,survey + native,elliptical Gaussian,minor,0.049604,0.256091,0.191886,1.23895
+Stockert + Villa-Elisa 1420 MHz,survey + native,elliptical Gaussian,geometric,0.0429771,0.217258,0.163626,1.03135
+Stockert + Villa-Elisa 1420 MHz,survey + native,elliptical Gaussian,arithmetic,0.0417438,0.210774,0.158909,0.996447
+Stockert + Villa-Elisa 1420 MHz,survey + native,elliptical Gaussian,major,0.0307981,0.152485,0.116557,0.678185
+Stockert + Villa-Elisa 1420 MHz,survey + native,TRIS cuts (measured),minor,0.0425273,0.193442,0.144102,0.998599
+Stockert + Villa-Elisa 1420 MHz,survey + native,TRIS cuts (measured),geometric,0.0334327,0.15368,0.115171,0.79526
+Stockert + Villa-Elisa 1420 MHz,survey + native,TRIS cuts (measured),arithmetic,0.0319834,0.147037,0.110343,0.761081
+Stockert + Villa-Elisa 1420 MHz,survey + native,TRIS cuts (measured),major,0.018903,0.0874332,0.0671646,0.489894

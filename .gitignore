@@ -218,12 +218,43 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Pipeline products (stage manifests, maps, samples).
-outputs/*
+# ---------------------------------------------------------------------------
+# moonrunes (updated 2026-10-28)
+# Policy: plots (png/pdf/svg), Markdown and code are tracked; regenerable data products,
+# caches and anything near GitHub's 100 MB per-file limit are not.
+# ---------------------------------------------------------------------------
+
+# Pipeline products (stage manifests, maps, posterior samples): ignore all of outputs/ except
+# its plots and Markdown.  "!outputs/**/" re-includes the folders so the rules below can reach files.
+outputs/**
+!outputs/**/
 !outputs/.gitkeep
+!outputs/**/*.png
+!outputs/**/*.pdf
+!outputs/**/*.svg
+!outputs/**/*.md
 
-*.pdf
-PIPELINE.md
+# Regenerable caches anywhere: UltraNest reruns, ML fits, sky-model fits (notebooks 11-18 rebuild them).
+# Files already committed (model_comparison/diagnostic_plots/cache/*.npz) stay tracked until
+# removed from the index with `git rm --cached`.
+**/cache/
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.h5
+*.hdf5
 
-# Too large for GitHub (>100 MB); download per DATA_SOURCES.md.
+# Too large for GitHub (>100 MB per file); download per DATA_SOURCES.md.
 res/CHIPASS_1400MHz.fits
+
+# Editor / OS / tool leftovers
+.claude/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+Thumbs.db

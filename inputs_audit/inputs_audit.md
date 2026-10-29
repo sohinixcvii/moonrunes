@@ -2,7 +2,7 @@
 
 > **Update 2026-10-21:** the 10% placeholder described below has been replaced by each
 > survey's published scale, zero-level and noise errors (`sed_prototype.PUBLISHED_ERRORS`;
-> table in `DATA_SOURCES.md`, "Survey uncertainties used in the SED fit"). The rest of this
+> table in `DATA_SOURCES.md`, "Uncertainties (noise model) for every map"). The rest of this
 > audit describes the code as it stood on 2026-10-20, and its line numbers in
 > `sed_prototype.py` are now offset by the new table.
 
