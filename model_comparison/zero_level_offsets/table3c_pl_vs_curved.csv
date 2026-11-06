@@ -1,0 +1,4 @@
+pair,curved better (Δχ² > 2),tie (|Δχ²| ≤ 2),power law better (Δχ² < −2),median Δχ²,samples
+baseline (errors as now),59,44,0,2.3572760920959035,103
+"zero levels removed, o = 0",103,0,0,1959.058838868457,103
+offsets free: (1) vs (3),102,1,0,51.34138316614973,103

@@ -1,30 +1,43 @@
-# Conda environment for tris_haslam_cal.
+# Conda environment "limtod": a copy of the environment every script and notebook in this
+# repo is run with (exported 2026-10-29 from the working macOS environment).
 #
-# Python is pinned explicitly (3.12): healpy wheels, scipy >= 1.15
-# (bayesian_skymap imports scipy.special.sph_harm_y, which only exists there)
-# and limTOD 1.10 are all known-good on 3.12, and an unpinned `python` in this
-# file is what silently produced a different interpreter last time.
+#   conda env create -n limtod -f environment.yml
+#   conda activate limtod
+#   python -m ipykernel install --user --name limtod --display-name "Python 3 (limtod)"
 #
-#   conda env create -f environment.yml
-#   conda activate tris-haslam-cal
-#   pip install -e .            # installs limTOD + this package from pyproject
-name: tris-haslam-cal
+# Versions are pinned to what that environment has, so results match. Python 3.14 (and ultranest,
+# which has no Linux wheel on PyPI) come from conda-forge; the rest of the scientific stack comes
+# from pip, as it does in the original environment.
+#
+# limTOD is deliberately NOT installed here. The code uses the limTOD source checkout next to
+# this repo (configs/run_config.yaml paths.limtod: ../limTOD), which carries local changes to
+# limTOD/tris that the PyPI release does not have; the TRIS archive is read from
+# ../limTOD/downloads/TRIS. An installed limTOD would be imported first and shadow it
+# (moonrunes.stage1_tris_maps.import_limtod_tris), so do not `pip install limTOD` or
+# `pip install -e .` (pyproject.toml lists limTOD as a dependency, which pulls the PyPI one).
+# The notebooks and scripts put src/ on sys.path themselves, so this package needs no install.
+name: limtod
 channels:
   - conda-forge
 dependencies:
-  - python=3.12
+  - python=3.14
   - pip
-  # Compiled/awkward-to-wheel scientific stack comes from conda-forge; the pure
-  # Python layer (limTOD, emcee, this package) comes from pip via pyproject.
-  - numpy>=1.24
-  - scipy>=1.15
-  - healpy>=1.16
-  - astropy>=5.3
-  - matplotlib>=3.7
-  - pyyaml>=6.0
-  - tqdm>=4.60
-  - pytest>=7.4
-  - jupyterlab
   - ipykernel
+  - jupyterlab        # not in the macOS environment (notebooks were run from an editor); for the server
+  - nbclient          # run notebooks headless: jupyter execute <notebook>.ipynb
+  - ultranest=4.6.3   # model_comparison/run_comparison.py, notebooks 11 and 15 (PyPI has no Linux wheel; conda-forge does)
   - pip:
-      - -e .
+      - numpy==2.5.2
+      - scipy==1.18.1           # >= 1.15 needed: bayesian_skymap imports scipy.special.sph_harm_y
+      - healpy==1.20.0
+      - astropy==8.0.1
+      - matplotlib==3.11.1
+      - pandas==3.0.5
+      - pyyaml==6.0.3
+      - tqdm==4.70.0
+      - mpmath==1.4.1           # limTOD dependency
+      - emcee==3.1.6            # bayesian_skymap's spectral-index step
+      - pygdsm==1.7.1           # GSM2008 / GSM2016 / LFSM sky models (notebooks 02, 12-14, 18); downloads its data on first use
+      - h5py==3.16.0            # pygdsm's data files
+      - corner==2.3.0
+      - pytest==9.1.1

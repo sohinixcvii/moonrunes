@@ -446,7 +446,11 @@ sed:
   # let those few points pull the fits (the steps at LST 255-280 and 320-345 deg in
   # notebooks 07/08).  Filenames as in res/.  Stage 2 and notebook 06 (the TRIS +
   # ARCADE 2 four-point cross-check) are not affected.
-  exclude_maps: [ARCADE2_315.fits, ARCADE2_341.fits, Juno_1248MHz.fits, Juno_600MHz.fits]
+  # (2026-10-29) The seven LWA1 maps added to res/ (38-74 MHz) are listed too, so every study that reads this list
+  # keeps the data it had; notebook 19 and run_comparison choose their data sets explicitly and can use them.
+  # Remove them here to add them to the TOD route, the map route and notebooks 07, 08, 10, 12-18.
+  exclude_maps: [ARCADE2_315.fits, ARCADE2_341.fits, Juno_1248MHz.fits, Juno_600MHz.fits,
+                 LWA1_38.fits, LWA1_40.fits, LWA1_45.fits, LWA1_50.fits, LWA1_60.fits, LWA1_70.fits, LWA1_74.fits]
   # DECISION (2026-10-27) -- how every map becomes a TRIS ring TOD (sed_prototype.Inputs.ring_tod;
   # the TOD route, run_comparison.py and notebooks 07, 08, 10-17).
   #   beam_matched  stage 2's beam matching with the tris_cuts kernel (beam_matching.elliptical),

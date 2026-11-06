@@ -353,7 +353,7 @@ has 5–8 data points in the map route (per pixel) and 6 in the TOD route (per r
 TRIS is the only absolutely calibrated point in these fits; the rest are relatively
 calibrated surveys that constrain the spectral shape.
 
-**`notebooks/07_sed_calibration` and `notebooks/08_paper_plots` (current, nside 16)** fit
+**`notebooks/07_sed_calibration` and `notebooks/08_update_plots` (current, nside 16)** fit
 every usable map in `res/` (`moonrunes.sky_maps`) two ways:
 
 * **The TOD route:** limTOD TODs of the native maps → one fit per ring sample, against the
@@ -513,7 +513,8 @@ defaulting.
 | `05_beam_matching` | the beam-matching prototype with the **circular** kernel: UNSEEN counts, the final mask, the four-way overlap | earlier grid |
 | `06_sed_fit` | stage 3 with the four trusted points (TRIS + ARCADE 2) only: per-pixel fit, full maps of best-fit Haslam, β and χ², sensitivity cases | current (nside 16) |
 | `07_sed_calibration` | stage 3 prototype with every usable map: the TOD route and the map route, old vs corrected Haslam, the hybrid map | current (nside 16) |
-| `08_paper_plots` | paper figures from `moonrunes.sed_prototype`, with the destriped-only Haslam as target; saved to `outputs/paper_plots/` | current (nside 16) |
+| `08_update_plots` | the working figure set from `moonrunes.sed_prototype`, with the destriped-only Haslam as target; saved to `outputs/paper_plots/` | current (nside 16) |
+| `09`–`21` | beam FWHM tests, the paper figures (`10_paper_plots`), the model comparison diagnostics, the ring fits and sky-model comparisons, T–T β, beam-matched TODs, TOD prediction, zero-level offsets and the robustness check: see `NOTEBOOK_INDEX.md` | nside 16 |
 
 ---
 

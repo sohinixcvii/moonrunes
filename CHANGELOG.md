@@ -12,6 +12,93 @@ resolve before running anything".
 
 ### Changed
 
+#### Paper figure: the 408 MHz models against the power-law prediction, notebook 10 Figure 11 (2026-11-06)
+
+- **`notebooks/10_paper_plots.ipynb`, Figure 11 (cells 26–27), `Figures/skymodel_models_vs_prediction_408.pdf/.png`.**
+  The six-survey power-law prediction at 408 MHz along the ring (notebook 12's fit cache: maximum-likelihood A, σ the
+  standard deviation of the posterior samples) against the beam-matched 408 MHz TODs of Haslam, its Carter and Irfan
+  corrections, GSM2008, GSM2016, GSM2016 + GINAN and LFSM (notebook 18), through the TRIS beam; model − prediction
+  below. In `main.tex` §6.2 (`fig:models-vs-prediction-408`). The medians reproduce the paper's 408 MHz residual table
+  to within 0.05 K. Run once on its own (cell 1's settings only); the notebook was not rerun.
+- **`rhino_tods_tris_beam` taken out of the paper** (`main.tex`); notebook 10 still makes it. `PLOT_INDEX.md`,
+  `NOTEBOOK_INDEX.md` and `README.md` updated.
+
+#### Paper figures renamed, and every figure placed in `main.tex` (2026-11-06)
+
+- **New names, `<section>_<content>`,** the prefix being the paper section the figure sits in (`data`, `method`, `tt`,
+  `modelcomp`, `skymodel`, `rhino`, as in the `sec:` labels): `fig1_all_maps_tris_slice` → `data_maps_tris_slice`,
+  `tris_beam` → `method_tris_beam`, `tris_maps` → `method_tris_maps`, `plot6_tods_600_820_data_vs_models` →
+  `method_models_vs_tris_tods`, `plot4f_beta_matrix_whole_ring` → `tt_beta_matrix`,
+  `plot4c_beta_vs_mean_frequency_span` → `tt_beta_vs_frequency`, `model_comparison_fits_vs_tris` →
+  `modelcomp_fits_vs_tris`, `tris_anchor_gz_plane` → `skymodel_tris_anchor_gz`. The two RHINO figures keep their
+  names. Notebook 08's and 14's own working files (`outputs/paper_plots/`, `phil_plots/`) are not renamed.
+- **`notebooks/10_paper_plots.ipynb`:** the `save()` calls and the "Featured in" notes use the new names and the paper
+  sections the figures are now in (3.2, 6.3, 7.1, 7.2 for the four that were not yet in `main.tex`). `save()` still
+  writes PDF + PNG; `main.tex` includes only the PDFs, and the old PNGs were removed from `Figures/`. Not rerun.
+- `PLOT_INDEX.md`, `NOTEBOOK_INDEX.md` and `README.md` updated to match.
+
+#### RHINO figures in the paper plots, notebook 10 Figures 9–10 (2026-11-06)
+
+- **`notebooks/10_paper_plots.ipynb`, Figures 9–10 (cells 23–25), `Figures/rhino_tods_tris_beam.pdf/.png` and
+  `Figures/rhino_tods_rhino_beam.pdf/.png`.** Notebook 19 Test 6's figures at MNRAS full width, read from its CSVs in
+  `tod_prediction/`, with Figure 3's model styles. Not yet in `main.tex`. Only cells 1 and 24–25 were run.
+
+#### RHINO predictions, notebook 19 Test 6 (2026-11-05)
+
+- **`notebooks/19_power_law_tod_prediction.ipynb`, Test 6 (cells 21–23; settings added to cell 2).** The power-law
+  prediction at 60, 65, 70, 75 and 80 MHz through the TRIS beam, then deconvolved from it (Wiener solve on the nside 16
+  grid, stage 1's prior width, GSM2016 as the prior) and observed with the RHINO
+  `DryHornGround` CST beam at the Jodrell Bank zenith (`JodrellBank.fits` horizon, ground term left out). GSM2008,
+  GSM2016, LFSM, GSM2008 + Carter and GSM2008 + Irfan (applied at 408 MHz, carried with GSM2008's per-pixel spectrum) and GSM2016 + GINAN
+  (evaluated directly, valid 60–350 MHz) go through both beams. Writes `tod_prediction/test6_rhino_freqs_{tris,rhino}_beam.png/.csv`; the
+  sky models are cached in `tod_prediction/cache/rhino_sky_models.npz`. The beam's azimuth orientation is limTOD's
+  identity mapping, not checked against the as-built horn.
+
+#### Robustness check of the Haslam gain and offset, notebook 21 (2026-11-05)
+
+- **`notebooks/21_robustness_check.ipynb`, new** (a collaborator's comment 2). Haslam = g P + z (York, as notebook 08
+  Figs 15–16) on a fixed grid: survey subsets (each survey left out, both LWA1 bands out, Maipu 45 + TRIS 600 + 820,
+  TRIS only), power law and curved power law (≥ 4 surveys), Cygnus A mask ±15° / ±35°, the RA halves split at 200°,
+  and three rows copied from notebook 20's Table 3(a). The baseline (six-survey power law, 103 samples) reproduces
+  g = 1.0548 ± 0.0536, z = −4.77 ± 1.47 K. Writes `model_comparison/robustness_check/robustness_table.csv` and
+  `robustness_gz_plane.png/.pdf`. No spectral fit failed the convergence check.
+
+#### Paper figure: the TRIS anchor of the Haslam gain and offset (2026-11-05)
+
+- **`notebooks/10_paper_plots.ipynb`, Figure 8 (cells 20–22), `Figures/tris_anchor_gz_plane.pdf/.png`.** Notebook 08
+  Fig 15 at MNRAS column width. The cell redoes notebook 08's fits (the ellipses need the g–z covariance, which 08 does
+  not save) and asserts they match 08's CSVs in `outputs/paper_plots/`. Not yet in `main.tex`.
+
+#### Fix: notebook 08 Figure 14b `NameError: PA` (2026-11-05)
+
+- The 2026-11-02 trim of Figure 14 (cell 46) had removed the `PA` / `FW` arrays that Figure 14b (cell 48) uses, so a
+  fresh run stopped there. The two lines are back in cell 46; Figure 14 is unchanged. Notebook 08 runs from the top.
+
+#### Notebook 08 Figures 15–16: how strongly TRIS anchors the Haslam gain and offset (2026-11-04)
+
+- **Cells 49–61** (a collaborator's comment 1): Haslam = g P + z for P from TRIS only, from the four other surveys
+  and from all six; σ(ln A at 408 MHz) from the Fisher matrix with each survey left out; the TRIS-only fit against a
+  fixed extrapolation β. Figures `fig15_tris_anchor_gz_plane`, `fig16_sigma_lnA408_leave_out`, tables
+  `fig15_part*`, `fig16_part*` in `outputs/paper_plots/`.
+
+#### Notebook 20: TRIS II Table 3 zero levels filled in (2026-11-03)
+
+- `ZERO_LEVEL_SIGMA_K`: TRIS 600 = 0.066 K, TRIS 820 = 0.430 K (the larger side of +0.430 / −0.300 K; footnote a's
+  0.659 K recorded, not used). They equal the zero-level terms already inside `ring_sigma`, so every number is
+  unchanged; the text no longer says they are missing, and Figure A marks them.
+
+#### Documentation (2026-11-03 to 2026-11-05)
+
+- **`NOTEBOOK_INDEX.md`, new:** what each notebook does, what it reads and writes, and its status.
+- `PLOT_INDEX.md`: notebooks 19–21, notebook 08 Figs 15–16 and the paper figure `tris_anchor_gz_plane` added.
+- `README.md`: the notebook table covers 01–21 (notebook 08's name corrected to `08_update_plots`).
+
+#### Not recorded here at the time
+
+- Notebook 08 Figures 14 / 14b and notebook 10's `tris_beam` (2026-11-02), notebook 03's beam-variant section
+  (`outputs/beam_variants/`), and notebooks 19 and 20 themselves were added without a changelog entry; see
+  `NOTEBOOK_INDEX.md` and `PLOT_INDEX.md` for what they contain.
+
 #### Model comparison: choose the data sets (2026-10-28)
 
 - **`model_comparison/config.yaml`: `data.datasets`,** the list of data sets that go into every SED (keys as in

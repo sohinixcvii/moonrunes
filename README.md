@@ -265,7 +265,8 @@ builds from the *true* gain as `(0.15 × (1 + g_true))²` (stage 2 emits the sam
 
 ## Notebooks
 
-All are committed **with their outputs**, so they can be read without re-running.
+All are committed **with their outputs**, so they can be read without re-running. `NOTEBOOK_INDEX.md` gives each
+notebook's status (current / stale / superseded) and where it writes; `PLOT_INDEX.md` lists every plot.
 **03, 05 and 06 predate the switch to nside 16** and have not been re-run on it yet; 01's sections 05–06 follow `tris.nside`.
 
 | Notebook | Contents |
@@ -277,8 +278,20 @@ All are committed **with their outputs**, so they can be read without re-running
 | `05_beam_matching.ipynb` | With the original **circular** kernel: Haslam and ARCADE 2 smoothed to 23.366° in the equatorial frame; UNSEEN counts and the ring's break at its narrow junctions; the final ARCADE 2 mask and the four-way overlap with TRIS. |
 | `06_sed_fit.ipynb` | Stage 3 prototype with the four trusted points only (TRIS 600/820 + ARCADE 2), at nside 16 from the stage 1 and 2 products, fitted at **every** TRIS-stripe pixel (4 points where ARCADE 2 exists, 2 elsewhere): full maps of best-fit Haslam, β, χ², σ(β) and points per fit, and the sensitivity to ẑ and TRIS beam matching. With ARCADE 2: +3.4 K (+9.6%); TRIS only: +31%, driven by ẑ. |
 | `07_sed_calibration.ipynb` | Stage 3 prototype on nside 16, with every usable map in `res/`: the **TOD route** (limTOD TODs → per-sample SED fit → correction TOD → map via the Wiener filter) and the **map route** (per-pixel fit on the TRIS grid), old vs corrected Haslam, and a hybrid map. The TOD route finds Haslam ~18% low along the ring; the map route is circular through stage 1's GSM2008 prior. |
-| `08_paper_plots.ipynb` | Paper figures, target = destriped-only Haslam: the maps used and the target with the TRIS stripe, stripe slices, the TRIS maps and TODs, pixel-by-pixel and sample-by-sample SED fits with residuals, fit-residual maps, old vs best-fit Haslam (both routes), χ² and β maps, full-resolution corrected Haslam (both routes), T–T corner plots (raw and beam-convolved). Saved to `outputs/paper_plots/`. |
+| `08_update_plots.ipynb` | The working figure set, target = destriped-only Haslam: the maps used and the target with the TRIS stripe, stripe slices, the TRIS maps and TODs, pixel-by-pixel and sample-by-sample SED fits with residuals, fit-residual maps, old vs best-fit Haslam (both routes), χ² and β maps, full-resolution corrected Haslam (both routes), T–T corner plots (raw and beam-convolved), the TRIS beam (Figs 14, 14b), and how strongly TRIS anchors the Haslam gain and offset (Figs 15, 16). Saved to `outputs/paper_plots/`. |
 | `09_beam_fwhm_tests.ipynb` | Tests of the beam widths: the σ ↔ FWHM constant, the FWHM function on Gaussian and archive cuts (and its linear-in-dB interpolation bias), degree/radian and σ/FWHM slips, the cut beam's principal planes, `hp.smoothing`'s real-space width, and a round trip (Gaussian beam map → cuts → FWHM) at nside 16–1024. Same checks in `tests/test_beam_fwhm.py`. |
+| `10_paper_plots.ipynb` | The paper's figures at MNRAS size, written to `Papers_and_reports/moonrunes_paper/Figures/` (PDF + PNG) under the names `main.tex` includes: all maps over the TRIS slice, the TRIS maps, the sky models' TODs at 600/820 MHz, the T–T β matrix and β vs frequency, the model-comparison fits, the TRIS beam, the TRIS anchor of the Haslam gain and offset, the predicted TODs at RHINO frequencies through the TRIS and RHINO beams (from notebook 19's Test 6 CSVs; only the RHINO-beam one is in the paper), and the 408 MHz models against the power-law prediction. File names are `<section>_<content>` (`PLOT_INDEX.md`, "Paper figures"). |
+| `11_model_comparison_diagnostics.ipynb` | Diagnostics of the spectral-model comparison (`model_comparison/`): score differences, posteriors, the C prior, convergence, fits at the TRIS frequencies, robustness. |
+| `12_sky_models_vs_fit_408.ipynb` | Power-law and curved fits per ring sample (UltraNest), and which 408 MHz sky model matches the prediction; its cache feeds 13, 15, 16, 17, 20 and 21. |
+| `13_sky_model_residuals_408.ipynb` | Plots 1–3: legacy and corrected sky models against the power-law 408 MHz prediction. |
+| `14_ring_tt_betas.ipynb` | T–T β along the ring for every survey pair, and the sky models against TRIS at 600/820 MHz (Plots 4–6d). |
+| `15_model_choice_decision_sheet.ipynb` | The model-choice decision sheet (five criteria, with and without Cygnus A). |
+| `16_haslam_vs_power_law_408.ipynb` | Haslam and the sky models against the power-law prediction: scale–offset fits. |
+| `17_haslam_gain_offset_calibration.ipynb` | Haslam calibrated with one gain and offset along the ring (Plot 3). |
+| `18_beam_matched_tods.ipynb` | The beam-matched ring TODs of every survey and sky model, and their change from the old ones. |
+| `19_power_law_tod_prediction.ipynb` | Power-law and curved fits per ring sample and the predicted ring TOD at any frequency (Tests 1–5); RHINO predictions at 60–80 MHz (Test 6). |
+| `20_zero_level_offsets.ipynb` | Zero-level offsets as shared fit parameters with priors from the published systematics (TRIS II Table 3 for TRIS). |
+| `21_robustness_check.ipynb` | Robustness of the Haslam gain and offset across survey subsets, spectral models, sample subsets and zero-level treatment. |
 
 ---
 

@@ -57,6 +57,27 @@ EXTERNAL_METADATA: Dict[str, Dict[str, object]] = {
     "LWA_80MHz.fits": dict(
         name="LWA1 80 MHz", frame="C", cmb="included",
         source="LAMBDA fg_lwa1_radio_maps_info: Equatorial; Dowell et al. 2017"),
+    "LWA1_38.fits": dict(
+        name="LWA1 38 MHz", frame="C", cmb="included",
+        source="LAMBDA fg_lwa1_radio_maps_info: Equatorial; Dowell et al. 2017 (same survey and file format as 35/80 MHz)"),
+    "LWA1_40.fits": dict(
+        name="LWA1 40 MHz", frame="C", cmb="included",
+        source="LAMBDA fg_lwa1_radio_maps_info: Equatorial; Dowell et al. 2017 (same survey and file format as 35/80 MHz)"),
+    "LWA1_45.fits": dict(
+        name="LWA1 45 MHz", frame="C", cmb="included",
+        source="LAMBDA fg_lwa1_radio_maps_info: Equatorial; Dowell et al. 2017 (same survey and file format as 35/80 MHz)"),
+    "LWA1_50.fits": dict(
+        name="LWA1 50 MHz", frame="C", cmb="included",
+        source="LAMBDA fg_lwa1_radio_maps_info: Equatorial; Dowell et al. 2017 (same survey and file format as 35/80 MHz)"),
+    "LWA1_60.fits": dict(
+        name="LWA1 60 MHz", frame="C", cmb="included",
+        source="LAMBDA fg_lwa1_radio_maps_info: Equatorial; Dowell et al. 2017 (same survey and file format as 35/80 MHz)"),
+    "LWA1_70.fits": dict(
+        name="LWA1 70 MHz", frame="C", cmb="included",
+        source="LAMBDA fg_lwa1_radio_maps_info: Equatorial; Dowell et al. 2017 (same survey and file format as 35/80 MHz)"),
+    "LWA1_74.fits": dict(
+        name="LWA1 74 MHz", frame="C", cmb="included",
+        source="LAMBDA fg_lwa1_radio_maps_info: Equatorial; Dowell et al. 2017 (same survey and file format as 35/80 MHz)"),
     "STOCKERT_VILLA_1400MHZ.fits": dict(
         name="Stockert + Villa-Elisa 1420 MHz", unit="mK", freq_mhz=1420.0,
         fwhm_deg=35.4 / 60.0, fwhm="35.4′", cmb="included",
