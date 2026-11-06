@@ -55,6 +55,41 @@ PUBLISHED_ERRORS: Dict[str, Dict[str, object]] = {
         source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
                "15-25% (conservative), for both structure and sky-averaged temperature",
         choice="20% = middle of the quoted 15-25% range; no separate zero level is quoted"),
+    "LWA1_38.fits": dict(
+        scale=0.20, zero_k=0.0, noise_k=0.0,
+        source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
+               "15-25% (conservative), for both structure and sky-averaged temperature",
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+    "LWA1_40.fits": dict(
+        scale=0.20, zero_k=0.0, noise_k=0.0,
+        source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
+               "15-25% (conservative), for both structure and sky-averaged temperature",
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+    "LWA1_45.fits": dict(
+        scale=0.20, zero_k=0.0, noise_k=0.0,
+        source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
+               "15-25% (conservative), for both structure and sky-averaged temperature",
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+    "LWA1_50.fits": dict(
+        scale=0.20, zero_k=0.0, noise_k=0.0,
+        source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
+               "15-25% (conservative), for both structure and sky-averaged temperature",
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+    "LWA1_60.fits": dict(
+        scale=0.20, zero_k=0.0, noise_k=0.0,
+        source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
+               "15-25% (conservative), for both structure and sky-averaged temperature",
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+    "LWA1_70.fits": dict(
+        scale=0.20, zero_k=0.0, noise_k=0.0,
+        source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
+               "15-25% (conservative), for both structure and sky-averaged temperature",
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+    "LWA1_74.fits": dict(
+        scale=0.20, zero_k=0.0, noise_k=0.0,
+        source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
+               "15-25% (conservative), for both structure and sky-averaged temperature",
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
     "MAIPU_45mhZ.fits": dict(
         scale=0.017, zero_k=39.0, noise_k=0.0,
         source="Monsalve et al. 2021 (LAMBDA fg_maipu_info): scale 1.076 +/- 0.034 and zero "

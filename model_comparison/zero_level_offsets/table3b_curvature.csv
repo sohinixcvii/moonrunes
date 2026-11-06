@@ -1,0 +1,8 @@
+configuration,median β (at 408 MHz),median C,median σ_C
+"(4) baseline: power law, errors as now",-2.4838597722309923,,
+"reference: power law, zero levels removed, o = 0",-2.6332498506646655,,
+"(1) power law, offsets on all",-2.4373553311302425,,
+"(2) power law, offsets on TRIS only",-2.4629426793423477,,
+"baseline curved power law, errors as now",-2.7293778828632833,-0.1293729442403874,0.07915745712181071
+"reference: curved PL, zero levels removed, o = 0",-2.793804859528219,-0.14881259188793586,0.003688575238936079
+"(3) curved power law, offsets on all",-2.917698816590711,-0.20738840494238492,0.0038472075065270612

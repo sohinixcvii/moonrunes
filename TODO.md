@@ -263,6 +263,9 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   noise. The same holds for TRIS's zero level along a ring. A nuisance parameter per survey
   (gain, offset) or a full covariance would do it properly. Until then the χ²/dof (0.99 TOD
   route, 0.47 map route) is not a goodness-of-fit test.
+  *Partly explored in `notebooks/20`, which fits one zero-level offset per survey, shared by all samples, with
+  priors from the published systematics; `notebooks/21` shows how much the Haslam gain and offset move with it.
+  The SED fits and the model comparison still add the terms per point.*
 - [x] **N-16 — Decide whether to apply Monsalve et al. 2021's corrections to Maipu 45 MHz.**
   The map in `res/` needs ×1.076 and −160 K to match EDGES, but they are not applied. N-13
   uses only their uncertainties (1.7%, 39 K), and Maipu now carries most of the
@@ -326,7 +329,9 @@ in `outputs/*/`, and `CHANGELOG.md` for what is already done.
   `limtod` env with `limTOD` imported from the sibling checkout via `paths.limtod`. The
   documented setup path is therefore untested.
 
-- [ ] **H2 — `jupyterlab`/`nbclient` are not in the env used to run the notebooks.**
+- [x] **H2 — `jupyterlab`/`nbclient` are not in the env used to run the notebooks.** *Done 2026-11-04:
+  `nbconvert` (with `nbclient`) is installed in the `limtod` env, and the notebooks run from the terminal with
+  `jupyter nbconvert --execute`. Not yet in `environment.yml`.* *(Original note:)*
   The committed notebooks had to be executed with another environment's `nbclient` driving
   the `limtod` kernel. Anyone re-running them from `environment.yml` should be fine, but
   that is exactly what H1 has not verified.
