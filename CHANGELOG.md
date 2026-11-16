@@ -14,7 +14,7 @@ resolve before running anything".
 
 #### Paper figure: the 408 MHz models against the power-law prediction, notebook 10 Figure 11 (2026-11-06)
 
-- **`notebooks/10_paper_plots.ipynb`, Figure 11 (cells 26–27), `Figures/skymodel_models_vs_prediction_408.pdf/.png`.**
+- **`notebooks/10_paper_plots.ipynb`, Figure 11 (cells 26–27), `figures/skymodel_models_vs_prediction_408.pdf/.png`.**
   The six-survey power-law prediction at 408 MHz along the ring (notebook 12's fit cache: maximum-likelihood A, σ the
   standard deviation of the posterior samples) against the beam-matched 408 MHz TODs of Haslam, its Carter and Irfan
   corrections, GSM2008, GSM2016, GSM2016 + GINAN and LFSM (notebook 18), through the TRIS beam; model − prediction
@@ -34,13 +34,13 @@ resolve before running anything".
   names. Notebook 08's and 14's own working files (`outputs/paper_plots/`, `phil_plots/`) are not renamed.
 - **`notebooks/10_paper_plots.ipynb`:** the `save()` calls and the "Featured in" notes use the new names and the paper
   sections the figures are now in (3.2, 6.3, 7.1, 7.2 for the four that were not yet in `main.tex`). `save()` still
-  writes PDF + PNG; `main.tex` includes only the PDFs, and the old PNGs were removed from `Figures/`. Not rerun.
+  writes PDF + PNG; `main.tex` includes only the PDFs, and the old PNGs were removed from `figures/`. Not rerun.
 - `PLOT_INDEX.md`, `NOTEBOOK_INDEX.md` and `README.md` updated to match.
 
 #### RHINO figures in the paper plots, notebook 10 Figures 9–10 (2026-11-06)
 
-- **`notebooks/10_paper_plots.ipynb`, Figures 9–10 (cells 23–25), `Figures/rhino_tods_tris_beam.pdf/.png` and
-  `Figures/rhino_tods_rhino_beam.pdf/.png`.** Notebook 19 Test 6's figures at MNRAS full width, read from its CSVs in
+- **`notebooks/10_paper_plots.ipynb`, Figures 9–10 (cells 23–25), `figures/rhino_tods_tris_beam.pdf/.png` and
+  `figures/rhino_tods_rhino_beam.pdf/.png`.** Notebook 19 Test 6's figures at MNRAS full width, read from its CSVs in
   `tod_prediction/`, with Figure 3's model styles. Not yet in `main.tex`. Only cells 1 and 24–25 were run.
 
 #### RHINO predictions, notebook 19 Test 6 (2026-11-05)
@@ -65,7 +65,7 @@ resolve before running anything".
 
 #### Paper figure: the TRIS anchor of the Haslam gain and offset (2026-11-05)
 
-- **`notebooks/10_paper_plots.ipynb`, Figure 8 (cells 20–22), `Figures/tris_anchor_gz_plane.pdf/.png`.** Notebook 08
+- **`notebooks/10_paper_plots.ipynb`, Figure 8 (cells 20–22), `figures/tris_anchor_gz_plane.pdf/.png`.** Notebook 08
   Fig 15 at MNRAS column width. The cell redoes notebook 08's fits (the ellipses need the g–z covariance, which 08 does
   not save) and asserts they match 08's CSVs in `outputs/paper_plots/`. Not yet in `main.tex`.
 
