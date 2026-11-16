@@ -24,7 +24,7 @@ see `PLOT_INDEX.md`; for the paper steps see `../PAPER_OUTLINE.md`.
 | 07 | `07_sed_calibration` | Haslam calibration prototype: TOD route against map route | nothing | stale: 10% errors (N-14) |
 | 08 | `08_update_plots` | The figure set for the SED calibration of Haslam (Figs 1–16) | `outputs/paper_plots/` | Figs 1–13b stale (N-14); Figs 14–16 current |
 | 09 | `09_beam_fwhm_tests` | Checks the beam FWHM numbers (19.155° / 23.366°) and the code that makes and uses them | nothing | current |
-| 10 | `10_paper_plots` | The paper's figures, to the paper's conventions | `Papers_and_reports/moonrunes_paper/Figures/` | current inputs; needs a full rerun (N-14); Figure 8 run 2026-11-05; Figures 9–10 run 2026-11-06 (after notebook 19) |
+| 10 | `10_paper_plots` | The paper's figures, to the paper's conventions | `Papers_and_reports/moonrunes_paper/figures/` | current inputs; needs a full rerun (N-14); Figure 8 run 2026-11-05; Figures 9–10 run 2026-11-06 (after notebook 19) |
 | 11 | `11_model_comparison_diagnostics` | Diagnostics of the spectral-model comparison (Parts 1–6, Figs 1–17) | `model_comparison/diagnostic_plots/` | stale: saved figures predate the current `data.datasets` |
 | 12 | `12_sky_models_vs_fit_408` | Power-law and curved fits per ring sample (UltraNest), and which 408 MHz sky model matches the prediction | `model_comparison/sky_models_408/` (+ the shared cache) | stale: fit cache from 23 Oct |
 | 13 | `13_sky_model_residuals_408` | Plots 1–3 for Phil: sky models against the power-law 408 MHz prediction | `model_comparison/phil_plots/` | stale (reads 12's cache) |
@@ -108,7 +108,7 @@ see `PLOT_INDEX.md`; for the paper steps see `../PAPER_OUTLINE.md`.
 - **The cut beam:** its numerical FWHM, φ = 0 / 90° giving the E/H cuts, and a round trip on a known beam.
 
 ### 10 — Paper plots
-- Eleven figures written to the paper's `Figures/` folder (PDF + PNG; the paper includes the PDFs) at journal widths, ten
+- Eleven figures written to the paper's `figures/` folder (PDF + PNG; the paper includes the PDFs) at journal widths, ten
   of them in `main.tex` (not `rhino_tods_tris_beam`), named `<section>_<content>` after the paper section (since 2026-11-06):
   - all maps over the TRIS slice;
   - the TRIS maps;

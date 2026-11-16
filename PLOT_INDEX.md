@@ -8,7 +8,7 @@ Every plot in the project lives in one of three places. Saved files are listed b
 
 | Where | What is there | Made by |
 | --- | --- | --- |
-| `moonrunes_paper/Figures/` (in `Papers_and_reports`) | the paper figures, PDF + PNG (the paper includes only the PDFs), named `<section>_<content>` after the paper section they sit in: all maps over the TRIS slice §2.2; the TRIS beam §3.2; TRIS maps §3.3; sky models vs TRIS §3.4.2; β matrix and β vs frequency §4.1; model-comparison fits vs TRIS §5.1; the 408 MHz models vs the power-law prediction §6.2; the TRIS anchor of the Haslam gain and offset §6.3; the RHINO prediction through the RHINO beam §7.2 (the TRIS-beam version is made but not in the paper). Rebuilt 2026-10-28, anchor figure added 2026-11-05, RHINO figures, the renaming and the 408 MHz figure 2026-11-06 | `notebooks/10_paper_plots.ipynb` |
+| `moonrunes_paper/figures/` (in `Papers_and_reports`) | the paper figures, PDF + PNG (the paper includes only the PDFs), named `<section>_<content>` after the paper section they sit in: all maps over the TRIS slice §2.2; the TRIS beam §3.2; TRIS maps §3.3; sky models vs TRIS §3.4.2; β matrix and β vs frequency §4.1; model-comparison fits vs TRIS §5.1; the 408 MHz models vs the power-law prediction §6.2; the TRIS anchor of the Haslam gain and offset §6.3; the RHINO prediction through the RHINO beam §7.2 (the TRIS-beam version is made but not in the paper). Rebuilt 2026-10-28, anchor figure added 2026-11-05, RHINO figures, the renaming and the 408 MHz figure 2026-11-06 | `notebooks/10_paper_plots.ipynb` |
 | `moonrunes/outputs/paper_plots/` | the working figure set (Figures 1–16), PDF + PNG | `notebooks/08_update_plots.ipynb` |
 | inside each notebook | diagnostic and exploration plots, not saved to files | notebooks 01–09 |
 | `moonrunes/outputs/fwhm_scaling_test/` | the FWHM scaling test (added 2026-10-19) | `scripts/fwhm_scaling_test.py` |
@@ -154,7 +154,7 @@ Cell numbers are 0-based, taken on 2026-10-27 (notebooks 19–21 on 2026-11-05).
 | --- | --- | --- |
 | `robustness_gz_plane` | the g–z plane (Haslam = g P + z), two panels: survey subsets (power law and curved power law), and Cygnus A mask width, RA halves and notebook 20's zero-level rows; the baseline (six-survey power law, 103 samples) error box; table `robustness_table.csv` (cell 8) | 10 |
 
-## Paper figures — `moonrunes_paper/Figures/`
+## Paper figures — `moonrunes_paper/figures/`
 
 Eleven figures, ten of them in `main.tex` (`rhino_tods_tris_beam` was taken out of the paper on 2026-11-06), made by `notebooks/10_paper_plots.ipynb` (rebuilt 2026-10-28), drawn at their printed MNRAS size, PDF + PNG, under the file names `main.tex` includes. `main.tex` uses only the PDFs. File names are `<section>_<content>`, the prefix being the paper section (`data`, `method`, `tt`, `modelcomp`, `skymodel`, `rhino`, as in the `sec:` labels); the old names are in brackets. Captions are in `main.tex`. Each notebook section starts with a note on where the figure is featured.
 
