@@ -1,6 +1,6 @@
 """Two-step vs one-step beam matching, rerun with four FWHM scalings.
 
-The existing test is ``notebooks/03_diagnostics.ipynb``, section "Two-step against
+The existing test is ``notebooks/test_results.ipynb`` Part K2, section "Two-step against
 one-step beam matching" (``PIPELINE.md`` Appendix E).  It convolves Haslam with a
 complicated, non-Gaussian survey beam (elliptical 5 x 3 deg main lobe at PA 30 deg,
 a -15 dB sidelobe ring at 7 deg, a -25 dB 20 deg error beam), then matches it to the
@@ -22,7 +22,7 @@ statistics of the residual two-step - one-step [K] are added alongside, plus its
 Nothing in ``src/`` is modified; the beam and the step-1 convolution are copied from
 the notebook.
 
-Outputs (``--out``, default ``outputs/fwhm_scaling_test/``):
+Outputs (``--out``, default ``test_outputs/fwhm_scaling_test/``):
 
 * ``fwhm_scaling_table.csv``         -- one row per kernel x scaling; headers name each statistic
 * ``fwhm_scaling_comparison.png``    -- median / std / max |delta| [%] against the scaling
@@ -70,7 +70,7 @@ NS64 = 64
 NSIDE_OUT = 16
 HASLAM_FREQ_MHZ = 408.0
 
-# The complicated survey beam, exactly as in notebook 03.
+# The complicated survey beam, exactly as in test_results.ipynb Part K2.
 CB = dict(major=5.0, minor=3.0, pa=30.0, ring_r=7.0, ring_w=1.5, ring_db=-15.0,
           shoulder_fwhm=20.0, shoulder_db=-25.0)
 
@@ -173,7 +173,7 @@ def stats(d, band):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--out", default=str(REPO / "outputs" / "fwhm_scaling_test"))
+    ap.add_argument("--out", default=str(REPO / "test_outputs" / "fwhm_scaling_test"))
     ap.add_argument("--replot-maps", action="store_true",
                     help="only redraw the residual-map figure from the saved .npz and CSV")
     args = ap.parse_args()
@@ -182,7 +182,7 @@ def main():
     if args.replot_maps:
         return replot_maps(out_dir)
 
-    config = load_config(REPO / "configs" / "run_config.yaml")
+    config = load_config(REPO / "configs" / "run_pipeline.yaml")
     haslam_path = config.resolve_path("paths.haslam_map_fits")
     haslam_native = float(config.require("beam_matching.haslam_native_fwhm_deg"))
 

@@ -45,7 +45,7 @@ smoothed weight falls below a threshold -- those are edge pixels the division
 cannot rescue.
 
 Each dataset marks unobserved sky differently and none of them uses
-``hp.UNSEEN`` on disk (measured in ``notebooks/01_explore_data.ipynb``):
+``hp.UNSEEN`` on disk (measured in ``notebooks/diagnostics.ipynb`` Part A, was ``01_explore_data``):
 ARCADE 2 uses exact zeros, Haslam is full-sky, and stage 1's TRIS maps use NaN
 alongside an explicit ``band_mask``.  :func:`observed_mask` is the one place
 that knows this.
@@ -75,7 +75,7 @@ STAGE = "stage2"
 # TRIS's real, asymmetric half-power beam widths, from the archive's own E/H
 # principal-plane cuts (``TRIS_Beam_Profile.txt``); the ring header's "18 deg"
 # is 6% off and is not what limTOD measures.  Section 01 of
-# ``notebooks/01_explore_data.ipynb`` re-derives both from the cuts.
+# ``notebooks/diagnostics.ipynb`` Part A re-derives both from the cuts.
 TRIS_HPBW_E_DEG = 19.155
 TRIS_HPBW_H_DEG = 23.366
 
@@ -676,15 +676,6 @@ def load_stage2(
         manifest = json.load(handle)
     return Stage2Products(arrays=arrays, manifest=manifest,
                           maps_path=maps_path, manifest_path=manifest_path)
-
-
-def plot_beam_matched(results: Dict[str, Dict[str, object]]) -> None:
-    """Mollview of each beam-matched map.  Import-safe: call it explicitly."""
-    import healpy as hp
-
-    for name, entry in results.items():
-        hp.mollview(entry["map"], unit="K", coord="C",
-                    title="{}, beam-matched".format(name))
 
 
 def main(argv=None) -> int:

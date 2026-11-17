@@ -1,19 +1,8 @@
 # TRIS → Haslam Calibration: Literal Pipeline
 ### Pixel-by-pixel SED fitting using TRIS + ARCADE2 to calibrate Haslam
-### (supersedes the earlier `bayesian_skymap` Gibbs-sampler design)
 
 **Primary aim:** make maps from TRIS TOD data, use them (plus ARCADE2) to
-calibrate the Haslam map, via a per-pixel SED fit rather than a joint
-Gibbs sampler.
-
-**Why this replaced the original plan:** the `bayesian_skymap` Gibbs
-approach hit three real blockers (beam-width hardcoding, no real-data
-prior, a documented bug in the low-rank fast-path solver at low channel count). A
-pixel-by-pixel least-squares SED fit sidesteps all three at once — no
-truth-informed prior needed, no fast-path solver, and the beam mismatch
-becomes a smoothing/regridding problem rather than a code-patching one.
-The old blockers are kept below, marked resolved-by-redesign, so the
-reasoning isn't lost.
+calibrate the Haslam map, via a per-pixel SED fit.
 
 ---
 
@@ -61,24 +50,8 @@ construction, and the rings peak at the Cygnus plane crossing, as they
 should. `src/moonrunes/frames.py` rotates Haslam (harmonic space, full
 sky) and ARCADE2 (pixel space, mask-aware) to Equatorial; the checks —
 landmarks at their literature positions, the ARCADE2 exact-zero mask
-surviving the rotation — are in `notebooks/04_coordinate_frames.ipynb`.
+surviving the rotation — are in `notebooks/diagnostics.ipynb` Part B (was `04_coordinate_frames`).
 Not yet wired into stage 2's beam matching.
-
----
-
-## Old blockers — resolved by the architecture change, not deleted
-
-### Former Blocker 1 — beam width mismatch -> now a smoothing/regridding problem
-No longer about patching `bayesian_skymap`'s hardcoded `beam_deg`. See
-**Step 0** below for the actual beam-matching procedure.
-
-### Former Blocker 2 — no "truth" for a real-data prior -> moot
-The SED fit needs no prior at all — it's anchored directly by TRIS/ARCADE2
-data at each pixel. The Berkhuijsen-prior research is no longer a blocking
-dependency, though it remains a good independent validation cross-check.
-
-### Former Blocker 3 — fast-path solver bug at low channel count -> moot
-No Gibbs sampler and no fast-path solver in this design at all.
 
 ---
 
@@ -132,7 +105,7 @@ two down to match it, never the reverse.**
    the common coarse grid.
 
 5. **Regrid all three to TRIS's own map-making pixelization** (nside=16
-   since 2026-10-02, ~3.66 deg pixels; originally nside=8, ~7.33 deg pixels, per your walkthrough's "~3 pixels per beam FWHM"
+   since 2026-10-02, ~3.66 deg pixels; originally nside=8, ~7.33 deg pixels, per the walkthrough's "~3 pixels per beam FWHM"
    convention) — so Step 1's per-pixel SEDs are being assembled on a grid
    that actually matches the physical resolution of the trusted
    calibrators, not an arbitrarily finer one.

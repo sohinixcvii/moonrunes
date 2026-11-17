@@ -6,7 +6,8 @@ the map as a RING float array with unobserved sky as NaN, in kelvin where the
 unit is known, together with its frequency, frame, native beam FWHM and CMB
 convention, and where each of those came from.  :func:`discover` does it for a
 whole directory.  The same logic is shown, and checked against the sky, in
-``notebooks/01_explore_data`` section 05.
+``notebooks/diagnostics.ipynb`` Part A (was
+``01_explore_data``), section 05.
 
 Layouts handled:
 

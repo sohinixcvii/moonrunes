@@ -5,10 +5,10 @@ What this stage produces
 One prior-regularized map per TRIS frequency (600 and 820 MHz; 2.5 GHz is
 dropped, it is a point set and is flagged poor quality in the literature
 review), on a declination band around the ring, together with the fitted
-zero-level offset and a full posterior standard deviation.  These maps are what
-stage 3 writes into ``bayesian_skymap``'s ``sky_lowres``/``data1`` key: TRIS is
-an absolute radiometer, so it is the absolutely-calibrated leg of the
-recalibration.
+zero-level offset and a full posterior standard deviation.  TRIS is an absolute
+radiometer, so these maps are absolutely calibrated; the pipeline uses them as a
+cross-check of the geometry, beam and temperature convention, and their sky band
+as the TRIS stripe.
 
 How it is built
 ---------------
@@ -40,11 +40,8 @@ several ``n x n`` float64 arrays it allocates is ~4.9 GB and the peak is
 
 :func:`krylov_map_solve` is retained as the matrix-free reference
 implementation the test suite pins against a dense solve; it is no longer what
-makes the maps.  ``bayesian_skymap.bayesian_func`` is still imported for real:
-its ``nside_for_beam`` is compared with the pinned ``beam.nside_new`` (Blocker 1;
-a mismatch is recorded and warned about, not fatal, since the SED redesign
-superseded the Gibbs path that needed them equal), and its ``estimate_diag_precond`` defines the
-preconditioner convention that :func:`lhs_diagonal` reproduces analytically.
+makes the maps.  :func:`lhs_diagonal` gives the Jacobi preconditioner of that
+solve analytically.
 
 Because "it returned an array" is not "it solved the system" -- a dense
 factorisation with a regularizer added to the diagonal can come back biased
@@ -78,7 +75,6 @@ import argparse
 import datetime as _dt
 import json
 import sys
-import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
@@ -128,37 +124,16 @@ def import_limtod_tris(config: Optional[Config] = None):
     return tris
 
 
-def import_bayesian_func(config: Optional[Config] = None):
-    """Import ``bayesian_func`` from the ``bayesian_skymap`` submodule."""
-    checkout = (
-        config.resolve_path("paths.bayesian_skymap")
-        if config is not None
-        else (REPO_ROOT / "external" / "bayesian_skymap")
-    )
-    if not (checkout / "bayesian_func.py").exists():
-        raise ImportError(
-            "no bayesian_func.py under {} -- is the submodule checked "
-            "out? (git submodule update --init)".format(checkout)
-        )
-    if str(checkout) not in sys.path:
-        sys.path.insert(0, str(checkout))
-    import bayesian_func  # noqa: F401
-
-    return bayesian_func
-
-
 # ---------------------------------------------------------------------------
-# the Krylov solve (the bayesian_skymap pattern), and its exact reference
+# the Krylov solve, and its exact reference
 # ---------------------------------------------------------------------------
 def lhs_diagonal(
     operator: np.ndarray, inv_noise: np.ndarray, inv_prior: np.ndarray
 ) -> np.ndarray:
     """Diagonal of ``A^T N^-1 A + P^-1``, for Jacobi preconditioning.
 
-    This is the analytic form of what ``bayesian_func.estimate_diag_precond``
-    probes column by column.  The probe costs one matvec per parameter, which
-    is ~25k dense matvecs at the working nside; this is one einsum.  The test
-    suite pins the two against each other.
+    A column-by-column probe would cost one matvec per parameter (~25k dense
+    matvecs at the working nside); this is one einsum.
     """
     return np.einsum("ij,ij->j", operator, inv_noise[:, None] * operator) + inv_prior
 
@@ -194,8 +169,7 @@ def krylov_map_solve(
 ) -> KrylovSolution:
     """MAP solve of ``(A^T N^-1 A + P^-1) x = A^T N^-1 d + P^-1 mu``.
 
-    Deliberately matrix-free, mirroring ``bayesian_skymap``'s amplitude step:
-    a ``LinearOperator`` around the matvec, a Jacobi preconditioner, and a
+    Deliberately matrix-free: a ``LinearOperator`` around the matvec, a Jacobi preconditioner, and a
     Krylov solve.  No dense normal matrix is ever formed -- at the working
     nside it would be 25k x 25k.
     """
@@ -699,47 +673,23 @@ def _report(frequency_mhz: float, effective_mhz: float, diagnostics: Dict) -> No
 # ---------------------------------------------------------------------------
 # stage entry point
 # ---------------------------------------------------------------------------
-def _check_beam_against_bayesian_skymap(config: Config) -> Dict[str, Any]:
-    """Blocker 1: compare the pinned ``nside_new`` with the fork's heuristic.
-
-    This used to be a hard requirement: the product had to land on the grid
-    ``bayesian_skymap``'s Gibbs recalibration derives from the beam width.  The
-    SED redesign superseded that path, so ``beam.nside_new`` is now a free
-    choice (nside 16 included).  A mismatch is recorded in the manifest and
-    warned about rather than raised, so the information is not lost if the
-    Gibbs path is ever picked back up.  ``beam_deg`` being the mean of the E/H
-    widths is still enforced: that one is a real configuration error.
-    """
-    bayesian_func = import_bayesian_func(config)
-
+def _beam_record(config: Config) -> Dict[str, Any]:
+    """The beam settings stage 1 records in its manifest.  ``beam_deg`` must be the
+    mean of the E/H widths, as the config documents it: a real configuration error
+    otherwise."""
     e_plane = float(config.require("beam.e_plane_hpbw_deg"))
     h_plane = float(config.require("beam.h_plane_hpbw_deg"))
     beam_deg = float(config.require("beam.beam_deg"))
-    pinned = int(config.require("beam.nside_new"))
-    pixels_per_fwhm = float(config.require("beam.pixels_per_fwhm"))
-
     expected_mean = 0.5 * (e_plane + h_plane)
     if not np.isclose(beam_deg, expected_mean, rtol=0, atol=1e-3):
         raise ConfigError(
             "beam.beam_deg ({}) is not the mean of the E/H HPBWs ({:.4f}); the "
             "config documents it as that mean".format(beam_deg, expected_mean)
         )
-    derived = int(bayesian_func.nside_for_beam(beam_deg, pixels_per_fwhm))
-    if derived != pinned:
-        warnings.warn(
-            "beam.nside_new is pinned at {} but bayesian_func.nside_for_beam("
-            "{}) gives {}. Only the superseded bayesian_skymap (Gibbs) path "
-            "needs them equal; the pinned value is used.".format(
-                pinned, beam_deg, derived),
-            stacklevel=2,
-        )
     return {
-        "matches_bayesian_skymap": derived == pinned,
         "beam_deg": beam_deg,
-        "nside_new_pinned": pinned,
-        "nside_new_from_bayesian_func": derived,
-        "pixels_per_fwhm": pixels_per_fwhm,
-        "bayesian_func": str(Path(bayesian_func.__file__).resolve()),
+        "nside_new_pinned": int(config.require("beam.nside_new")),
+        "pixels_per_fwhm": float(config.require("beam.pixels_per_fwhm")),
     }
 
 
@@ -791,7 +741,7 @@ def run_stage1(
                 "{} exists; set run.overwrite or pass --overwrite".format(path)
             )
 
-    beam_check = _check_beam_against_bayesian_skymap(config)
+    beam_check = _beam_record(config)
 
     frequencies = [int(f) for f in config.require("tris.frequencies_mhz")]
     mapmaker = str(config.require("tris.mapmaker"))

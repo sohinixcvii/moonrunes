@@ -1,0 +1,38 @@
+kind,name,freq_mhz,native_fwhm_deg,kernel,kernel_e_deg,kernel_h_deg,n_valid
+survey,LWA_35MHz.fits,35.0,4.65,tris_cuts,18.58202155310342,22.898634369761005,120
+survey,LWA1_38.fits,38.0,4.28,tris_cuts,18.670715706688913,22.970667295487956,120
+survey,LWA1_40.fits,40.0,4.07,tris_cuts,18.71761536627997,23.008803880254185,120
+survey,LWA1_45.fits,45.0,3.62,tris_cuts,18.809827883316743,23.083880869559174,120
+survey,MAIPU_45mhZ.fits,45.0,4.6,tris_cuts,18.594462213250484,22.90873099933735,120
+survey,LWA1_50.fits,50.0,3.26,tris_cuts,18.875550985335504,23.137466499165374,120
+survey,LWA1_60.fits,60.0,2.71,tris_cuts,18.962329102723643,23.20831437222445,120
+survey,LWA1_70.fits,70.0,2.33,tris_cuts,19.01276216124317,23.249538834136043,120
+survey,LWA1_74.fits,74.0,2.2,tris_cuts,19.028242824811755,23.26220015389774,120
+survey,LWA_80MHz.fits,80.0,2.04,tris_cuts,19.046060616305937,23.27677718241939,120
+survey,CHIPASS_1400MHz.fits,1400.0,0.24000000000000002,tris_cuts,19.155,23.366,0
+survey,STOCKERT_VILLA_1400MHZ.fits,1420.0,0.59,tris_cuts,19.155,23.366,120
+survey,RHODES_HARTRAO_2326MHz.fits,2326.0,0.3333333333333333,tris_cuts,19.155,23.366,0
+survey,HASLAM_DESTRIPED_ONLY.fits,408.0,0.9333333333333333,tris_cuts,19.155,23.366,120
+model 408,Haslam (uncorrected),408.0,0.9333333333333333,tris_cuts,19.155,23.366,120
+model 408,"Haslam, Carter correction",408.0,0.9333333333333333,tris_cuts,19.155,23.366,120
+model 408,"Haslam, Irfan correction",408.0,0.9333333333333333,tris_cuts,19.155,23.366,120
+model 408,GSM2008,408.0,1.0,tris_cuts,19.155,23.366,120
+model 408,GSM2016,408.0,0.8,tris_cuts,19.155,23.366,120
+model 408,"GSM2016, GINAN correction",408.0,0.8,tris_cuts,19.155,23.366,120
+model 408,LFSM,408.0,5.1,tris_cuts,18.463586460923565,22.802630462295355,120
+model TRIS_600,GSM2008,600.5,1.0,tris_cuts,19.155,23.366,120
+model TRIS_600,GSM2016,600.5,0.8,tris_cuts,19.155,23.366,120
+model TRIS_600,"GSM2008, Carter correction",600.5,1.0,tris_cuts,19.155,23.366,120
+model TRIS_600,"GSM2008, Irfan correction",600.5,1.0,tris_cuts,19.155,23.366,120
+model TRIS_600,"GSM2016, Carter correction",600.5,0.8,tris_cuts,19.155,23.366,120
+model TRIS_600,"GSM2016, Irfan correction",600.5,0.8,tris_cuts,19.155,23.366,120
+model TRIS_600,"GSM2016, GINAN correction",600.5,0.8,tris_cuts,19.155,23.366,120
+model TRIS_600,"LFSM, stretched",600.5,5.1,tris_cuts,18.463586460923565,22.802630462295355,120
+model TRIS_820,GSM2008,817.8,1.0,tris_cuts,19.155,23.366,120
+model TRIS_820,GSM2016,817.8,0.8,tris_cuts,19.155,23.366,120
+model TRIS_820,"GSM2008, Carter correction",817.8,1.0,tris_cuts,19.155,23.366,120
+model TRIS_820,"GSM2008, Irfan correction",817.8,1.0,tris_cuts,19.155,23.366,120
+model TRIS_820,"GSM2016, Carter correction",817.8,0.8,tris_cuts,19.155,23.366,120
+model TRIS_820,"GSM2016, Irfan correction",817.8,0.8,tris_cuts,19.155,23.366,120
+model TRIS_820,"GSM2016, GINAN correction",817.8,0.8,tris_cuts,19.155,23.366,120
+model TRIS_820,"LFSM, stretched",817.8,5.1,tris_cuts,18.463586460923565,22.802630462295355,120

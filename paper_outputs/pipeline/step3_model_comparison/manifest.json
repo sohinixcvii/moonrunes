@@ -1,0 +1,95 @@
+{
+  "step": "compare",
+  "step_number": 3,
+  "written_utc": "2026-11-16T19:55:12+00:00",
+  "produced_by": "run_pipeline.py --step compare",
+  "config_path": "/Users/user/Documents/Codes/project3/moonrunes/configs/run_config.yaml",
+  "pipeline_config": {
+    "output_dir": "paper_outputs/pipeline",
+    "model_comparison_config": "model_comparison/config.yaml",
+    "target_file": "HASLAM_DESTRIPED_ONLY.fits",
+    "beam_match_kernel": "tris_cuts",
+    "compare": {
+      "statistic": "evidence",
+      "exclude_tris": true,
+      "seed": 20260903
+    },
+    "select": {
+      "tie_lnz": 1.0
+    },
+    "fit": {
+      "seed": 12345
+    },
+    "predict_408": {
+      "cygnus_ra_deg": 299.9,
+      "cygnus_half_width_deg": 25.0
+    },
+    "sky_models": {
+      "native_fwhm_deg": {
+        "GSM2008": 1.0,
+        "GSM2016": 0.8,
+        "LFSM": 5.1
+      },
+      "carter": {
+        "scale": 1.029,
+        "offset_k": 0.91
+      },
+      "irfan_monopole_k": 8.9,
+      "ginan_freq_mhz": 350.0,
+      "lfsm_beta_from_mhz": 300.0
+    },
+    "rhino": {
+      "freqs_mhz": [
+        60.0,
+        65.0,
+        70.0,
+        75.0,
+        80.0
+      ],
+      "beam_file": "../rhino-beams/npz_beams/DryHornGround.npz",
+      "horizon_file": "../rhino-beams/horizon_masks/JodrellBank.fits",
+      "latitude_deg": 53.235002,
+      "deconvolution_prior": "GSM2016",
+      "sky_models": [
+        "GSM2008",
+        "GSM2016",
+        "LFSM",
+        "GSM2008, Carter correction",
+        "GSM2008, Irfan correction",
+        "GSM2016, GINAN correction"
+      ]
+    }
+  },
+  "products": [
+    "evidence_per_unit_tod.csv",
+    "evidence_summary_tod.csv"
+  ],
+  "summary": {
+    "statistic": "evidence",
+    "tris_excluded": true,
+    "data_sets": [
+      "LWA_35MHz.fits",
+      "LWA1_38.fits",
+      "LWA1_40.fits",
+      "LWA1_45.fits",
+      "MAIPU_45mhZ.fits",
+      "LWA1_50.fits",
+      "LWA1_60.fits",
+      "LWA1_70.fits",
+      "LWA1_74.fits",
+      "LWA_80MHz.fits",
+      "STOCKERT_VILLA_1400MHZ.fits"
+    ],
+    "units": 120,
+    "skipped_units": 0,
+    "points_per_unit": [
+      11
+    ],
+    "sum_logZ": {
+      "power law": -10424.446896774249,
+      "curved power law": -10460.721760251216,
+      "moment expansion (order 2)": -10565.162228608742,
+      "moment expansion (order 3)": -10573.890676718751
+    }
+  }
+}

@@ -1,0 +1,85 @@
+# Bayesian comparison of spectral models: the models, priors, sampler and error bars.
+# Nothing here was tuned to the data.
+#
+# Read by the pipeline (steps 2-7, via configs/run_pipeline.yaml pipeline.model_comparison_config), by
+# model_comparison/run_comparison.py (its --config default), and by notebooks/test_results.ipynb and
+# notebooks/10_paper_plots.ipynb.  Everything about the data -- which maps (run_pipeline.yaml sed.exclude_maps),
+# the Haslam target (pipeline.target_file), the beam, the ring -- is in configs/run_pipeline.yaml; nothing here
+# repeats it.
+
+data:
+  # tod: one SED per TRIS ring sample (sed_prototype TOD route: ring data + every map
+  #      observed through the TRIS beam with limTOD).
+  # map: one SED per TRIS-stripe pixel (sed_prototype map route: stage 1 TRIS maps +
+  #      every map beam-matched with match_to_tris_beam).  Many more units, so slower.
+  # run_comparison.py only: the pipeline always uses the TOD route.
+  route: tod
+  # Error bars per input (one row per data set, keyed by TRIS_600 / TRIS_820 / the map file name), with a column
+  # marking placeholders.  Relative to this file's folder (configs/).
+  error_bars_csv: error_bars.csv
+  # A unit (ring sample or pixel) is fitted only if it has at least this many usable
+  # points, so every 3-parameter model has >= 1 degree of freedom (the order-3 moment
+  # expansion has 4 parameters: see models.moment_orders).  A map with no data at a ring sample (CHIPASS and Rhodes
+  # do not reach the ring's Dec 42.4 deg) adds no point there.
+  min_points: 4
+  # null = every unit; or a list of ring-sample indices / HEALPix pixels.  run_comparison.py only (the pipeline
+  # always fits every ring sample).
+  units: null
+
+zero_level:
+  # TODO N-3: is stage 1's fitted zero level z-hat sky (add it to the TRIS temperatures)
+  # or instrument (leave it out)?  Applies to the MAP route only: the TOD route fits the
+  # archive ring data, which contain no z-hat (sed_prototype.py:255-258).
+  # true reproduces sed_prototype's current map-route behaviour (sed_prototype.py:144-146).
+  add_zhat_to_tris: true
+
+models:
+  # Pivot frequency for every model (sed_prototype.NU0_MHZ).  x = ln(nu / nu0).
+  nu0_mhz: 408.0
+  # Moment expansion orders to compare, one model each (2026-10-27: both):
+  #   2 -> "moment expansion (order 2)": omega1 (or beta), omega2;
+  #   3 -> "moment expansion (order 3)": the same plus omega3 (prior below).
+  # With beta fixed, order 3 has 4 parameters, so a unit with exactly min_points (4) points
+  # leaves it 0 degrees of freedom.
+  moment_orders: [2, 3]
+  # Spectral index the moment expansion is expanded about (beta-bar, Chluba et al. 2017),
+  # for every order in moment_orders.
+  #   a number (e.g. -2.7): beta is FIXED at this value and the first moment omega1 is
+  #                         a free parameter (prior below);
+  #   null:                 beta is free and omega1 is fixed at 0 (the free beta absorbs it).
+  # Change this value to test other expansion points.
+  moment_beta_fixed: -2.7
+
+comparison:
+  # DECISION: the model comparison (pipeline step 3, run_comparison.py) uses the relative surveys only; TRIS is
+  # left out and enters only the fit of the chosen model (pipeline step 5).
+  exclude_tris: true
+  # What the models are compared on (pipeline step 3, run_comparison.py, test_results Part C);
+  # set only here.
+  #   max_likelihood: each model's best fit, ln L_max = -chi2_min / 2 + const (the minimum chi^2
+  #                   inside the prior box).  A model is NOT penalised for its extra parameters,
+  #                   so a model that contains another (curved PL contains the power law at C = 0)
+  #                   can never do worse than it.  The priors below act only as the parameter box.
+  #                   Writes maxlike_*.csv (pipeline: paper_outputs/pipeline/step3_model_comparison/; run_comparison.py:
+  #                   paper_outputs/model_comparison/results/); the evidence_*.csv files are left as they are.
+  #   evidence:       UltraNest ln Z, which includes the Occam penalty.  Writes evidence_*.csv in the same folders.
+  statistic: evidence
+  # max_likelihood only: optimiser starting points per fit (the first at the centre of the box).
+  ml_starts: 24
+
+# All priors.  "uniform" is flat in the value; "loguniform" is flat in log(value).
+# The x^2 coefficients are given matching ranges: C in [-0.5, 0.5] and omega2/2 in
+# [-0.5, 0.5], so neither model gets a wider prior on curvature than the other.
+priors:
+  A_K:      {type: loguniform, low: 1.0,  high: 1000.0}   # CMB-removed RJ temperature at nu0
+  beta:     {type: uniform,    low: -3.5, high: -1.5}
+  C:        {type: uniform,    low: -0.5, high: 0.5}      # curved power law
+  omega1:   {type: uniform,    low: -1.0, high: 1.0}      # moment expansion, 1st order (only if moment_beta_fixed is set)
+  omega2:   {type: uniform,    low: -1.0, high: 1.0}      # moment expansion, 2nd order
+  omega3:   {type: uniform,    low: -1.0, high: 1.0}      # moment expansion, 3rd order (order 3 in moment_orders)
+
+sampler:
+  # UltraNest defaults, not tuned.
+  min_num_live_points: 400
+  dlogz: 0.5
+  log_dir: null          # null = keep nothing on disk

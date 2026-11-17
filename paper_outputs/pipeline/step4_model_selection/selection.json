@@ -1,0 +1,30 @@
+{
+  "model": "power law",
+  "parameters": [
+    "A_K",
+    "beta"
+  ],
+  "statistic": "evidence (sum of ln Z over 120 ring samples)",
+  "rule": "highest score; any model within tie_lnz = 1 of it with fewer parameters wins",
+  "scores": {
+    "power law": -10424.44689677425,
+    "curved power law": -10460.721760251214,
+    "moment expansion (order 2)": -10565.162228608744,
+    "moment expansion (order 3)": -10573.89067671875
+  },
+  "score_minus_best": {
+    "power law": 0.0,
+    "curved power law": -36.27486347696322,
+    "moment expansion (order 2)": -140.71533183449355,
+    "moment expansion (order 3)": -149.4437799444986
+  },
+  "units_won": {
+    "power law": 98,
+    "curved power law": 22,
+    "moment expansion (order 2)": 0,
+    "moment expansion (order 3)": 0
+  },
+  "candidates_within_tie": [
+    "power law"
+  ]
+}

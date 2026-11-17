@@ -1,0 +1,24 @@
+# Slide overlay for tris.mplstyle: larger text, heavier lines, a slide-sized figure.
+# Layer it on top of the paper style:  use_tris_style(talk=True)
+#   (= plt.style.use([".../tris.mplstyle", ".../tris_talk.mplstyle"]))
+
+figure.figsize  : 6.4, 4.8
+font.size       : 14
+axes.labelsize  : 15
+axes.titlesize  : 16
+xtick.labelsize : 13
+ytick.labelsize : 13
+legend.fontsize : 12
+
+lines.linewidth  : 2.0
+lines.markersize : 7
+axes.linewidth   : 1.2
+
+xtick.major.size  : 6
+ytick.major.size  : 6
+xtick.major.width : 1.2
+ytick.major.width : 1.2
+xtick.minor.size  : 3.5
+ytick.minor.size  : 3.5
+xtick.minor.width : 0.9
+ytick.minor.width : 0.9

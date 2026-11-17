@@ -1,0 +1,432 @@
+{
+  "step": "beam_match",
+  "step_number": 1,
+  "written_utc": "2026-11-16T19:31:14+00:00",
+  "produced_by": "run_pipeline.py --step beam_match",
+  "config_path": "/Users/user/Documents/Codes/project3/moonrunes/configs/run_config.yaml",
+  "pipeline_config": {
+    "output_dir": "paper_outputs/pipeline",
+    "model_comparison_config": "model_comparison/config.yaml",
+    "target_file": "HASLAM_DESTRIPED_ONLY.fits",
+    "beam_match_kernel": "tris_cuts",
+    "compare": {
+      "statistic": "evidence",
+      "exclude_tris": true,
+      "seed": 20260903
+    },
+    "select": {
+      "tie_lnz": 1.0
+    },
+    "fit": {
+      "seed": 12345
+    },
+    "predict_408": {
+      "cygnus_ra_deg": 299.9,
+      "cygnus_half_width_deg": 25.0
+    },
+    "sky_models": {
+      "native_fwhm_deg": {
+        "GSM2008": 1.0,
+        "GSM2016": 0.8,
+        "LFSM": 5.1
+      },
+      "carter": {
+        "scale": 1.029,
+        "offset_k": 0.91
+      },
+      "irfan_monopole_k": 8.9,
+      "ginan_freq_mhz": 350.0,
+      "lfsm_beta_from_mhz": 300.0
+    },
+    "rhino": {
+      "freqs_mhz": [
+        60.0,
+        65.0,
+        70.0,
+        75.0,
+        80.0
+      ],
+      "beam_file": "../rhino-beams/npz_beams/DryHornGround.npz",
+      "horizon_file": "../rhino-beams/horizon_masks/JodrellBank.fits",
+      "latitude_deg": 53.235002,
+      "deconvolution_prior": "GSM2016",
+      "sky_models": [
+        "GSM2008",
+        "GSM2016",
+        "LFSM",
+        "GSM2008, Carter correction",
+        "GSM2008, Irfan correction",
+        "GSM2016, GINAN correction"
+      ]
+    }
+  },
+  "products": [
+    "beam_matched_maps.npz",
+    "beam_matched_maps_summary.csv"
+  ],
+  "summary": {
+    "kernel": "tris_cuts",
+    "nside": 16,
+    "maps": 14,
+    "excluded_by_config": [
+      "ARCADE2_315.fits",
+      "ARCADE2_341.fits",
+      "Juno_1248MHz.fits",
+      "Juno_600MHz.fits"
+    ],
+    "per_map": {
+      "LWA_35MHz.fits": {
+        "pixels_kept_in_tris_band": 1272,
+        "of": 1272
+      },
+      "LWA1_38.fits": {
+        "pixels_kept_in_tris_band": 1272,
+        "of": 1272
+      },
+      "LWA1_40.fits": {
+        "pixels_kept_in_tris_band": 1272,
+        "of": 1272
+      },
+      "LWA1_45.fits": {
+        "pixels_kept_in_tris_band": 1272,
+        "of": 1272
+      },
+      "MAIPU_45mhZ.fits": {
+        "pixels_kept_in_tris_band": 1200,
+        "of": 1272
+      },
+      "LWA1_50.fits": {
+        "pixels_kept_in_tris_band": 1272,
+        "of": 1272
+      },
+      "LWA1_60.fits": {
+        "pixels_kept_in_tris_band": 1272,
+        "of": 1272
+      },
+      "LWA1_70.fits": {
+        "pixels_kept_in_tris_band": 1272,
+        "of": 1272
+      },
+      "LWA1_74.fits": {
+        "pixels_kept_in_tris_band": 1272,
+        "of": 1272
+      },
+      "LWA_80MHz.fits": {
+        "pixels_kept_in_tris_band": 1272,
+        "of": 1272
+      },
+      "CHIPASS_1400MHz.fits": {
+        "pixels_kept_in_tris_band": 382,
+        "of": 1272
+      },
+      "STOCKERT_VILLA_1400MHZ.fits": {
+        "pixels_kept_in_tris_band": 1269,
+        "of": 1272
+      },
+      "RHODES_HARTRAO_2326MHz.fits": {
+        "pixels_kept_in_tris_band": 64,
+        "of": 1272
+      },
+      "HASLAM_DESTRIPED_ONLY.fits": {
+        "pixels_kept_in_tris_band": 1272,
+        "of": 1272
+      }
+    }
+  },
+  "smoothing": {
+    "LWA1 35 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 630784,
+      "extrapolated_removed": 64,
+      "weight_min_kept": 0.6505016958049931,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 18.58202155310342,
+      "kernel_fwhm_h_deg": 22.898634369761005,
+      "cut_scale_e": 1.0308350975301117,
+      "cut_scale_h": 1.0204101966384589,
+      "expected_beam_e_deg": 19.155,
+      "expected_beam_h_deg": 23.366,
+      "kernel_note": "native beam too broad to neglect (2.90% on E): cut beam compressed to the quadrature core widths (approximate; exact only for Gaussian cores)"
+    },
+    "LWA1 38 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 630784,
+      "extrapolated_removed": 64,
+      "weight_min_kept": 0.6500572528313366,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 18.670715706688913,
+      "kernel_fwhm_h_deg": 22.970667295487956,
+      "cut_scale_e": 1.025938175103678,
+      "cut_scale_h": 1.0172103273895616,
+      "expected_beam_e_deg": 19.155,
+      "expected_beam_h_deg": 23.366,
+      "kernel_note": "native beam too broad to neglect (2.47% on E): cut beam compressed to the quadrature core widths (approximate; exact only for Gaussian cores)"
+    },
+    "LWA1 40 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 630784,
+      "extrapolated_removed": 64,
+      "weight_min_kept": 0.6498246540174807,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 18.71761536627997,
+      "kernel_fwhm_h_deg": 23.008803880254185,
+      "cut_scale_e": 1.023367540424406,
+      "cut_scale_h": 1.0155243237155998,
+      "expected_beam_e_deg": 19.155,
+      "expected_beam_h_deg": 23.366,
+      "kernel_note": "native beam too broad to neglect (2.23% on E): cut beam compressed to the quadrature core widths (approximate; exact only for Gaussian cores)"
+    },
+    "LWA1 45 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 630784,
+      "extrapolated_removed": 64,
+      "weight_min_kept": 0.6493710022616869,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 18.809827883316743,
+      "kernel_fwhm_h_deg": 23.083880869559174,
+      "cut_scale_e": 1.0183506260038353,
+      "cut_scale_h": 1.0122214774905054,
+      "expected_beam_e_deg": 19.155,
+      "expected_beam_h_deg": 23.366,
+      "kernel_note": "native beam too broad to neglect (1.77% on E): cut beam compressed to the quadrature core widths (approximate; exact only for Gaussian cores)"
+    },
+    "Maipu + MU 45 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 46720,
+      "extrapolated_removed": 87,
+      "weight_min_kept": 0.7144763531067313,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 18.594462213250484,
+      "kernel_fwhm_h_deg": 22.90873099933735,
+      "cut_scale_e": 1.0301454153565182,
+      "cut_scale_h": 1.019960468376702,
+      "expected_beam_e_deg": 19.155,
+      "expected_beam_h_deg": 23.366,
+      "kernel_note": "native beam too broad to neglect (2.84% on E): cut beam compressed to the quadrature core widths (approximate; exact only for Gaussian cores)"
+    },
+    "LWA1 50 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 630784,
+      "extrapolated_removed": 64,
+      "weight_min_kept": 0.6490496696360402,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 18.875550985335504,
+      "kernel_fwhm_h_deg": 23.137466499165374,
+      "cut_scale_e": 1.0148048136386376,
+      "cut_scale_h": 1.0098772050450238,
+      "expected_beam_e_deg": 19.155,
+      "expected_beam_h_deg": 23.366,
+      "kernel_note": "native beam too broad to neglect (1.44% on E): cut beam compressed to the quadrature core widths (approximate; exact only for Gaussian cores)"
+    },
+    "LWA1 60 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 630784,
+      "extrapolated_removed": 64,
+      "weight_min_kept": 0.6486306130213364,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 18.962329102723643,
+      "kernel_fwhm_h_deg": 23.20831437222445,
+      "cut_scale_e": 1.0101607189830222,
+      "cut_scale_h": 1.0067943593509863,
+      "expected_beam_e_deg": 19.155,
+      "expected_beam_h_deg": 23.366,
+      "kernel_note": "native beam too broad to neglect (1.00% on E): cut beam compressed to the quadrature core widths (approximate; exact only for Gaussian cores)"
+    },
+    "LWA1 70 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 630784,
+      "extrapolated_removed": 64,
+      "weight_min_kept": 0.6483892129864887,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 19.01276216124317,
+      "kernel_fwhm_h_deg": 23.249538834136043,
+      "cut_scale_e": 1.0074811769878853,
+      "cut_scale_h": 1.0050091817603264,
+      "expected_beam_e_deg": 19.155,
+      "expected_beam_h_deg": 23.366,
+      "kernel_note": "native beam too broad to neglect (0.74% on E): cut beam compressed to the quadrature core widths (approximate; exact only for Gaussian cores)"
+    },
+    "LWA1 74 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 630784,
+      "extrapolated_removed": 64,
+      "weight_min_kept": 0.6454678979958871,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 19.028242824811755,
+      "kernel_fwhm_h_deg": 23.26220015389774,
+      "cut_scale_e": 1.0066615281481988,
+      "cut_scale_h": 1.004462168041524,
+      "expected_beam_e_deg": 19.155,
+      "expected_beam_h_deg": 23.366,
+      "kernel_note": "native beam too broad to neglect (0.66% on E): cut beam compressed to the quadrature core widths (approximate; exact only for Gaussian cores)"
+    },
+    "LWA1 80 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 630784,
+      "extrapolated_removed": 64,
+      "weight_min_kept": 0.6482301540792788,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 19.046060616305937,
+      "kernel_fwhm_h_deg": 23.27677718241939,
+      "cut_scale_e": 1.005719785623322,
+      "cut_scale_h": 1.0038331259040447,
+      "expected_beam_e_deg": 19.155,
+      "expected_beam_h_deg": 23.366,
+      "kernel_note": "native beam too broad to neglect (0.57% on E): cut beam compressed to the quadrature core widths (approximate; exact only for Gaussian cores)"
+    },
+    "CHIPASS 1400 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 8699904,
+      "extrapolated_removed": 57,
+      "weight_min_kept": 0.6041517611030713,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 19.155,
+      "kernel_fwhm_h_deg": 23.366,
+      "cut_scale_e": 1.0,
+      "cut_scale_h": 1.0,
+      "expected_beam_e_deg": 19.15650346488106,
+      "expected_beam_h_deg": 23.36723252762295,
+      "kernel_note": "measured cut beam; native beam neglected (widens the E core by 0.01%)"
+    },
+    "Stockert + Villa-Elisa 1420 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 785664,
+      "extrapolated_removed": 3,
+      "weight_min_kept": 0.996248835707769,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 19.155,
+      "kernel_fwhm_h_deg": 23.366,
+      "cut_scale_e": 1.0,
+      "cut_scale_h": 1.0,
+      "expected_beam_e_deg": 19.164084246318687,
+      "expected_beam_h_deg": 23.373447670380166,
+      "kernel_note": "measured cut beam; native beam neglected (widens the E core by 0.05%)"
+    },
+    "Rhodes/HartRAO 2326 MHz": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 456704,
+      "extrapolated_removed": 104,
+      "weight_min_kept": 0.6072553728364478,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 19.155,
+      "kernel_fwhm_h_deg": 23.366,
+      "cut_scale_e": 1.0,
+      "cut_scale_h": 1.0,
+      "expected_beam_e_deg": 19.157900096594908,
+      "expected_beam_h_deg": 23.368377502751684,
+      "kernel_note": "measured cut beam; native beam neglected (widens the E core by 0.02%)"
+    },
+    "Haslam 408 MHz, destriped only": {
+      "kernel": "tris_cuts",
+      "target_fwhm_e_deg": 19.155,
+      "target_fwhm_h_deg": 23.366,
+      "e_plane_east_of_meridian_deg": 7.0,
+      "horizon_deg": 90.0,
+      "nside_work": 64,
+      "eval_subdivision": 2,
+      "extra_fwhm_deg": null,
+      "observed_after": 3145728,
+      "extrapolated_removed": 0,
+      "weight_min_kept": 1.0,
+      "kernel_shape": "tris_cuts",
+      "kernel_fwhm_e_deg": 19.155,
+      "kernel_fwhm_h_deg": 23.366,
+      "cut_scale_e": 1.0,
+      "cut_scale_h": 1.0,
+      "expected_beam_e_deg": 19.177724998318002,
+      "expected_beam_h_deg": 23.384633140400368,
+      "kernel_note": "measured cut beam; native beam neglected (widens the E core by 0.12%)"
+    }
+  }
+}

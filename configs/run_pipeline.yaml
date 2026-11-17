@@ -1,0 +1,412 @@
+# =============================================================================
+# tris_haslam_cal -- single source of truth
+# =============================================================================
+# Every decision the gameplan (tris_haslam_pipeline.md) flagged as "decide
+# rather than default" lives here, with the decision written down and the
+# reason next to it.  Nothing downstream may hard-code any of these values:
+# stages read this file, and stage manifests record the exact block they used.
+#
+# Fields marked DECISION are the flagged ones.  Fields marked OPEN still need a
+# human choice before the stage that consumes them can run; the stage raises
+# rather than defaulting.
+# =============================================================================
+
+run:
+  name: tris_haslam_v0
+  outputs_dir: outputs            # relative to repo root; gitignored
+  seed: 20260903                  # every np.random.default_rng in the pipeline
+  overwrite: true                # stages refuse to clobber existing products
+
+paths:
+  # DATA_SOURCES.md is the download list for everything below: the archive page
+  # for each product, and which stage reads it.
+  #
+  # Raw TRIS archive products (the four public LAMBDA text files).  Point this
+  # at the local download; nothing here touches the network.
+  tris_archive_dir: ../limTOD/downloads/TRIS
+  # Reprocessed Haslam 408 MHz map (FITS).  null is NOT an open decision here:
+  # it means "use the destriped/desourced Remazeilles (2015) map that pygdsm
+  # already caches" (haslam408_dsds_Remazeilles2014.fits), which is the
+  # reprocessed map stage 2 wants.  Set this to override with a local file.
+  haslam_map: null
+  # Berkhuijsen (1972) 820 MHz survey, the only genuinely Haslam-independent
+  # prior basis.  Required only when haslam.prior.source = berkhuijsen_1972.
+  berkhuijsen_map: null
+  # Haslam 408 MHz as a local FITS download, used by stage 2 beam-matching.
+  # Distinct from haslam_map above, which is null = "take pygdsm's cached copy":
+  # the beam-matching stage needs the file itself, to read BEAMSIZE from it.
+  haslam_map_fits: res/HASLAM.fits
+  # ARCADE 2, the two lowest bands -- trusted points 3 and 4 of the SED.
+  arcade2_map_3150: res/ARCADE2_315.fits
+  arcade2_map_3410: res/ARCADE2_341.fits
+  # limTOD checkout.  limTOD is a normal pip dependency (pyproject), but the
+  # sibling source checkout is what the walkthrough notebook uses and is what
+  # gets picked up when the environment has no installed copy.  Stage 1 imports
+  # the installed package if there is one and falls back to this path.
+  limtod: ../limTOD
+
+# -----------------------------------------------------------------------------
+# TRIS beam.  HPBW 19.155 deg (E-plane) / 23.366 deg (H-plane), from the
+# archive's own cuts; stage 1 builds the beam from those cuts.  beam_deg is the
+# arithmetic mean of the two planes, recorded in the stage 1 manifest.
+# -----------------------------------------------------------------------------
+beam:
+  e_plane_hpbw_deg: 19.155        # archive-confirmed
+  h_plane_hpbw_deg: 23.366        # archive-confirmed
+  beam_deg: 21.2605               # DECISION: mean of E/H
+  nside_new: 16                   # DECISION: pinned, not inferred: the working grid
+                                  # (= tris.nside; stage 2 regrids onto it)
+  pixels_per_fwhm: 2.73           # pixels per beam FWHM; recorded in the stage 1
+                                  # manifest only, nothing uses it
+  selfrot_deg: -7.0               # E-plane roll east of meridian (geometry owns
+                                  # it -- do NOT pre-rotate the beam map)
+  apply_horizon_mask: true        # cut beam has ~1.2e-4 of its power below the
+                                  # horizon, ~0.035 K against 300 K ground
+
+# -----------------------------------------------------------------------------
+# Stage 1 -- TRIS map-making (limTOD.tris)
+# -----------------------------------------------------------------------------
+tris:
+  # 2.5 GHz dropped: flagged poor quality in the TRIS literature review.
+  frequencies_mhz: [600, 820]     # DECISION
+  # Absolute-calibration reference.  600 MHz has the better-quantified absolute
+  # calibration in the literature review, so it anchors the spectral model.
+  ref_freq_mhz: 600               # DECISION
+  # DECISION (gameplan stage 1.4): the prior-regularized map-maker, not the
+  # beam-width binning scheme -- it is the one built to consume an external
+  # prior, which is exactly what the Berkhuijsen prior below is for.
+  # Allowed: "prior_regularized" | "beamwidth_binning"
+  mapmaker: prior_regularized
+  # DECISION -- this is SUPPOSED to be a coarse map.  The beam is 19-23 deg,
+  # so nside 16 (3.7 deg pixels) is already ~6x finer than the resolution
+  # behind it.  The whole analysis works on nside 16 (beam.nside_new = 16;
+  # switched from 8 on 2026-10-02).  The
+  # earlier value of 64 (0.92 deg pixels) asked the solver for 25705 free
+  # parameters from 120 samples carrying ~15 independent numbers, and is also
+  # more than limTOD's dense solver can fit in memory.
+  nside: 16
+  # DECISION -- pixel selection is on BEAM RESPONSE, not on a declination
+  # band.  A pixel is retained if the beam response at it exceeds this
+  # fraction of the peak response for at least one observation.  That is the
+  # physical statement -- keep what the horn actually saw -- where a band cut
+  # is only a proxy for it, keeping pixels the beam never illuminated and
+  # cutting wing pixels it did.
+  #
+  # 0.01 is the collaborator's recommended starting point.  Convergence was
+  # checked at 0.003 / 0.01 / 0.03; see CHANGELOG and
+  # TRIS_MAP_PROVENANCE.md for the measured spread.
+  beam_response_threshold: 0.01
+  # UNUSED since pixel selection moved to the beam-response criterion above.
+  # Kept because limTOD's build_tris_mapmaking_inputs still takes it as the
+  # default when no explicit pixel_indices are passed.
+  dec_half_width_deg: 45.0
+  # The prior-regularized map-maker has a known zero-level/monopole degeneracy.
+  # A finite zero-level sigma is what breaks it; null leaves it degenerate.
+  zero_level_sigma_k: 0.5         # DECISION -- K, see notebooks/diagnostics.ipynb Part A.  One value
+                                  # for both rings: the archive quotes 0.066 K
+                                  # at 600 MHz and an ASYMMETRIC +0.430/-0.300 K
+                                  # at 820 MHz, and limTOD deliberately refuses
+                                  # to symmetrise it.  0.5 K covers
+                                  # both without pretending to a precision the
+                                  # 820 MHz ring does not have.
+  # Each published ring contains exactly one row with a 0.000 K statistical
+  # error, so a floor is mandatory.  null -> use that ring's smallest strictly
+  # positive statistical error (what the walkthrough notebook does).
+  uncertainty_floor_k: null
+  # Grid limTOD rotates the beam on before projecting it onto the `nside` map
+  # pixels.  Must be >= nside.  limTOD draws the beam itself at `nside` (it calls
+  # tris_cut_beam_map with the map nside) and only up-samples it to this grid.
+  # DECISION (2026-10-02): 16, so everything runs at nside 16.  Its measured
+  # cost at nside 16: with 64 the fit gives reduced chi2 3.09 / 3.22 and the
+  # data tighten 388 / 201 pixels by >5%; with 16 it is 16.1 / 5.9 and 23 / 7.
+  nside_hires: 16
+
+  # Prior for the prior-regularized map-maker.  There is no truth for real
+  # data, and Berkhuijsen is not in hand yet, so GSM2008 stands in as BOTH the
+  # template and the reference "true" sky.  That is circular by construction:
+  # stage 1 records `prior_equals_truth` in its manifest so nothing downstream
+  # can read agreement with GSM2008 as a measurement.  The walkthrough notebook
+  # measured GSM2008 as ~1.9 K cold at 600 MHz and ~0.6 K cold at 820 MHz, so
+  # the fitted zero level absorbs a real model offset -- read it as a
+  # model-mismatch amplitude, not as the archive's zero point.
+  prior:
+    template: gsm2008             # DECISION -- pygdsm GlobalSkyModel (2008)
+    relative_sigma: 0.10          # "trust the template to 10% of local sky"
+    absolute_sigma_k: 0.3         # flat term added in quadrature, K
+    floor_sigma_k: 1.0e-3         # keeps the prior off a delta function
+
+  # Stage 1's MAP operator (A^T N^-1 A + P^-1) is SPD, so cg is also valid; the
+  # recorded decision is gmres.
+  solver:
+    # DECISION -- the solve is limTOD's own: TRISMapMakingInputs.solve, which
+    # wraps limTOD.wiener_filter_map.  It forms the dense normal matrix and
+    # factorises it directly, so there is no iterative tolerance to set; the
+    # in-repo Krylov path (krylov_map_solve) is only the test suite's
+    # reference implementation.
+    #
+    # Added to the diagonal of the normal matrix before inversion, to keep it
+    # invertible.  It is a bias on the answer as well as a numerical guard, so
+    # it stays as small as the conditioning allows.
+    regularization: 1.0e-12
+    # Kept from the Krylov era and still read by stage 1's cross-check below.
+    method: gmres                 # UNUSED -- krylov_map_solve's default only
+    # 1e-12, not the 1e-9 used elsewhere: the residual norm is a poor proxy for
+    # solution accuracy here because the prior width spans an order of
+    # magnitude across the band, so a 1e-9 residual leaves the map ~1e-3
+    # posterior sigma off.  1e-12 gets it to ~5e-7 sigma.
+    rtol: 1.0e-12
+    maxiter: 1000
+    # gmres restart length.  null -> n_samples + 40.  The data term has rank
+    # n_samples (120), so a restart longer than that lets gmres terminate
+    # inside one cycle instead of stalling at the default restart of 20.
+    restart: null
+    # Cross-check limTOD's answer against an exact reference solve
+    # (npix x npix -> n_samples x n_samples, exact).  This is the "did it actually converge" test, not "did it finish".
+    # DECISION (2026-10-14) -- OFF for now: that level of robustness is not
+    # needed yet.  With false, the reference is not computed at all, nothing
+    # can stop the run, and the manifest records the comparison as null.  The
+    # maps are limTOD's answer, unverified.  Set true to switch it back on
+    # (TODO.md S1-8); the last products made with it on agreed to ~1e-10 sigma.
+    cross_check: false
+    # Used only when cross_check is true.  Measured in posterior sigma, which is
+    # the unit in which a solver error either matters or does not.
+    cross_check_max_sigma: 1.0e-4
+
+
+# -----------------------------------------------------------------------------
+# Stage 2 -- beam matching (Step 0 of tris_haslam_pipeline.md).  LIVE.
+#
+# The three surveys are at three native resolutions and an SED is only
+# meaningful if every point in it came through the same beam.  TRIS is the
+# coarsest, so it sets the target and the other two are smoothed down to it.
+# -----------------------------------------------------------------------------
+beam_matching:
+  # DECISION (2026-10-14) -- circular_gaussian, the kernel the current stage 2
+  # product was made with.  The elliptical kernels (2026-10-13) are implemented and
+  # tested (notebooks/test_results.ipynb Part K2, tests/test_elliptical_beam.py) but not in use yet.
+  # The SHAPE of the TRIS beam every map is smoothed to (stage 2 and the map
+  # route; moonrunes.elliptical_beam explains the elliptical ones):
+  #   tris_cuts           the measured beam: the archive E/H cuts, blended with
+  #                       cos^2/sin^2 weights -- the same beam limTOD uses for
+  #                       the TOD route and stage 1.  Elliptical (19.155 x 23.366)
+  #                       and with its real shoulders.
+  #   elliptical_gaussian a Gaussian with the same two widths and orientation.
+  #   circular_gaussian   the original simplification: hp.smoothing at
+  #                       target_fwhm_deg (the larger axis), 22% too wide on E.
+  # The elliptical kernels are applied as a direct sum on the sphere, because
+  # hp.smoothing can only apply a kernel that is the same in every direction.
+  kernel: circular_gaussian
+  # Used by kernel = circular_gaussian (the current choice): the larger of TRIS's two axes
+  # (19.155 E / 23.366 H).  One symmetric FWHM cannot carry the elliptical beam;
+  # the larger axis leaves nothing under-smoothed in the narrow direction.
+  target_fwhm_deg: 23.366
+  # Used only by the elliptical kernels.
+  elliptical:
+    # The TRIS half-power widths, from the archive's own cuts
+    # (TRISPrincipalPlaneCuts.half_power_full_width_deg; test_results.ipynb Part K1 tests them).
+    # For tris_cuts these must match the cuts to 0.001 deg or the run stops.
+    fwhm_e_deg: 19.155
+    fwhm_h_deg: 23.366
+    # Orientation on the sky.  TRIS points at the zenith; its E plane lies along
+    # the meridian, rolled 7 deg EAST of it (TRIS_Beam_Profile.txt, both ring
+    # headers, limTOD TRIS_E_PLANE_EAST_OF_MERIDIAN_DEG).  At the zenith the
+    # meridian is the hour circle, so: E plane at position angle +7 deg
+    # (north through east), H plane at +97 deg (east-west).
+    e_plane_east_of_meridian_deg: 7.0
+    # The horn sees ground, not sky, below the horizon: at the zenith that is
+    # more than 90 deg from boresight.  The kernel is zero beyond this (as limTOD's
+    # tris_horizon_mask does for the TOD route).  Only matters for tris_cuts,
+    # whose archive floor is ~-60 dB out to 176 deg.
+    horizon_deg: 90.0
+    # limTOD's interpolation between the E and H cuts at intermediate azimuth:
+    # "db" (default, the standard horn construction) or "power".
+    blend: db
+    # The grid the direct sum runs over.  64 = 0.92 deg pixels, 20x finer than
+    # the 19 deg beam (test_results.ipynb Part K1, Test 2: a beam map at 64 reproduces the
+    # widths to 0.07%).  128 is 4x slower and needs a smaller chunk.
+    nside_work: 64
+    # Points per output pixel, per side (a power of 2): 2 = 4 points averaged,
+    # so each output value is a pixel average, like the circular path's
+    # all_children regrid.  1 = the pixel centre only (4x faster, no pixel window).
+    eval_subdivision: 2
+    # A survey's own beam widens the result.  If convolving the cut beam with it
+    # widens the narrow E axis by at most this fraction, it is neglected and the
+    # kernel is the cut beam itself.  0.002 (0.2%) = native beams up to ~1.2 deg:
+    # Haslam (0.93 deg, +0.12%), Stockert, CHIPASS, Rhodes.  NOT LWA1 35/80 MHz
+    # (4.65/2.04 deg), Maipu (4.6 deg) or ARCADE 2 (11.6 deg).
+    max_broadening_fraction: 0.002
+    # For those broader beams there is no exact "subtract the native beam" for
+    # the cut beam.  scaled_cuts: the cut beam compressed in angle along E and H
+    # to the quadrature widths sqrt(target^2 - native^2), so the core comes back
+    # to 19.155 x 23.366 and the shoulders keep the measured shape, approximately.
+    # elliptical_gaussian: the per-axis quadrature Gaussian (exact core,
+    # Gaussian shoulders).  test_results.ipynb Part K2 compares the two.
+    broad_native_kernel: scaled_cuts
+    # Evaluation points handled per matrix product.  Memory ~ chunk x 12 x
+    # npix(nside_work) x 8 bytes: ~600 MB at 128 and nside_work 64.
+    chunk: 128
+  # Haslam: BEAMSIZE = 56.0 in HDU 1 of the FITS file, in ARCMINUTES.
+  haslam_native_fwhm_deg: 0.93333
+  # DECISION (2026-10-07): 11.6 deg, as both ARCADE 2 headers state (BEAMSZ,
+  # HDU 0), and as LAMBDA and Singal et al. 2011 give.  It was 12.0, uncited.
+  arcade2_native_fwhm_deg: 11.6
+  # Step 0.3 -- below this smoothed weight a pixel is mask boundary, not data.
+  # Stage 2 also drops any pixel that passes the floor but was never observed.
+  weight_floor: 0.5
+  # DECISION -- how a map finer than beam.nside_new is averaged onto it.
+  # "all_children": a coarse pixel gets a value only if every one of its
+  # sub-pixels was observed, so no value mixes observed and unobserved sky.
+  # Everything is put on the TRIS grid (beam.nside_new must equal tris.nside).
+  coarse_pixel_rule: all_children
+
+# =============================================================================
+# SUPERSEDED: the keys of a preliminary design (a Gibbs recalibration of Haslam)
+# that was not adopted.  Nothing reads them except gibbs.use_woodbury, which a
+# test pins (scripts/tests/test_stage_io.py).
+# =============================================================================
+haslam:
+  nside: 128
+  frame: galactic
+  remove_cmb_monopole: true
+
+  prior:
+    source: gsm2008
+    survey_freq_mhz: 820
+    extrapolation_beta: -2.7
+    frac_sigma: 0.2
+    floor_k: 0.5
+    out_of_band_frac_sigma: 10.0
+    gain_frac_sigma: 0.15
+
+  s0_init: haslam
+
+  op_alm: 0
+  lmax_gain: 5
+  n_gain_regions: 12
+  n_beta_regions: 6
+  region_geometry: theta_bands
+
+assemble:
+  lmax_beam: 150
+  freq_beam_mhz: 600
+  sky_haslam_is_substitute: true
+  beta_init: [-2.5, -2.6, -2.7, -2.8, -2.9, -3.0]
+
+gibbs:
+  script: gibbs_spectral_nside.py
+  ntimes: 200
+  nstart: 0
+  file_s0: none
+  nwalkers: 20
+  nsample: 2500
+
+  sig1_mk: 68
+  sig2_mk: 910
+  sig3_mk: null
+
+  use_woodbury: false
+  solver: gmres
+  smoothing_iter: 0
+  krylov_maxiter: 1000
+  krylov_rtol: 1.0e-9
+
+  env:
+    skymap_nside: 128
+
+# -----------------------------------------------------------------------------
+# Stage 3 prototype -- the SED studies (moonrunes.sed_prototype, 10_paper_plots and test_results)
+# -----------------------------------------------------------------------------
+sed:
+  # DECISION (2026-10-15) -- maps left out of every beam-convolved SED study: the TOD
+  # route, the map route, and the T-T / beta / LST figures built on them.  ARCADE 2
+  # covers ~7% of the sky as a thin ring; on the TRIS ring it has data at only 16-17 of
+  # 120 samples and ~150 stripe pixels, and its very small calibration errors (6-7.5 mK)
+  # let those few points pull the fits (steps at LST 255-280 and 320-345 deg in the old notebooks 07/08).
+  # Filenames as in res/.  Stage 2 is not affected.  The LWA1 38-74 MHz maps are in: step 3 gets 11 points per ring
+  # sample, step 5 gets 13.  test_results.ipynb Part J chooses its data sets itself.
+  exclude_maps: [ARCADE2_315.fits, ARCADE2_341.fits, Juno_1248MHz.fits, Juno_600MHz.fits]
+  # DECISION (2026-10-27) -- how every map becomes a TRIS ring TOD (sed_prototype.Inputs.ring_tod;
+  # the TOD route, run_comparison.py, 10_paper_plots and test_results).
+  #   beam_matched  stage 2's beam matching with the tris_cuts kernel (beam_matching.elliptical),
+  #                 evaluated at the 120 ring pointings on the nside_work grid: the TRIS cut beam
+  #                 with each map's own beam taken out (scaled_cuts for natives above ~1.2 deg),
+  #                 so every TOD sees the TRIS beam once, as the TRIS ring data do.  test_results.ipynb Part A.
+  #   native        the older route: the map at its own resolution, degraded to tris.nside and
+  #                 observed with limTOD's TRIS beam, so the map's own beam stays in on top.
+  tod_beam: beam_matched
+
+# -----------------------------------------------------------------------------
+# The end-to-end pipeline (src/moonrunes/pipeline.py; `python run_pipeline.py --step all`).
+# Steps: 0 tris_maps, 1 beam_match, 2 ring_tods, 3 compare, 4 select, 5 fit, 6 predict_408, 7 rhino.
+# The data are every map in res/ that sed.exclude_maps leaves in, plus TRIS; Haslam (target_file) is never a
+# fit point.  Models, priors, the UltraNest sampler, the error bars and what the comparison is decided on
+# (statistic, TRIS excluded) come from configs/model_comp_config.yaml.
+# Every value below that also appears in a notebook was copied from it (test_results.ipynb Parts A, B, F, J).
+# -----------------------------------------------------------------------------
+pipeline:
+  output_dir: paper_outputs/pipeline        # one folder per step; step 0 writes to run.outputs_dir (outputs/stage1)
+  model_comparison_config: configs/model_comp_config.yaml
+  # The Haslam map: predicted in step 6, never fitted.  The one place this is set (also read by run_comparison.py
+  # and test_results).
+  target_file: HASLAM_DESTRIPED_ONLY.fits
+  # Step 1: the kernel the maps are beam-matched with.  The ring TODs (step 2) always use tris_cuts at the ring
+  # pointings (sed.tod_beam: beam_matched); tris_cuts here keeps the step 1 maps on the same beam.
+  # (beam_matching.kernel, used by stage 2 and the map route, is left as it is.)
+  beam_match_kernel: tris_cuts
+  compare:
+    # what is compared (statistic) and whether TRIS is left out (exclude_tris): model_comp_config.yaml comparison
+    seed: 20260903                          # numpy's global RNG (UltraNest), seed + ring sample index
+  select:
+    # The highest ln Z summed over the ring samples wins; a model within tie_lnz of it with fewer
+    # parameters is preferred.  (With compare.statistic: max_likelihood, the summed BIC is used instead.)
+    tie_lnz: 1.0
+  fit:
+    seed: 12345                             # as test_results Part B (formerly notebook 12): seed + ring sample index
+  predict_408:
+    cygnus_ra_deg: 299.9
+    cygnus_half_width_deg: 25.0             # the scale-offset fit is also made without these samples
+  sky_models:                               # the comparison models, as test_results Parts A, B and J
+    native_fwhm_deg: {GSM2008: 1.0, GSM2016: 0.8, LFSM: 5.1}
+    carter: {scale: 1.029, offset_k: 0.91}  # Carter et al. 2025, on the CMB-removed 408 MHz map
+    irfan_monopole_k: 8.9                   # Irfan & Puglisi 2025 (CMB included in the 8.9 K)
+    # Off 408 MHz the Irfan correction is carried with Irfan & Puglisi 2025's own synchrotron spectrum (their
+    # eqs. 1, 2, 6, 11; pipeline.irfan_scaling): T(p, nu) = (T_tot - 8.9 K)(p, 408) * S(p, nu) / S(p, 408), with
+    # S(p, nu) = (nu/nu0)^(beta_s(p) + c_s(p) ln(nu/nu0)), nu0 = 45 MHz.  The maps: HEALPix nside 256, RING,
+    # Galactic (frame checked: their small-scale structure correlates with Haslam's at +0.23 read as Galactic,
+    # +0.02 as equatorial).  Licence not yet cleared with the authors.
+    irfan_nu0_mhz: 45.0
+    irfan_beta_map: external/irfan_puglisi_2025/final_beta_1deg.npy
+    irfan_cs_map: external/irfan_puglisi_2025/final_cs_1deg.npy
+    ginan_freq_mhz: 350.0                   # McKay et al. 2025, top of the valid range
+    lfsm_beta_from_mhz: 300.0               # LFSM extended above 408 MHz with its own 300-408 MHz index
+  rhino:
+    freqs_mhz: [60.0, 65.0, 70.0, 75.0, 80.0]
+    beam_file: ../rhino-beams/npz_beams/DryHornGround.npz       # outside this repo
+    horizon_file: ../rhino-beams/horizon_masks/JodrellBank.fits # outside this repo
+    latitude_deg: 53.235002                 # Jodrell Bank, horn at the zenith
+    deconvolution_prior: GSM2016
+    sky_models: ["GSM2008", "GSM2016", "LFSM", "GSM2008, Carter correction", "GSM2008, Irfan correction",
+                 "GSM2016, GINAN correction"]
+
+# -----------------------------------------------------------------------------
+# Stage 5 -- validation thresholds
+# -----------------------------------------------------------------------------
+validate:
+  # "Did it finish" is not convergence -- this repo's history has silently
+  # divergent solves accepted as valid samples.
+  # SUPERSEDED by the move to limTOD's dense solver, which has no iteration
+  # count and no info flag.  The equivalent statement would be stage 1's
+  # exact-reference cross-check (tris.solver.cross_check), which is switched
+  # off since 2026-10-14, so no convergence check currently runs.
+  require_solver_info_zero: true  # UNUSED
+  lnprob_burn_in_frac: 0.3
+  lnprob_rhat_max: 1.1
+  chi2_per_pixel_max: 2.0
+
+  # Literature benchmarks (Sky Map Priors page).  These are sanity checks, not
+  # fit targets: a recovered gain far outside them means the pipeline is doing
+  # something wrong, not that Haslam is newly interesting.
+  gain_scale_expected: 0.03       # ~3% temperature-scale uncertainty
+  gain_scale_tolerance: 3.0       # flag if |g| > tol * expected
+  zero_level_expected_k: 0.91
+  beta_range: [-3.0, -2.5]        # Galactic synchrotron

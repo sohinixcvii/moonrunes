@@ -1,0 +1,172 @@
+{
+  "step": "rhino",
+  "step_number": 7,
+  "written_utc": "2026-11-16T19:59:13+00:00",
+  "produced_by": "run_pipeline.py --step rhino",
+  "config_path": "/Users/user/Documents/Codes/project3/moonrunes/configs/run_config.yaml",
+  "pipeline_config": {
+    "output_dir": "paper_outputs/pipeline",
+    "model_comparison_config": "model_comparison/config.yaml",
+    "target_file": "HASLAM_DESTRIPED_ONLY.fits",
+    "beam_match_kernel": "tris_cuts",
+    "compare": {
+      "statistic": "evidence",
+      "exclude_tris": true,
+      "seed": 20260903
+    },
+    "select": {
+      "tie_lnz": 1.0
+    },
+    "fit": {
+      "seed": 12345
+    },
+    "predict_408": {
+      "cygnus_ra_deg": 299.9,
+      "cygnus_half_width_deg": 25.0
+    },
+    "sky_models": {
+      "native_fwhm_deg": {
+        "GSM2008": 1.0,
+        "GSM2016": 0.8,
+        "LFSM": 5.1
+      },
+      "carter": {
+        "scale": 1.029,
+        "offset_k": 0.91
+      },
+      "irfan_monopole_k": 8.9,
+      "ginan_freq_mhz": 350.0,
+      "lfsm_beta_from_mhz": 300.0
+    },
+    "rhino": {
+      "freqs_mhz": [
+        60.0,
+        65.0,
+        70.0,
+        75.0,
+        80.0
+      ],
+      "beam_file": "../rhino-beams/npz_beams/DryHornGround.npz",
+      "horizon_file": "../rhino-beams/horizon_masks/JodrellBank.fits",
+      "latitude_deg": 53.235002,
+      "deconvolution_prior": "GSM2016",
+      "sky_models": [
+        "GSM2008",
+        "GSM2016",
+        "LFSM",
+        "GSM2008, Carter correction",
+        "GSM2008, Irfan correction",
+        "GSM2016, GINAN correction"
+      ]
+    }
+  },
+  "products": [
+    "rhino_tods_tris_beam.csv",
+    "rhino_tods_rhino_beam.csv",
+    "rhino_summary.csv",
+    "rhino_checks.csv",
+    "cache/rhino_sky_models.npz"
+  ],
+  "summary": {
+    "model": "power law",
+    "frequencies_mhz": [
+      60.0,
+      65.0,
+      70.0,
+      75.0,
+      80.0
+    ],
+    "deconvolution_prior": "GSM2016",
+    "this_work": {
+      "TRIS": {
+        "60": {
+          "median_K": 3703.782941291103,
+          "median_sigma_K": 57.13682366177778
+        },
+        "65": {
+          "median_K": 3030.277892404568,
+          "median_sigma_K": 45.162879814988415
+        },
+        "70": {
+          "median_K": 2522.5910478928845,
+          "median_sigma_K": 36.44964581970706
+        },
+        "75": {
+          "median_K": 2129.1612480418216,
+          "median_sigma_K": 29.82954877838586
+        },
+        "80": {
+          "median_K": 1816.811753852573,
+          "median_sigma_K": 24.693461628518392
+        }
+      },
+      "RHINO": {
+        "60": {
+          "median_K": 3945.2631452175724,
+          "median_sigma_K": 16.97872114924321
+        },
+        "65": {
+          "median_K": 3204.138999693376,
+          "median_sigma_K": 13.274530443496014
+        },
+        "70": {
+          "median_K": 2658.9670363896917,
+          "median_sigma_K": 10.694383516925804
+        },
+        "75": {
+          "median_K": 2216.225489595982,
+          "median_sigma_K": 9.020512746597442
+        },
+        "80": {
+          "median_K": 1937.629235303768,
+          "median_sigma_K": 6.622827277927949
+        }
+      }
+    },
+    "median_model_minus_this_work_fraction_rhino_beam": {
+      "GSM2008": [
+        -0.05492197499122678,
+        -0.04149825094133662,
+        -0.032431301685706404,
+        -0.02385367745010694,
+        -0.016425315174409854
+      ],
+      "GSM2016": [
+        0.039573053691545526,
+        0.031051228695665317,
+        0.02102317540320677,
+        0.013802578499438112,
+        0.007137980853402745
+      ],
+      "LFSM": [
+        0.1482505563540319,
+        0.15449239291252742,
+        0.15664800335436185,
+        0.17013397198617924,
+        0.18989208807669686
+      ],
+      "GSM2008, Carter correction": [
+        0.007590903087830217,
+        0.02048064669673322,
+        0.03040392303175035,
+        0.03860877126982835,
+        0.045466492018685925
+      ],
+      "GSM2008, Irfan correction": [
+        -0.2732731120413464,
+        -0.2621130385571738,
+        -0.25198103039341113,
+        -0.24807643202011315,
+        -0.22564005644507967
+      ],
+      "GSM2016, GINAN correction": [
+        0.14435637754473307,
+        0.16080662360740822,
+        0.15821228246572402,
+        0.14957015774072235,
+        0.1431108141954305
+      ]
+    },
+    "max_closure_K": 230.1214422574203
+  }
+}

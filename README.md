@@ -1,16 +1,14 @@
 # moonrunes
 
-**TRIS map-making (`limTOD`) feeding a Gibbs recalibration of the Haslam 408 MHz map
-(`bayesian_skymap`).**
+**TRIS map-making (`limTOD`) and a TRIS-anchored spectral model of the Haslam 408 MHz map.**
 
-The idea that ties the two codebases together is one sentence: `bayesian_skymap` needs a
-high-resolution but badly-calibrated map (Haslam) *and* a low-resolution but **absolutely
-calibrated** one — and TRIS is an absolute radiometer. So `limTOD.tris` makes maps from
-the TRIS drift rings, and those maps become `bayesian_skymap`'s `data1`/`sky_lowres`.
+TRIS is an absolute radiometer: its drift rings at 600 and 820 MHz anchor a spectral fit to
+the other surveys along the TRIS ring, which tests the Haslam 408 MHz map and predicts the
+sky at other frequencies.
 
 `PIPELINE.md` describes the pipeline in detail as it currently stands.
 `tris_haslam_pipeline.md` is the algorithm, stage by stage, and is the document this repo
-implements. `configs/run_config.yaml` is the single source of truth for every decision it
+implements. `configs/run_pipeline.yaml` is the single source of truth for every decision it
 flags as "decide rather than default".
 
 Note: We exclude maps below 80MHz based on beta values determined from T-T plots. 
@@ -18,17 +16,15 @@ Note: We exclude maps below 80MHz based on beta values determined from T-T plots
 
 ## Status
 
-> **The design changed.** `tris_haslam_pipeline.md` now specifies a **pixel-by-pixel SED
-> fit** using TRIS + ARCADE 2 to calibrate Haslam, superseding the `bayesian_skymap` Gibbs
-> sampler this README was written around. Stage 1 carries over unchanged; stage 2 has been
-> replaced; the sections below that describe the Gibbs design, its three blockers and its
-> prior sourcing are **out of date** and are kept until the rewrite catches up.
+> **Design.** `tris_haslam_pipeline.md` specifies a **pixel-by-pixel SED
+> fit** using TRIS + ARCADE 2 to calibrate Haslam. Stage 1 is the TRIS map-maker; stage 2 is
+> the beam matching; `docs/PIPELINE.md` describes the end-to-end pipeline built on them.
 
 | Stage | What it does | State |
 |---|---|---|
 | **1** | Calibrated TRIS maps from the public archive (`limTOD.tris`) | **implemented** |
 | **2** | Match Haslam and ARCADE 2 to the TRIS beam, frame and grid (Step 0) | **implemented**: writes `outputs/stage2/` |
-| 3 | Assemble per-pixel SEDs and fit | prototype in `notebooks/06`, not in the CLI |
+| 3 | Assemble per-pixel SEDs and fit | prototype in `notebooks/06` (removed 2026-11-16; in git at `a5c827c`), not in the CLI |
 | 4 | Derive and apply the calibration correction | not started |
 | 5 | Validate | not started |
 
@@ -40,7 +36,6 @@ Note: We exclude maps below 80MHz based on beta values determined from T-T plots
 conda env create -f environment.yml     # or use an existing env with the same stack
 conda activate tris-haslam-cal
 pip install -e .
-git submodule update --init             # external/bayesian_skymap
 ```
 
 `DATA_SOURCES.md` is the download list: every external dataset, its LAMBDA page, and
@@ -52,7 +47,7 @@ Stage 1 additionally needs:
   (`TRIS_absolute_600.txt`, `TRIS_absolute_820.txt`, `TRIS_absolute_2500MHz.txt`,
   `TRIS_Beam_Profile.txt`). Point `paths.tris_archive_dir` at your local copy; nothing
   in this repo touches the network.
-* **`pygdsm`**, for the GSM2008 template (Blocker 2's stand-in prior). Stage 2 also
+* **`pygdsm`**, for the GSM2008 template (stage 1's stand-in prior). Stage 2 also
   takes the reprocessed Haslam map (destriped/desourced, Remazeilles et al. 2015) from
   the same astropy cache, so `paths.haslam_map` can stay `null`.
 * **`limTOD`** — a normal pip dependency, but if it is not installed the pipeline falls
@@ -63,13 +58,26 @@ Stage 1 additionally needs:
 
 ## Running
 
+The pipeline runs end to end from one command (`PIPELINE.md` Part I describes every step, with a flowchart):
+
 ```bash
-python run_pipeline.py --stage 1
-python run_pipeline.py --stage 2
+python run_pipeline.py --step all              # steps 0-7, then paper_outputs/pipeline/PIPELINE_REPORT.md
+python run_pipeline.py --step fit              # one step: tris_maps, beam_match, ring_tods, compare, select,
+                                               #   fit, predict_408, rhino (each reads the steps before it)
+python run_pipeline.py --from-step compare     # this step and every step after it
+python run_pipeline.py --step report           # rewrite the report
 ```
 
-Stage 1 takes two overrides, so a variant run needs no config edit. Whatever they are
-set to is what that run's manifest records:
+Steps: 0 TRIS maps → 1 beam-match every allowed map to the TRIS beam → 2 ring TODs (120 samples) of every data set
+→ 3 model comparison without TRIS (UltraNest) → 4 pick the best model → 5 fit it with TRIS (our spectral model)
+→ 6 predict Haslam at 408 MHz through the TRIS beam → 7 predict RHINO (60–80 MHz). Products go to
+`paper_outputs/pipeline/`; settings are in `configs/run_pipeline.yaml` (data, beam, ring, `pipeline:`) and `configs/model_comp_config.yaml`
+(models, priors, sampler, error bars, the comparison statistic); no setting is in both.
+Then run `notebooks/10_paper_plots.ipynb` for the figures.
+
+The earlier interface still works: `python run_pipeline.py --stage 1` (= step 0) and `--stage 2` (the older beam
+matching of Haslam and ARCADE 2 alone, which nothing reads). Stage 1 takes two overrides, so a variant run needs no
+config edit. Whatever they are set to is what that run's manifest records:
 
 ```bash
 python run_pipeline.py --stage 1 --nside 32 --run-name fine --output-dir outputs/stage1_nside32
@@ -88,8 +96,8 @@ that; the rest is building the operator and the GSM2008 template). Products land
 
 * `tris_maps_<run name>.npz` — the maps, their posterior σ, the prior, the reference
   template, the fitted zero levels, residuals and beam coverage, stacked over frequency.
-* `stage1_manifest.json` — the exact config block used, the solver diagnostics, and the
-  three blockers' resolutions, so a product can always be traced back to the decisions
+* `stage1_manifest.json` — the exact config block used, the solver diagnostics, the
+  beam settings and the notes on the GSM2008 prior (the `blocker_*` keys), so a product can always be traced back to the decisions
   that produced it.
 
 Read them back through the one contract everything downstream uses:
@@ -113,12 +121,6 @@ is the parked-zenith geometry (`RA = LST`, `dec = lat = 42°26′`) with the E p
 Rayleigh–Jeans **including** the CMB monopole. The zero level is carried as an explicit
 nuisance parameter with a Gaussian prior — exactly equivalent to the rank-1 noise term,
 and it hands back the fitted offset.
-
-**The solve is the direct Krylov solve, per Blocker 3.** Not a dense factorisation, and
-not the low-rank fast-path acceleration that is documented wrong by eight orders of magnitude at
-low channel count: a `scipy.sparse.linalg.LinearOperator` around the MAP normal-equation
-matvec plus a Jacobi-preconditioned GMRES, the same pattern as `bayesian_skymap`'s
-amplitude step, so stage 1 and stage 4 fail the same way if they fail at all.
 
 **No convergence cross-check runs at the moment.** Stage 1 can compare each solve against
 an exact reference solve (the matrix inversion lemma at a single frequency; the inner matrix
@@ -144,16 +146,14 @@ stage 1 maps are made on, so every other product is put on the TRIS grid. That i
 `tris.nside_hires`, the grid limTOD rotates the beam on. That last choice has a measured
 cost. The same run with `nside_hires: 64` gives reduced χ² **3.09 / 3.22**, and the data
 tighten **388 / 201** pixels by more than 5%, against **23 / 7** at 16. The 64 numbers are
-the product `TRIS_MAP_PROVENANCE.md` documents. Stage 1 also warns that `beam.nside_new`
-(16) differs from what `bayesian_func.nside_for_beam` derives for the TRIS beam; that
-comparison only mattered for the superseded Gibbs path, so it is recorded, not enforced.
+the product `TRIS_MAP_PROVENANCE.md` documents.
 
 The solve is **limTOD's own** (`TRISMapMakingInputs.solve`), on a deliberately coarse
 nside 16 grid, over the pixels the beam actually saw. `TRIS_MAP_PROVENANCE.md` has the
 full settings and the threshold convergence study.
 
 Those fitted offsets reproduce the GSM2008 deficits measured independently in
-`notebooks/01` (1.92 K and 0.56 K cold) — a real check that the geometry, beam and
+`notebooks/diagnostics.ipynb` Part A (1.92 K and 0.56 K cold) — a real check that the geometry, beam and
 convention translation came through intact.
 
 **Read them as a measurement of GSM2008, not of the archive's zero point.** The monopole
@@ -218,80 +218,51 @@ junctions of its observed ring (`TODO.md` N-7).
 
 ---
 
-## What the old stage 2 did *(superseded)*
-
-> This section describes `stage2_haslam_prep`, the Gibbs-design stage 2, which has been
-> deleted. Its config blocks are kept in `configs/run_config.yaml` under a SUPERSEDED
-> banner, and its circularity measurement is still worth reading in `notebooks/02`.
-
-**The frame is galactic** and everything from here on lives in it. Haslam is native there,
-so the high-resolution map is never rotated, and the gain and β regions become galactic
-latitude bands — which is what `bayesian_skymap`'s own `region_operator` assumes and what
-is physical for synchrotron β. Stage 3 rotates stage 1's equatorial TRIS band in.
-
-The CMB monopole is removed from Haslam before anything else. `bayesian_skymap` models
-`sky_gain` as `gain × s × (freq/ref)^β`, a pure power law with no monopole term, so leaving
-2.7 K in it makes the forward model wrong everywhere.
-
-**12 gain regions, 6 β regions.** This corrects what looks like a conflation in the
-original config, which set 6 gain regions "to match the six regions bayesian_skymap
-initialises" — those six are the *spectral index* regions (`BETA_REGIONS`); that
-repository's own generator uses `ngain = 12`. The gain is meant to have more freedom than
-β. Our `region_operator` is pinned byte-for-byte against theirs in the test suite.
-
-### ⚠️ The prior is not independent, and that is the whole problem
-
-Blocker 2 wants Berkhuijsen (1972) at 820 MHz because it is the one basis **independent of
-Haslam**. It is not available offline, and this repo never touches the network. Three
-sources are implemented and switched by `haslam.prior.source`:
-
-| source | independent? | what it is |
-|---|---|---|
-| `gsm2008` *(default)* | **no** | GSM2008 at 408 MHz. It is built by fitting principal components to eleven input surveys, **one of which is Haslam 408 MHz** — so at 408 MHz it is a smoothed reconstruction of Haslam. `notebooks/02` measures the damage: log-space correlation **0.993**, median ratio **1.005**, 80% of pixels within 5%. |
-| `tris_stage1` | **yes, where TRIS looked** | Stage 1's TRIS maps extrapolated 600 → 408 MHz. TRIS is an absolute radiometer, so this is genuinely independent — but only across the 52% of the sky its declination band covers. Outside it the width falls back to 10× the local sky, i.e. deliberately uninformative. |
-| `berkhuijsen_1972` | **yes** | The real answer. Raises with a clear message until `paths.berkhuijsen_map` points at a file. |
-
-Stage 2 sets `prior_is_haslam_derived` in its manifest and prints a warning when the prior
-is circular. **With the shipped default, stage 5's comparison of a recovered gain against
-the ~3% / ~0.91 K literature benchmark tests the plumbing, not the sky.** That is a
-deliberate choice — it lets stages 3–5 be built and exercised — but a number that comes out
-of it is not a result.
-
-Two other truth-informed quantities have recorded substitutes: `covG`, which `gibbs_*.py`
-builds from the *true* gain as `(0.15 × (1 + g_true))²` (stage 2 emits the same width at
-`g = 0`), and `sky_haslam`, which is read as the true sky (stage 2 emits `s0_init_k`).
-
----
-
 ## Notebooks
 
-All are committed **with their outputs**, so they can be read without re-running. `NOTEBOOK_INDEX.md` gives each
-notebook's status (current / stale / superseded) and where it writes; `PLOT_INDEX.md` lists every plot.
-**03, 05 and 06 predate the switch to nside 16** and have not been re-run on it yet; 01's sections 05–06 follow `tris.nside`.
+Three notebooks, committed **with their outputs**, so they can be read without re-running. `NOTEBOOK_INDEX.md` lists
+what each Part does, what it reads and writes, and where every old notebook went; `PLOT_INDEX.md` lists every plot;
+`HANDOVER.md` says which cell makes which paper figure and table.
 
-| Notebook | Contents |
-|---|---|
-| `01_explore_data.ipynb` | The inputs, one section per dataset. **01** the four TRIS products, the beam, the temperature convention, the GSM2008 template — and where `zero_level_sigma_k`, `uncertainty_floor_k` and `nside_new` come from. **02** a first look at ARCADE 2 (3.15/3.41 GHz). **03** the Haslam 408 MHz download. **04** the stage 1 TRIS maps. **05** every map in `res/`, discovered automatically: full-sky panels and Dec +30–55° strip slices with the TRIS strip, plus a frequency / frame / nside / beam table. **06** the TRIS TOD each map predicts (limTOD `generate_TOD_sky`), compared by shape and by spectral index against the TRIS 600 MHz ring. |
-| `02_build_berkhijsen_prior.ipynb` | **Superseded, does not run** — imports the deleted `stage2_haslam_prep`. Kept for section 3's circularity measurement. The stage 2 products: the Haslam map, the region operators, the three prior sources compared — and section 3, which *measures* the GSM2008/Haslam circularity instead of asserting it. |
-| `03_diagnostics.ipynb` | The stage 1 results: convergence, χ² and residuals, the zero level against the template deficit, prior→posterior shrinkage and z-scores, the band maps, β between the two solved maps, a preview of the degrade to `nside_new`, the prior-only and high-noise comparison runs, residuals with error bars (with the derivation of their expected scatter) and the RMS maps. **Last section: the elliptical beam for the map route**: the three kernels on the sky and in profile, the weight in the shoulders, the kernel each survey gets, a point source through the real smoothing code (orientation, widths, broad native beams), and old vs new kernel on Haslam, on ARCADE 2's mask edge and on every map-route survey. **Then: harmonic-space checks** (`PIPELINE.md` Appendix C): the C_ℓ of every map raw and smoothed, the TRIS beam's C_ℓ, limTOD's harmonically pointed beam and its TODs against exact pixel-space versions, Haslam's rotation ringing, and harmonic vs real-space smoothing. **Last: convolve → deconvolve with limTOD** (`PIPELINE.md` Appendix D): every SED map through limTOD's circular and elliptical beams and back through its Wiener map-maker, which scales survive, and how the two beams differ. Run 2026-10-14. |
-| `04_coordinate_frames.ipynb` | What each input's header declares, checked against the sky; the rotation to equatorial (harmonic for Haslam, mask-aware pixel rotation for ARCADE 2); Sgr A*, Cas A and Tau A at their literature positions; the ARCADE 2 zero mask after rotation. |
-| `05_beam_matching.ipynb` | With the original **circular** kernel: Haslam and ARCADE 2 smoothed to 23.366° in the equatorial frame; UNSEEN counts and the ring's break at its narrow junctions; the final ARCADE 2 mask and the four-way overlap with TRIS. |
-| `06_sed_fit.ipynb` | Stage 3 prototype with the four trusted points only (TRIS 600/820 + ARCADE 2), at nside 16 from the stage 1 and 2 products, fitted at **every** TRIS-stripe pixel (4 points where ARCADE 2 exists, 2 elsewhere): full maps of best-fit Haslam, β, χ², σ(β) and points per fit, and the sensitivity to ẑ and TRIS beam matching. With ARCADE 2: +3.4 K (+9.6%); TRIS only: +31%, driven by ẑ. |
-| `07_sed_calibration.ipynb` | Stage 3 prototype on nside 16, with every usable map in `res/`: the **TOD route** (limTOD TODs → per-sample SED fit → correction TOD → map via the Wiener filter) and the **map route** (per-pixel fit on the TRIS grid), old vs corrected Haslam, and a hybrid map. The TOD route finds Haslam ~18% low along the ring; the map route is circular through stage 1's GSM2008 prior. |
-| `08_update_plots.ipynb` | The working figure set, target = destriped-only Haslam: the maps used and the target with the TRIS stripe, stripe slices, the TRIS maps and TODs, pixel-by-pixel and sample-by-sample SED fits with residuals, fit-residual maps, old vs best-fit Haslam (both routes), χ² and β maps, full-resolution corrected Haslam (both routes), T–T corner plots (raw and beam-convolved), the TRIS beam (Figs 14, 14b), and how strongly TRIS anchors the Haslam gain and offset (Figs 15, 16). Saved to `outputs/paper_plots/`. |
-| `09_beam_fwhm_tests.ipynb` | Tests of the beam widths: the σ ↔ FWHM constant, the FWHM function on Gaussian and archive cuts (and its linear-in-dB interpolation bias), degree/radian and σ/FWHM slips, the cut beam's principal planes, `hp.smoothing`'s real-space width, and a round trip (Gaussian beam map → cuts → FWHM) at nside 16–1024. Same checks in `tests/test_beam_fwhm.py`. |
-| `10_paper_plots.ipynb` | The paper's figures at MNRAS size, written to `Papers_and_reports/moonrunes_paper/figures/` (PDF + PNG) under the names `main.tex` includes: all maps over the TRIS slice, the TRIS maps, the sky models' TODs at 600/820 MHz, the T–T β matrix and β vs frequency, the model-comparison fits, the TRIS beam, the TRIS anchor of the Haslam gain and offset, the predicted TODs at RHINO frequencies through the TRIS and RHINO beams (from notebook 19's Test 6 CSVs; only the RHINO-beam one is in the paper), and the 408 MHz models against the power-law prediction. File names are `<section>_<content>` (`PLOT_INDEX.md`, "Paper figures"). |
-| `11_model_comparison_diagnostics.ipynb` | Diagnostics of the spectral-model comparison (`model_comparison/`): score differences, posteriors, the C prior, convergence, fits at the TRIS frequencies, robustness. |
-| `12_sky_models_vs_fit_408.ipynb` | Power-law and curved fits per ring sample (UltraNest), and which 408 MHz sky model matches the prediction; its cache feeds 13, 15, 16, 17, 20 and 21. |
-| `13_sky_model_residuals_408.ipynb` | Plots 1–3: legacy and corrected sky models against the power-law 408 MHz prediction. |
-| `14_ring_tt_betas.ipynb` | T–T β along the ring for every survey pair, and the sky models against TRIS at 600/820 MHz (Plots 4–6d). |
-| `15_model_choice_decision_sheet.ipynb` | The model-choice decision sheet (five criteria, with and without Cygnus A). |
-| `16_haslam_vs_power_law_408.ipynb` | Haslam and the sky models against the power-law prediction: scale–offset fits. |
-| `17_haslam_gain_offset_calibration.ipynb` | Haslam calibrated with one gain and offset along the ring (Plot 3). |
-| `18_beam_matched_tods.ipynb` | The beam-matched ring TODs of every survey and sky model, and their change from the old ones. |
-| `19_power_law_tod_prediction.ipynb` | Power-law and curved fits per ring sample and the predicted ring TOD at any frequency (Tests 1–5); RHINO predictions at 60–80 MHz (Test 6). |
-| `20_zero_level_offsets.ipynb` | Zero-level offsets as shared fit parameters with priors from the published systematics (TRIS II Table 3 for TRIS). |
-| `21_robustness_check.ipynb` | Robustness of the Haslam gain and offset across survey subsets, spectral models, sample subsets and zero-level treatment. |
+| Notebook | Contents | Run |
+|---|---|---|
+| `diagnostics.ipynb` | Checks of the inputs and of stage 1: **A** every input file (TRIS products, ARCADE 2, Haslam, the TRIS maps, every map in `res/`, the TOD each map predicts); **B** coordinate frames, checked against the sky; **C** stage-1 convergence, residuals, the zero level, data against prior, and the prior-only / high-noise runs. | any time after stage 1 |
+| `tests_analysis/` (one notebook per Part; `README.md` there) | Every analysis and test behind the paper, in dependency order: **A** beam-matched ring TODs; **B** UltraNest fits per ring sample and the 408 MHz sky models; **C** model-comparison diagnostics; **D** the model-choice decision sheet; **E** T–T indices and the sky models against TRIS; **F** Haslam against the power-law prediction (scale–offset); **G** Haslam with one gain and offset; **H** zero-level offsets; **I** robustness to survey subsets and more; **J** the 13-point fit and the prediction at any frequency, including RHINO; **K** beam tests (FWHM, beam matching, harmonic checks, beam variants, and the script tests below). | after stage 1 and `scripts/model_comparison/run_comparison.py` |
+| `10_paper_plots.ipynb` | The paper's figures at MNRAS size, written to `Papers_and_reports/moonrunes_paper/figures/` (PDF + PNG) as `fig1_…`–`fig10_…` (the names `main.tex` includes) and `rhino_tods_tris_beam` (not in the paper). | last |
+
+`diagnostics.ipynb` and the `tests_analysis/` Parts hold the stored outputs of the notebooks they were built from (not re-run). `test_results.ipynb`, the merged notebook the Parts were split from on 2026-11-17, stays as a record and is not maintained.
+Those originals are in `../moonrunes_archive_2026-11-16/notebooks/`; six older notebooks are in git at `a5c827c`. **Diagnostics Part C and `tests_analysis` Part K2 predate the switch to nside 16** in places (TODO N-1).
+
+### Where outputs go
+
+**`paper_outputs/`** holds everything a paper figure, table or quoted number is made from; **`test_outputs/`** holds the results of tests and checks the paper does not use; **`outputs/`** keeps the pipeline's stage products; the figures themselves are written to the paper repo. Caches live inside these folders (`cache/` subfolders, `.npz`), so moving a folder moves its cache.
+
+| Folder | What | Written by |
+|---|---|---|
+| `paper_outputs/pipeline/step1_beam_matched_maps/` | every allowed map beam-matched to the TRIS beam (nside 16) | pipeline step 1 |
+| `paper_outputs/pipeline/step2_ring_tods/` | ring TODs and σ of every data set (`ring_tods.npz`); every survey and sky model through the TRIS beam (`beam_matched_tods.npz`, `sky_tods.npz`) | step 2 |
+| `paper_outputs/pipeline/step3_model_comparison/` | ln Z per ring sample and model, TRIS excluded | step 3 |
+| `paper_outputs/pipeline/step4_model_selection/` | `selection.json`: the best model | step 4 |
+| `paper_outputs/pipeline/step5_fit/` | our spectral model: the best model's UltraNest fit at every ring sample, TRIS included | step 5 |
+| `paper_outputs/pipeline/step6_predict_408/` | the 408 MHz prediction against Haslam and the 408 MHz models (`tab:408-residuals`, `tab:scale-offset`) | step 6 |
+| `paper_outputs/pipeline/step7_rhino/` | the RHINO prediction through the TRIS and RHINO beams (Figure 10) | step 7 |
+| `paper_outputs/pipeline/PIPELINE_REPORT.md` | what the last run found, step by step | `--step report` |
+| `paper_outputs/model_comparison/diagnostic_plots/` | diagnostics of the step 3 comparison | `notebooks/tests_analysis/` Part C |
+| `paper_outputs/model_choice/` | the model-choice decision sheet | Part D |
+| `paper_outputs/phil_plots/` | T–T β, sky models against TRIS (`plot6a_models_fitted_to_tris.csv` = `tab:step1`) | Part E |
+| `paper_outputs/zero_level_offsets/` | zero-level offsets as fit parameters | Part H |
+| `paper_outputs/robustness_check/` | robustness of the Haslam gain and offset | Part I |
+| `paper_outputs/model_comparison/results/` | the standalone `run_comparison.py` output (the 2026-10-29 run on 4 points) | `scripts/model_comparison/run_comparison.py` |
+| `paper_outputs/nb08_paper_plots/` | the removed notebook 08's figures and tables; `fig15_*.csv` is what Figure 9's cell checks against | notebook 08 (removed) |
+| `test_outputs/beam_matched_vs_old/` | step 2's TODs against the old (native-beam) TODs | Part A |
+| `test_outputs/sky_models_408/` | curved power-law fits, sky models against both fits (`chi2_sky_models_vs_fits.csv`) | Part B |
+| `test_outputs/plot3_haslam_vs_fit/` | the scale-offset fits and figures (a check of step 6) | Part F |
+| `test_outputs/plot3_haslam_calibration/` | Haslam with one gain and offset | Part G |
+| `test_outputs/tod_prediction/` | 13-point fits and predicted TODs (Tests 1–5); Test 6's last outputs (2026-11-05) | Part J |
+| `test_outputs/beam_variants/`, `fwhm_scaling_test/`, `scripts/beam_averaging_blobs/<map>/`, `lwa35_stockert/` | beam tests | Part K2; the beam-test scripts (Parts K3–K5) |
+| `outputs/stage1*/` | TRIS maps (the pipeline's step 0 writes `outputs/stage1/`) | step 0 / `--stage 1` |
+| `outputs/stage2/` | the older Haslam + ARCADE 2 beam matching (nothing reads it) | `--stage 2` |
+| paper repo `figures/` | the paper figures `fig1_…`–`fig10_…` | `10_paper_plots.ipynb` |
 
 ---
 
@@ -299,11 +270,12 @@ notebook's status (current / stale / superseded) and where it writes; `PLOT_INDE
 
 Scripts outside the notebooks, each self-contained. They import the repo's code read-only
 and change nothing in `src/`. Run them in the `limtod` conda environment.
+Their saved results are shown in `notebooks/tests_analysis/` Parts K3–K5.
 
 | Test | What it checks | Rerun | Outputs |
 |---|---|---|---|
-| **FWHM scaling** — `scripts/fwhm_scaling_test.py` (2026-10-19) | Notebook 03's two-step vs one-step beam matching (`PIPELINE.md` App. E), rerun with four FWHMs given to the pipeline for the complicated survey beam: major axis, minor axis, their arithmetic mean and geometric mean. All three kernels; Haslam 408 MHz, nside 64 → 16. | `python scripts/fwhm_scaling_test.py` (~7.5 min); `--replot-maps` redraws the residual maps from the saved `.npz` in seconds | `outputs/fwhm_scaling_test/`: table CSV, comparison plot, residual maps (PNG + `.npz`) |
-| **Beam averaging with spectral-index blobs** — `beam_averaging_blobs/` (2026-10-19/20) | Whether beam averaging changes the *shape* of T vs LST across frequencies when the TRIS beam covers regions of different β. Haslam extrapolated with a blob β map, observed with the TOD route's TRIS beam at 408/600/820 MHz, compared with a uniform-β control. | `python beam_averaging_blobs/beam_averaging_blobs.py` (seconds); `replot_from_csv.py` redraws the summary plots from the CSVs | `beam_averaging_blobs/<map>/`; details in `beam_averaging_blobs/README.md` |
+| **FWHM scaling** — `scripts/fwhm_scaling_test.py` (2026-10-19) | The two-step vs one-step beam matching of `notebooks/tests_analysis/` Part K2 (`PIPELINE.md` App. E), rerun with four FWHMs given to the pipeline for the complicated survey beam: major axis, minor axis, their arithmetic mean and geometric mean. All three kernels; Haslam 408 MHz, nside 64 → 16. | `python scripts/fwhm_scaling_test.py` (~7.5 min); `--replot-maps` redraws the residual maps from the saved `.npz` in seconds | `test_outputs/fwhm_scaling_test/`: table CSV, comparison plot, residual maps (PNG + `.npz`) |
+| **Beam averaging with spectral-index blobs** — `scripts/beam_averaging_blobs/` (2026-10-19/20) | Whether beam averaging changes the *shape* of T vs LST across frequencies when the TRIS beam covers regions of different β. Haslam extrapolated with a blob β map, observed with the TOD route's TRIS beam at 408/600/820 MHz, compared with a uniform-β control. | `python scripts/beam_averaging_blobs/beam_averaging_blobs.py` (seconds); `replot_from_csv.py` redraws the summary plots from the CSVs | `test_outputs/beam_averaging_blobs/<map>/`; details in `scripts/beam_averaging_blobs/README.md` |
 
 **Findings:**
 
@@ -320,16 +292,6 @@ and change nothing in `src/`. Run them in the `limtod` conda environment.
 
 ---
 
-## The three blockers
-
-| | Status |
-|---|---|
-| **1 — beam width mismatch** | Resolved. The fork accepts arbitrary `beam_deg`; the TRIS E/H mean (21.2605°) is passed through as itself. Stage 1 still compares the pinned `nside_new` with `bayesian_func.nside_for_beam`, but since the SED redesign a mismatch is recorded in the manifest and warned about, not fatal. `nside_new` is now 16. |
-| **2 — no "truth" for real data** | **Open, in both stages.** Stage 1 uses GSM2008 as both prior and reference truth (`prior_equals_truth: true`). Stage 2's prior defaults to GSM2008 too, which is not Haslam-independent (`prior_is_haslam_derived: true`, measured at r = 0.993 in `notebooks/02`). `tris_stage1` is the honest interim — independent across the 52% of sky TRIS observed. The real answer stays Berkhuijsen (1972), and swapping it in is one config line. |
-| **3 — low-rank fast path broken at low channel count** | Resolved by not using it. The fast path is switched off in the config and stage 1 solves with the direct Krylov path. |
-
----
-
 ## Layout
 
 ```
@@ -337,8 +299,8 @@ PIPELINE.md                 the whole pipeline in detail, as it currently stands
 TODO.md                     open items from stages 1 and 2, ordered by what they block
 DATA_SOURCES.md             every external dataset, its archive page, and what reads it
 TRIS_MAP_PROVENANCE.md      the limTOD code, settings and conventions behind the stage 1 maps
-configs/run_config.yaml     every flagged decision, with the reason next to it
-run_pipeline.py             the single entry point (--stage N)
+configs/run_pipeline.yaml     every flagged decision, with the reason next to it
+run_pipeline.py             the single entry point (--step NAME | --step all; --stage 1/2 still work)
 src/moonrunes/
     config.py               loader; `require()` raises on null = "still an open decision"
     stage1_tris_maps.py     stage 1 + its product loader
@@ -346,12 +308,14 @@ src/moonrunes/
     frames.py               declared frames; Galactic -> equatorial rotation (full-sky and mask-aware)
     sky_maps.py             reads every map in res/ (any layout), with frequency, frame, beam and CMB convention
     sed_prototype.py        stage 3 prototype: the TOD route and the map route of the SED calibration
-    stage3..stage5          empty
-notebooks/                  analysis and plotting, committed with outputs
+    pipeline.py             the end-to-end pipeline, steps 0-7 (run_pipeline.py --step ...)
+notebooks/                  diagnostics.ipynb, tests_analysis/ (Parts A–L), 10_paper_plots.ipynb (committed with outputs); test_results.ipynb (record)
 scripts/                    standalone tests (fwhm_scaling_test.py); see "Standalone tests"
-beam_averaging_blobs/       the spectral-index blob test: script, CSVs, plots, README
-external/bayesian_skymap    submodule (patched fork)
-outputs/                    stage products, gitignored
+scripts/beam_averaging_blobs/       the spectral-index blob test: script, CSVs, plots, README
+scripts/beam_tests_lwa35_stockert1420/  the beam-matching and blob tests at LWA1 35 and Stockert 1420 MHz: scripts, CSVs, plots, README
+paper_outputs/              results that a paper figure, table or quoted number is made from (see "Where outputs go")
+test_outputs/               results of tests and checks the paper does not use
+outputs/                    pipeline stage products (run_pipeline.py), mostly gitignored
 res/                        input maps: TRIS text products, Haslam, ARCADE 2, Maipu 45 MHz, Stockert 1420 MHz
 tests/                      pytest: test_stage_io.py, test_frames.py
 ```
@@ -368,9 +332,8 @@ consumed in its manifest.
 pytest
 ```
 
-49 tests. The algebra ones — the Krylov solve against a dense reference, the Jacobi
-diagonal against `bayesian_func.estimate_diag_precond`, the exact reference posterior against a
-dense inverse, stage 2's beam quadrature and masked-smoothing behaviour, and the frame rotations — run
+73 tests. The algebra ones — the Krylov solve against a dense reference, the exact
+reference posterior against a dense inverse, stage 2's beam quadrature and masked-smoothing behaviour, and the frame rotations — run
 anywhere. The end-to-end tests skip themselves when the TRIS archive, the FITS downloads,
 or `pygdsm` is absent.
 

@@ -1,7 +1,7 @@
 """Stage 3 prototype: the TOD route and the map route of the SED calibration.
 
-The same calculation ``notebooks/07_sed_calibration`` develops step by step,
-packaged so that plotting notebooks (``notebooks/08_paper_plots``) can call it.
+The same calculation the former ``notebooks/07_sed_calibration`` developed step by step
+(removed 2026-11-16; in git at ``a5c827c``), packaged so that the notebooks can call it.
 It is a prototype, not a pipeline stage: it writes nothing, and the choices it
 makes are the module constants below.
 
@@ -24,7 +24,7 @@ own convention (fit + T_CMB,RJ(408 MHz)).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import numpy as np
 
@@ -35,7 +35,7 @@ from .stage2_beam_matching import match_to_tris_beam, regrid_to_nside
 
 NU0_MHZ = 408.0
 #: Fallback error (fraction of T) for a map with no entry in PUBLISHED_ERRORS.
-#: Since 2026-10-21 every fitted survey has an entry, so nothing in the fit uses it.
+#: Every fitted survey has an entry, so nothing in the fit uses it.
 ASSUMED_FRACTION = 0.10
 #: ARCADE 2 calibration uncertainty, Fixsen et al. 2011 Table 3 (K).
 ARCADE_CAL_K = {3150.0: 7.5e-3, 3410.0: 6.0e-3}
@@ -221,7 +221,7 @@ class Inputs:
         self.band = self.stage1["band_mask"].astype(bool)
         self.all_maps = sky_maps.discover(res_dir)
         self.target = next(m for m in self.all_maps if m["file"] == target_file)
-        # sed.exclude_maps: maps left out of every SED study (ARCADE 2 since 2026-10-15).
+        # sed.exclude_maps: maps left out of every SED study (reasons in run_pipeline.yaml).
         self.excluded = list(config.get_path("sed.exclude_maps", []) or [])
         self.fit_maps = [m for m in self.all_maps if m["usable"] and m["role"] == "fit"
                          and m["file"] not in self.excluded]
@@ -316,7 +316,7 @@ class Inputs:
     def _beam_matched_tod(self, m):
         """Stage 2's beam matching (``tris_cuts`` kernel, :mod:`moonrunes.elliptical_beam`)
         evaluated at the ring pointings: the TRIS cut beam with the map's own beam taken
-        out, so every TOD sees the TRIS beam once.  Notebook 18 builds the same TODs."""
+        out, so every TOD sees the TRIS beam once.  ``test_results.ipynb`` Part A builds the same TODs."""
         rotated, observed = self._rotated(m)
         r = elliptical_beam.smooth_at_positions(np.where(observed, rotated, 0.0), observed,
                                                 float(m["fwhm_deg"]), self.tod_spec, self.ring_vec)
@@ -432,24 +432,3 @@ def tod_route(inp: Inputs) -> Dict[str, object]:
     return dict(pred=pred, sigma_pred=sig, beta=beta, chi2_dof=chi2, n=n, points=points,
                 target_tod=target_tod, delta_tod=delta_tod, delta=delta_map,
                 sigma_delta=sigma_map, old=old, pred_map=old + delta_map)
-
-
-def apply_full_resolution(inp: Inputs, delta_map_eq: np.ndarray) -> Dict[str, np.ndarray]:
-    """Corrected full-resolution target: target + the nside correction, interpolated.
-
-    The target is rotated into equatorial at its native nside (harmonic), the
-    nside-``inp.nside`` correction is interpolated bilinearly onto the native grid
-    (so it is smooth, not blocky), and added inside the TRIS stripe; outside it,
-    the target is left as it was.
-    """
-    import healpy as hp
-
-    native = frames.rotate_full_sky(inp.target["sky"], (inp.target["frame"], "C"))
-    nside = hp.get_nside(native)
-    theta, phi = hp.pix2ang(nside, np.arange(native.size))
-    stripe = inp.band[hp.ang2pix(inp.nside, theta, phi)]
-    filled = np.where(np.isfinite(delta_map_eq), delta_map_eq, 0.0)
-    correction = hp.get_interp_val(filled, theta, phi)
-    corrected = np.where(stripe, native + correction, native)
-    return dict(old=native, corrected=corrected, correction=np.where(stripe, correction, np.nan),
-                stripe=stripe)

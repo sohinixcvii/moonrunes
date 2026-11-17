@@ -1,0 +1,37 @@
+error scale,comparison,statistic,samples,n,favours model,indistinguishable,favours power law,median Δ
+0.7,curved PL vs power law,Δχ²,all samples,120,104,16,0,-3.729300601693567
+0.7,curved PL vs power law,ΔAIC,all samples,120,51,69,0,-1.7293006016935668
+0.7,curved PL vs power law,Δχ²,excl. ±25°,103,91,12,0,-3.7145901337738803
+0.7,curved PL vs power law,ΔAIC,excl. ±25°,103,41,62,0,-1.7145901337738803
+0.7,moment (2nd order) vs power law,Δχ²,all samples,120,104,16,0,-2.9445792423248554
+0.7,moment (2nd order) vs power law,ΔAIC,all samples,120,18,102,0,-0.9445792423248551
+0.7,moment (2nd order) vs power law,Δχ²,excl. ±25°,103,91,12,0,-2.935303998746125
+0.7,moment (2nd order) vs power law,ΔAIC,excl. ±25°,103,11,92,0,-0.9353039987461251
+0.7,moment (3rd order) vs power law,Δχ²,all samples,120,114,6,0,-6.027712476215536
+0.7,moment (3rd order) vs power law,ΔAIC,all samples,120,60,54,6,-2.027712476215535
+0.7,moment (3rd order) vs power law,Δχ²,excl. ±25°,103,101,2,0,-6.055836771155465
+0.7,moment (3rd order) vs power law,ΔAIC,excl. ±25°,103,52,49,2,-2.055836771155465
+1.0,curved PL vs power law,Δχ²,all samples,120,45,75,0,-1.8273572951356423
+1.0,curved PL vs power law,ΔAIC,all samples,120,0,120,0,0.17264270486435773
+1.0,curved PL vs power law,Δχ²,excl. ±25°,103,36,67,0,-1.8201491669997834
+1.0,curved PL vs power law,ΔAIC,excl. ±25°,103,0,103,0,0.17985083300021665
+1.0,moment (2nd order) vs power law,Δχ²,all samples,120,17,103,0,-1.4428438292319867
+1.0,moment (2nd order) vs power law,ΔAIC,all samples,120,0,120,0,0.5571561707680133
+1.0,moment (2nd order) vs power law,Δχ²,excl. ±25°,103,10,93,0,-1.4382989689115977
+1.0,moment (2nd order) vs power law,ΔAIC,excl. ±25°,103,0,103,0,0.5617010310884023
+1.0,moment (3rd order) vs power law,Δχ²,all samples,120,95,25,0,-2.9535790877860424
+1.0,moment (3rd order) vs power law,ΔAIC,all samples,120,19,76,25,1.0464209122139576
+1.0,moment (3rd order) vs power law,Δχ²,excl. ±25°,103,85,18,0,-2.967359965966333
+1.0,moment (3rd order) vs power law,ΔAIC,excl. ±25°,103,19,66,18,1.0326400340336672
+1.5,curved PL vs power law,Δχ²,all samples,120,0,120,0,-0.8121587976979598
+1.5,curved PL vs power law,ΔAIC,all samples,120,0,120,0,1.1878412023020402
+1.5,curved PL vs power law,Δχ²,excl. ±25°,103,0,103,0,-0.8089551846922374
+1.5,curved PL vs power law,ΔAIC,excl. ±25°,103,0,103,0,1.1910448153077626
+1.5,moment (2nd order) vs power law,Δχ²,all samples,120,0,120,0,-0.6412639267133404
+1.5,moment (2nd order) vs power law,ΔAIC,all samples,120,0,120,0,1.3587360732866596
+1.5,moment (2nd order) vs power law,Δχ²,excl. ±25°,103,0,103,0,-0.6392439771765339
+1.5,moment (2nd order) vs power law,ΔAIC,excl. ±25°,103,0,103,0,1.360756022823466
+1.5,moment (3rd order) vs power law,Δχ²,all samples,120,24,96,0,-1.3127018169220448
+1.5,moment (3rd order) vs power law,ΔAIC,all samples,120,0,24,96,2.687298183077955
+1.5,moment (3rd order) vs power law,Δχ²,excl. ±25°,103,24,79,0,-1.3188266895944152
+1.5,moment (3rd order) vs power law,ΔAIC,excl. ±25°,103,0,24,79,2.681173310405585

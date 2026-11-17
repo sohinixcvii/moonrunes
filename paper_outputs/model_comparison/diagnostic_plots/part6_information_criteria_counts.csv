@@ -1,0 +1,19 @@
+criterion,comparison,samples,n,favours model,indistinguishable,favours power law,median Δ
+AIC,curved PL vs power law,all samples,120,0,120,0,0.17264270486435773
+AIC,curved PL vs power law,excl. ±15°,110,0,110,0,0.17915432875488335
+AIC,curved PL vs power law,excl. ±25°,103,0,103,0,0.17985083300021643
+AIC,moment (2nd order) vs power law,all samples,120,0,120,0,0.5571561707680135
+AIC,moment (2nd order) vs power law,excl. ±15°,110,0,110,0,0.561261805997396
+AIC,moment (2nd order) vs power law,excl. ±25°,103,0,103,0,0.5617010310884023
+AIC,moment (3rd order) vs power law,all samples,120,19,76,25,1.0464209122139576
+AIC,moment (3rd order) vs power law,excl. ±15°,110,19,70,21,1.030443688583957
+AIC,moment (3rd order) vs power law,excl. ±25°,103,19,66,18,1.0326400340336663
+BIC,curved PL vs power law,all samples,120,0,118,2,0.5705379776627297
+BIC,curved PL vs power law,excl. ±15°,110,0,108,2,0.5770496015532558
+BIC,curved PL vs power law,excl. ±25°,103,0,101,2,0.5777461057985889
+BIC,moment (2nd order) vs power law,all samples,120,0,120,0,0.9550514435663837
+BIC,moment (2nd order) vs power law,excl. ±15°,110,0,110,0,0.9591570787957675
+BIC,moment (2nd order) vs power law,excl. ±25°,103,0,103,0,0.9595963038867747
+BIC,moment (3rd order) vs power law,all samples,120,14,54,52,1.8422114578106994
+BIC,moment (3rd order) vs power law,excl. ±15°,110,14,49,47,1.8262342341806983
+BIC,moment (3rd order) vs power law,excl. ±25°,103,14,45,44,1.8284305796304086

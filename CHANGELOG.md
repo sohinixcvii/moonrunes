@@ -12,6 +12,228 @@ resolve before running anything".
 
 ### Changed
 
+#### `external/bayesian_skymap` no longer used (2026-11-17)
+
+The submodule (a Gibbs recalibration, a preliminary design that was not adopted; kept in an older branch) is no
+longer imported or referred to. No map, TOD, fit or number changes.
+- `src/moonrunes/stage1_tris_maps.py`: `import_bayesian_func` and `_check_beam_against_bayesian_skymap` removed. The new
+  `_beam_record` keeps the check that `beam.beam_deg` is the E/H mean and records `beam_deg`, `nside_new_pinned` and
+  `pixels_per_fwhm`. The stage 1 manifest's `blocker_1_beam_reconciliation` loses `matches_bayesian_skymap`,
+  `nside_new_from_bayesian_func` and `bayesian_func`. Stage 1 no longer needs the submodule to run.
+- `scripts/tests/test_stage_io.py`: the nside test and the preconditioner-diagonal test, which compared against
+  `bayesian_func`, removed (73 tests).
+- `configs/run_pipeline.yaml`: `paths.bayesian_skymap` removed; the Gibbs-design comments removed (the superseded
+  `haslam`, `assemble` and `gibbs` keys stay; only `gibbs.use_woodbury` is read, by a test).
+- `pyproject.toml`, `environment.yml`: `emcee` removed (nothing imports it); scipy kept (used throughout), comments
+  updated.
+- `notebooks/diagnostics.ipynb`: the beam check in cell 13 and the mentions in cells 4, 12, 18, 93, 95, 110 and 111
+  removed (sources only).
+- Docs: the live references removed (README, HANDOVER, `tris_haslam_pipeline.md`, `docs/TODO.md` including the
+  "Stage 4 prerequisites (patches to bayesian_skymap)" section, `docs/DATA_SOURCES.md`, `docs/TRIS_MAP_PROVENANCE.md`).
+  HANDOVER's provenance table gains the stage 1 numbers of main.tex:303 and the Figure 3 caption, checked against the
+  stage 1 manifest and band mask.
+
+#### `test_results` split into Part notebooks, debugged for 13 points; Part L (Fisher) added; notebook 08 archived (2026-11-17)
+
+- **Split:** `notebooks/test_results.ipynb` → `notebooks/tests_analysis/Part_<letter>_<heading>.ipynb`, one per Part
+  (A–K5), cells and stored outputs copied; `tests_analysis/README.md` has the overview, the Part K banner and each
+  Part's cell offset (old cell − offset = new cell). `test_results.ipynb` stays as a record, not maintained. Each Part
+  finds the repo root from `configs/run_pipeline.yaml`, records its start time in the first code cell and prints the
+  total run time in a last cell.
+- **The failure** (2026-11-17 run, Part D cell 99): `assert sorted(keys) == sorted(SURVEYS)` — step 5's fits have 13
+  data sets since the 2026-11-16 run, Parts D, G, H and I hard-coded the six ring surveys (G, H and I would have failed
+  the same way). They now take step 5's data sets from `moonrunes.pipeline.fit_data_sets` (new, with `data_label`).
+  Part D: `N_PTS` from the data; Part G: the assert keeps "Haslam is never a fit point"; Part H: data sets without an
+  entry get the "published" zero-level rule (the LWA1 38–74 MHz maps quote none, so no offset); Part H's per-survey
+  figure grid is sized to the data sets (a 2 × 3 grid dropped seven surveys); Part I: subsets "all", one left out per
+  data set, "without the LWA1 maps", the best-measured three, and notebook 08's six surveys, whose fit is now the
+  check against notebook 08's g and z (it was the baseline). Part H/I row labels "six-survey …" → "all-survey …".
+  Part E keeps its own T–T set.
+- **Stale caches that would have been reused:** Part B's curved fits (six-point, 2026-11-03) were accepted for any
+  data set; Part D's UltraNest cache checked only the TOD key. Both now require the data sets to match (Part D saves
+  them with each run).
+- **Efficiency, same results:** the UltraNest runs of Parts B, C and D, and the maximum-likelihood fits of Part C, run
+  in parallel (joblib). Seeded runs seed themselves and random starting points are drawn in the serial order first, so
+  the results are those of a serial run (checked bit for bit on the real models; Part C's `run_nested` was and is
+  unseeded).
+- **Part L — Fisher information in the 408 MHz prediction** (new): notebook 08 cell 54's Fisher matrix and shares,
+  reusing `pipeline.load_ring_tods`, `pipeline.our_model` (step 5's 13-point fit), `sed_prototype.fit_power_law` and
+  `pipeline.york`. It reproduces notebook 08's printed values on the six surveys, then gives the 13-point values of
+  every number main.tex:625 quotes, and g at the median index. Writes `paper_outputs/fisher_share/`.
+- **Notebook 08** (`notebooks/08_update_plots.ipynb`, put back as a reference) moved to
+  `../moonrunes_archive_2026-11-17/notebooks/` after Part L's check passed.
+- **Paths after the folders moved to `docs/` and `scripts/`:** `pipeline._mc_modules`, `run_comparison.py` (repo root),
+  the four tests and the beam-test scripts (repo root one level up), `pyproject.toml` `testpaths`, the notebooks'
+  `MC_DIR`, and the paths in the docs.
+
+#### Irfan correction carried with Irfan & Puglisi's own spectrum; Figure 7 fits in parallel (2026-11-17)
+
+- **Irfan correction off 408 MHz** (`pipeline.irfan_scaling`, `_sky_model_maps_tris`, step 7): the corrected 408 MHz
+  map, (T_tot − 8.9 K) as their eq. 6 (unchanged), is now carried to other frequencies with Irfan & Puglisi 2025's
+  synchrotron model, T(p, ν) = T(p, ν₀) (ν/ν₀)^(β_s(p) + c_s(p) ln(ν/ν₀)), ν₀ = 45 MHz (their eqs. 1, 2, 11), using their
+  `external/irfan_puglisi_2025/final_beta_1deg.npy` and `final_cs_1deg.npy` (nside 256, RING, Galactic; frame checked
+  against Haslam's small-scale structure, +0.23 Galactic vs +0.02 equatorial; brought to the model's nside with
+  `hp.ud_grade`). Until now it used GSM2008's / GSM2016's own per-pixel spectrum. New config keys
+  `pipeline.sky_models.irfan_nu0_mhz`, `irfan_beta_map`, `irfan_cs_map`; step 7's sky-model cache key includes them.
+  **Numbers change** at the TRIS frequencies (step 2 `modeltris::*Irfan*`, Figure 4) and at 60–80 MHz (step 7,
+  Figures 9–10) once steps 2 and 7 are rerun; 408 MHz values do not change. Licence of the two maps not yet cleared.
+- **`10_paper_plots` cell 18 (Figure 7):** the maximum-likelihood fits run in parallel (joblib). The starting points are
+  drawn in the serial order first, so the fits are bit-identical (checked on the real models).
+
+#### Pipeline report tables; run times (2026-11-17)
+
+- `PIPELINE_REPORT.md` gains plain-text tables for steps 3 (evidence of every model), 4 (selection criteria and each
+  model against them), 6 (top 3 sky models against the 408 MHz prediction, by χ²) and 7 (top 3 per beam, by χ²/N over
+  every frequency), read from each step's products (`pipeline.REPORT_TABLES`; `write_report` takes an optional `path`).
+  No step's computation changed.
+- `run_pipeline.py` prints the total run time at the end. `10_paper_plots.ipynb` (cells 1 and 29) and
+  `diagnostics.ipynb` (cell 3 and a new last cell, 132) record the start time in the first code cell and print the
+  total notebook run time in the last cell.
+
+#### Notes, comments and docs: change history taken out of the running text (2026-11-17)
+
+- Notebook Markdown, code comments, docstrings, configs and docs no longer narrate what was moved, merged, removed or
+  renamed and when; that history is in this file. Banner labels in the notebooks: **Origin:**, **Stored outputs**,
+  **Pipeline:**. Facts, paths and numbers are unchanged; no code changed. Fixed on the way: `model_comparison/README.md`
+  gave `max_likelihood` as the default statistic (the code's default and the config's choice are `evidence`);
+  `10_paper_plots` cells 27–28 and `PLOT_INDEX.md` called the 408 MHz prediction six-survey and its source notebook
+  12's cache (it is pipeline step 5); `configs/run_pipeline.yaml` said the 2026-11-16 products were made without the
+  LWA1 38–74 MHz maps (they include them).
+
+#### `10_paper_plots`: the TRIS-anchor figure on the pipeline's data sets; RHINO figures less crowded (2026-11-17)
+
+- **`fig9_skymodel_tris_anchor_gz` (cells 0, 21–23):** fits (b) without TRIS and (c) all surveys now use every map
+  `sed.exclude_maps` leaves in with data on the ring, plus TRIS for (c): 11 maps + TRIS 600/820, read with their data and
+  errors from step 5's fit files (the same values as step 2's TODs and `sigma_for`, checked). It used notebook 08's six
+  fixed surveys and stopped with `KeyError: 'LWA1_38.fits'` once step 5 had 13. CHIPASS and Rhodes drop out (no data on
+  the ring; asserted). The open marker "six-survey median β" is now (c)'s median β (−2.487). The TRIS-only fits (a) and
+  the fixed-β line do not depend on the survey set and are still checked against notebook 08's CSVs. **Numbers change:**
+  (b) g 1.3748 → 1.4374, z −9.875 → −15.015 K; (c) g 1.0548 → 1.0553, z −4.771 → −4.802 K; (a) unchanged.
+- **`rhino_tods_tris_beam`, `fig10_rhino_tods_rhino_beam` (cell 25):** model lines 1.3 → 0.8 pt, markers 4 → 2.6,
+  figure height 4.6 → 6.4 in. No data or colour changed.
+
+#### Both configs in `configs/`, no setting in both (2026-11-17)
+
+- **Moved:** `configs/run_config.yaml` → `configs/run_pipeline.yaml` (the run config, `load_config()`'s default);
+  `model_comparison/config.yaml` → `configs/model_comp_config.yaml`; `model_comparison/error_bars.csv` →
+  `configs/error_bars.csv` (`data.error_bars_csv` is now relative to `configs/`). Originals in
+  `../moonrunes_archive_2026-11-17/`. New in `moonrunes.config`: `load_model_comp_config`, `model_comp_config_path`,
+  `error_bars_path`, `DEFAULT_MODEL_COMP_CONFIG_PATH`.
+- **Duplicates removed:** the Haslam target (`data.target_file` removed; `pipeline.target_file` is read by the
+  pipeline, `run_comparison.py` and `test_results` Parts B, C); the comparison statistic (`pipeline.compare.statistic`
+  removed; `comparison.statistic` is read by the pipeline too, so `test_results` Part C can no longer disagree with
+  step 3); TRIS's exclusion (`pipeline.compare.exclude_tris` → `comparison.exclude_tris`, now honoured by
+  `run_comparison.py` and Part C); `data.datasets` removed, so `run_comparison.py` and Part C use the maps
+  `sed.exclude_maps` leaves in, like the pipeline (`run_comparison.select_datasets` gained `exclude_tris`; an
+  explicit list still works for Part J). No value changed.
+- **Consequence:** `run_comparison.py` and `test_results` Part C, when rerun, use the pipeline's 11 points (they used
+  `data.datasets`' 4). `run_comparison.py` gained `--run-config`.
+- **Docs:** the config names everywhere outside archives and the changelog's history; `PIPELINE.md` P4 (the two
+  files), P6 (data sets: 11/13 points with the LWA1 38–74 MHz maps, removed from `sed.exclude_maps` on 2026-11-16),
+  P10–P11 rewritten for the first full run (2026-11-16); HANDOVER §1, §3, §4, §8, §10; NOTEBOOK_INDEX; PLOT_INDEX;
+  `model_comparison/README.md`; CLAUDE.md (paths only). The `sed.exclude_maps` comment in `run_pipeline.yaml` now
+  says the LWA1 maps are in.
+
+#### The end-to-end pipeline: `run_pipeline.py --step all` (2026-11-16)
+
+- **New `src/moonrunes/pipeline.py`, `run_pipeline.py --step <name> | all | report` (`--from-step`):** 0 `tris_maps`
+  (stage 1), 1 `beam_match` (every allowed map → TRIS beam, `tris_cuts`, nside 16), 2 `ring_tods` (120-sample TODs and
+  σ of every allowed data set and of Haslam; the sky models at 408 MHz and the TRIS frequencies), 3 `compare` (every
+  model of `model_comparison/config.yaml`, TRIS excluded, UltraNest evidence), 4 `select` (summed ln Z, ties within
+  `tie_lnz` to the simpler model), 5 `fit` (the best model with TRIS, UltraNest posterior: our spectral model),
+  6 `predict_408` (against Haslam and the 408 MHz models: residuals, York scale-offset), 7 `rhino` (TRIS beam →
+  Wiener deconvolution → RHINO beam), and a report (`paper_outputs/pipeline/PIPELINE_REPORT.md`) from each step's
+  `manifest.json`. `--stage 1|2` still work. New `pipeline:` section in `configs/run_config.yaml`.
+- **Code moved out of `notebooks/test_results.ipynb`:** Part A's TOD build (now step 2), Part B's power-law fits and
+  408 MHz sky-model TODs (steps 5, 2), Part J's Test 6 (step 7). Those Parts now read the pipeline's products; Parts
+  B (curved power law), F and J (Tests 1–5) are checks. Parts C–I, K2 and `10_paper_plots.ipynb` (cells 1, 22, 25,
+  28) read `paper_outputs/pipeline/`. The notebooks as they were: `../moonrunes_archive_2026-11-16/notebooks/*.before_pipeline`.
+- **Outputs moved:** `paper_outputs/beam_matched_tods/` → `pipeline/step2_ring_tods/` (TODs) and
+  `test_outputs/beam_matched_vs_old/` (the comparison); `paper_outputs/sky_models_408/` → power-law fits to
+  `pipeline/step5_fit/fits/`, `sky_tods.npz` to `step2_ring_tods/`, the rest to `test_outputs/sky_models_408/`;
+  `paper_outputs/tod_prediction/` and `plot3_haslam_vs_fit/` → `test_outputs/`; the run_comparison.py results copied to
+  `pipeline/step3_model_comparison/`; Part J's RHINO sky-model cache copied to `pipeline/step7_rhino/cache/`.
+- **Not run.** Steps 2–5 are **seeded** with the existing products they reproduce (their `manifest.json` says
+  `"seeded": true` and from where; step 4's `selection.json` applies the rule to the seeded step 3 numbers: the power
+  law). Steps 1, 6, 7 have no products yet. **Running step 7 will change Figure 10 and the Section 7 numbers** (our
+  six-point UltraNest model instead of Part J's 13-point weighted least squares).
+- **Docs:** `PIPELINE.md` rewritten (Part I: the pipeline, with a flowchart; Part II: the earlier stage reference and
+  Appendices A–F, numbering unchanged; old §8, §10, §11 dropped); README (Running, outputs table, Layout), HANDOVER (§1,
+  §3, §4, §7, §8, §10), NOTEBOOK_INDEX, PLOT_INDEX (including the locations table, which still had pre-split paths),
+  CLAUDE.md, `model_comparison/README.md`.
+
+#### Outputs split into `paper_outputs/` and `test_outputs/` (2026-11-16)
+
+- **Rule:** `paper_outputs/` = anything a paper figure, table or quoted number is made from; `test_outputs/` = tests and
+  checks the paper does not use; `outputs/` keeps the pipeline stage products (`run.outputs_dir`, unchanged); figures
+  are still written to the paper repo's `figures/`.
+- **Moved (whole folders, caches included, nothing re-run):** `model_comparison/{beam_matched_tods, sky_models_408,
+  model_choice, phil_plots, plot3_haslam_vs_fit, zero_level_offsets, robustness_check}` → `paper_outputs/`;
+  `model_comparison/{results, diagnostic_plots}` → `paper_outputs/model_comparison/`; `tod_prediction/` →
+  `paper_outputs/tod_prediction/`; `outputs/paper_plots/` → `paper_outputs/nb08_paper_plots/`;
+  `model_comparison/plot3_haslam_calibration/` → `test_outputs/`; `outputs/{beam_variants, fwhm_scaling_test}` →
+  `test_outputs/`; `beam_averaging_blobs/{HASLAM, HASLAM_DESTRIPED_ONLY}` → `test_outputs/beam_averaging_blobs/`;
+  `beam_tests_lwa35_stockert1420/{fwhm_scaling, beam_averaging_blobs}` → `test_outputs/lwa35_stockert/`.
+  1418 + 53 files; `model_comparison/` now holds only code, config, `error_bars.csv`, its README and `archive/`.
+- **Paths updated:** path constants in `notebooks/test_results.ipynb` (Parts A–J, K2) and `notebooks/10_paper_plots.ipynb`
+  (cells 1, 22, 25, 28); Markdown path mentions in both; `model_comparison/run_comparison.py` (output folder),
+  `scripts/fwhm_scaling_test.py` (`--out` default), `beam_averaging_blobs/beam_averaging_blobs.py`, `replot_from_csv.py`,
+  `beam_tests_lwa35_stockert1420/*.py` (output and input folders, and the provenance line they write into their CSVs);
+  `mkdir(parents=True, ...)` where the target is now nested. No other code, value or number changed.
+- **Docs:** README (Layout, new "Where outputs go"), `NOTEBOOK_INDEX.md`, `PLOT_INDEX.md`, `HANDOVER.md` (new §10),
+  `PIPELINE.md`, `CLAUDE.md` (one rule), `model_comparison/README.md` and `config.yaml` comments, both beam READMEs
+  (and their copies in `test_results.ipynb` Parts K3 and K5), `.gitignore` comment. Dated records (older entries here,
+  `TODO.md`, `inputs_audit/inputs_audit.md`, `model_comparison/archive/`) keep the old paths.
+
+#### Python files: dead code removed (2026-11-16)
+
+- **Checked:** every `.py` file outside `external/` and the frozen `model_comparison/archive/` (24 files). Each top-level
+  function, class and constant was looked up by name in every other `.py` file and in the code cells of the three
+  notebooks; imports were checked with an AST pass.
+- **Removed (unused anywhere):** `sed_prototype.apply_full_resolution` (its only caller was notebook 08, removed earlier
+  the same day) and `stage2_beam_matching.plot_beam_matched` (never called); the unused `List` import in
+  `sed_prototype.py`. The files as they were are in `../moonrunes_archive_2026-11-16/src/moonrunes/*.before_2026-11-16_cleanup`.
+- **Moved to `../moonrunes_archive_2026-11-16/src/moonrunes/`:** the empty placeholders `stage3_assemble.py`,
+  `stage4_calibration.py`, `stage5_validate.py` (0 lines, imported nowhere; `run_pipeline.py --stage 3/4/5` still says
+  "not implemented yet").
+- **Not consolidated:** no function is duplicated between files; the LWA1 35 / Stockert test scripts already import the
+  Haslam scripts (`scripts/fwhm_scaling_test.py`, `beam_averaging_blobs/beam_averaging_blobs.py`) instead of copying
+  them. Merging `beam_averaging_blobs/replot_from_csv.py` into `beam_averaging_blobs.py` would change its command line
+  and could only be checked by regenerating its figures, so it was left.
+- **Checks:** `pytest tests` 75 passed before and after; the edited modules import; no numbers or outputs changed.
+- **Docs:** `PIPELINE.md` (stage table rows 3–5, line 779, the H-a row), `README.md` (Layout), `TODO.md` (N-11).
+
+#### Notebooks merged into three: `diagnostics`, `test_results`, `10_paper_plots` (2026-11-16)
+
+- **`notebooks/diagnostics.ipynb` (new):** Part A = `01_explore_data`, Part B = `04_coordinate_frames`, Part C =
+  `03_diagnostics` cells 0–38 (stage-1 diagnostics and prior-only runs).
+- **`notebooks/test_results.ipynb` (new), in dependency order:** A = `18_beam_matched_tods`, B = `12_sky_models_vs_fit_408`,
+  C = `11_model_comparison_diagnostics`, D = `15_model_choice_decision_sheet`, E = `14_ring_tt_betas`,
+  F = `16_haslam_vs_power_law_408`, G = `17_haslam_gain_offset_calibration`, H = `20_zero_level_offsets`,
+  I = `21_robustness_check`, J = `19_power_law_tod_prediction`; K = beam tests: K1 = `09_beam_fwhm_tests`,
+  K2 = `03_diagnostics` cells 39–114 (with a copy of its setup cell, cell 1, so the Part runs on its own), K3–K5 = the
+  saved results of `beam_averaging_blobs/`, `scripts/fwhm_scaling_test.py` and `beam_tests_lwa35_stockert1420/`
+  (their READMEs and figures; the scripts stay where they are).
+- **`notebooks/10_paper_plots.ipynb`:** unchanged.
+- **How:** every code cell copied with its source, stored outputs and execution count unchanged (checked: all 228
+  original code cells present once); Markdown headings one level lower; one overview cell per notebook and one banner
+  per Part (what it was, what it reads and writes, which paper items it feeds). **Nothing was re-run.** Both notebooks
+  declare the `limtod` kernel (03 had `21cmfast`).
+- **Moved, not deleted:** the 14 merged originals are in `../moonrunes_archive_2026-11-16/notebooks/`. Notebooks 02, 05,
+  06, 07, 08 and 13 were removed earlier on 2026-11-16 (in git at `a5c827c`).
+- **Docs:** `NOTEBOOK_INDEX.md` rewritten (with an old → new table); new `HANDOVER.md`; `README.md` (Notebooks, Standalone
+  tests, Layout), `PLOT_INDEX.md` (made-by column, section headings, `figN_` paper file names, and the exclude-list
+  sentence, which wrongly said LWA1 35 and Maipu 45 were excluded), `PIPELINE.md` (§10 and references),
+  `DATA_SOURCES.md`, `TRIS_MAP_PROVENANCE.md`, `tris_haslam_pipeline.md`, `model_comparison/README.md`,
+  `beam_tests_lwa35_stockert1420/README.md`; a pointer note at the top of `TODO.md` and `inputs_audit/inputs_audit.md`
+  (which keep the old numbers as dated records). Comments and docstrings that named notebooks: `configs/run_config.yaml`,
+  `environment.yml`, `.gitignore`, `src/moonrunes/{frames,elliptical_beam,sed_prototype,sky_maps,stage2_beam_matching}.py`,
+  `tests/test_beam_fwhm.py`, `tests/test_elliptical_beam.py`, `scripts/fwhm_scaling_test.py`,
+  `beam_tests_lwa35_stockert1420/fwhm_scaling_test_maps.py`. No code, value or number changed.
+- **Not changed:** strings that end up in output (`sed_prototype.py:117, 121`; `scripts/fwhm_scaling_test.py:195, 276`;
+  `beam_tests_lwa35_stockert1420/fwhm_scaling_test_maps.py:187`) still name notebook 03; older entries of this file and
+  the frozen `model_comparison/archive/` keep the old numbers.
+
 #### Paper figure: the 408 MHz models against the power-law prediction, notebook 10 Figure 11 (2026-11-06)
 
 - **`notebooks/10_paper_plots.ipynb`, Figure 11 (cells 26–27), `figures/skymodel_models_vs_prediction_408.pdf/.png`.**

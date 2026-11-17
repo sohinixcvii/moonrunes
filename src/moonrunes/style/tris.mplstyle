@@ -1,0 +1,38 @@
+# TRIS paper style.  Load it through moonrunes.style.use_tris_style(), which
+# registers the "ring" colormap before this file asks for it.
+# Hex colours are written WITHOUT '#': in a .mplstyle file '#' starts a comment.
+
+# ---- palette "tris10" (moonrunes.style.TRIS10): data, survey, prediction, model, ink, group,
+#      sky, rose, moss, umber.  1-6: colour-vision safe; 7-10: need linestyle/marker as well
+axes.prop_cycle : cycler(color=['E3A700','2E5C9A','C8452D','2A9D8F','1F2A44','B49AD6','7DB3E8','D0679A','7E8B2F','8B5A3C']) + cycler(linestyle=['-','-','-','-','-','-','--','--','--','--']) + cycler(marker=['None','None','None','None','None','None','o','s','^','D'])
+text.color      : 1F2A44
+axes.labelcolor : 1F2A44
+axes.edgecolor  : 1F2A44
+xtick.color     : 1F2A44
+ytick.color     : 1F2A44
+image.cmap      : ring
+
+# ---- size: one MNRAS column (84 mm = 3.31 in), 4:3
+figure.figsize  : 3.31, 2.48
+font.size       : 8.5
+axes.labelsize  : 9
+axes.titlesize  : 9
+xtick.labelsize : 8
+ytick.labelsize : 8
+legend.fontsize : 7.5
+lines.linewidth : 1.0
+lines.markersize : 4
+
+# ---- ticks: inward, on all four sides, minor ticks shown
+xtick.direction     : in
+ytick.direction     : in
+xtick.top           : True
+ytick.right         : True
+xtick.minor.visible : True
+ytick.minor.visible : True
+
+legend.frameon  : False
+
+# ---- output
+savefig.dpi     : 300
+savefig.bbox    : tight

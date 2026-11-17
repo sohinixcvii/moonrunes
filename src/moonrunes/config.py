@@ -1,4 +1,10 @@
-"""Loader for ``configs/run_config.yaml``, the pipeline's single source of truth.
+"""Loaders for the two configs in ``configs/``:
+
+* ``configs/run_pipeline.yaml`` (:func:`load_config`): the data, beam, ring, corrections, outputs and the
+  pipeline's steps -- the run config;
+* ``configs/model_comp_config.yaml`` (:func:`load_model_comp_config`): the spectral models, priors, sampler,
+  error bars and what the model comparison is decided on.  The run config points to it
+  (``pipeline.model_comparison_config``); no setting is in both.
 
 Two rules the stages rely on:
 
@@ -18,7 +24,8 @@ import yaml
 
 # src/moonrunes/config.py -> src/moonrunes -> src -> repo root
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "run_config.yaml"
+DEFAULT_CONFIG_PATH = REPO_ROOT / "configs" / "run_pipeline.yaml"
+DEFAULT_MODEL_COMP_CONFIG_PATH = REPO_ROOT / "configs" / "model_comp_config.yaml"
 
 
 class ConfigError(ValueError):
@@ -90,7 +97,7 @@ class Config(Mapping):
 
 
 def load_config(path: Optional[Path] = None) -> Config:
-    """Load the run config (``configs/run_config.yaml`` by default)."""
+    """Load the run config (``configs/run_pipeline.yaml`` by default)."""
     config_path = Path(path) if path is not None else DEFAULT_CONFIG_PATH
     if not config_path.exists():
         raise ConfigError("no run config at {}".format(config_path))
@@ -99,3 +106,30 @@ def load_config(path: Optional[Path] = None) -> Config:
     if not isinstance(data, dict):
         raise ConfigError("{} did not parse to a mapping".format(config_path))
     return Config(data, path=config_path)
+
+
+def model_comp_config_path(config: Optional[Config] = None) -> Path:
+    """The model-comparison config: ``pipeline.model_comparison_config`` of ``config`` if given, else
+    ``configs/model_comp_config.yaml``."""
+    if config is not None and config.get_path("pipeline.model_comparison_config") is not None:
+        return config.resolve_path("pipeline.model_comparison_config")
+    return DEFAULT_MODEL_COMP_CONFIG_PATH
+
+
+def load_model_comp_config(path: Optional[Path] = None, config: Optional[Config] = None) -> dict:
+    """The model-comparison config as a plain dict (``path``, else :func:`model_comp_config_path`)."""
+    p = Path(path) if path is not None else model_comp_config_path(config)
+    if not p.exists():
+        raise ConfigError("no model-comparison config at {}".format(p))
+    with open(p, "r", encoding="utf-8") as handle:
+        data = yaml.safe_load(handle)
+    if not isinstance(data, dict):
+        raise ConfigError("{} did not parse to a mapping".format(p))
+    return data
+
+
+def error_bars_path(mc: Mapping[str, Any], mc_path: Optional[Path] = None) -> Path:
+    """``data.error_bars_csv`` of a model-comparison config, relative to that config's folder (``configs/``)."""
+    folder = Path(mc_path).parent if mc_path is not None else DEFAULT_MODEL_COMP_CONFIG_PATH.parent
+    raw = Path(str(mc["data"]["error_bars_csv"]))
+    return raw if raw.is_absolute() else (folder / raw).resolve()

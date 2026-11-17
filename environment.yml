@@ -25,10 +25,11 @@ dependencies:
   - ipykernel
   - jupyterlab        # not in the macOS environment (notebooks were run from an editor); for the server
   - nbclient          # run notebooks headless: jupyter execute <notebook>.ipynb
-  - ultranest=4.6.3   # model_comparison/run_comparison.py, notebooks 11 and 15 (PyPI has no Linux wheel; conda-forge does)
+  - ultranest=4.6.3   # model_comparison/run_comparison.py, test_results.ipynb Parts C and D (PyPI has no Linux wheel; conda-forge does)
+  - joblib=1.6.0      # notebooks/10_paper_plots.ipynb Figure 7 (cell 18): the maximum-likelihood fits in parallel
   - pip:
       - numpy==2.5.2
-      - scipy==1.18.1           # >= 1.15 needed: bayesian_skymap imports scipy.special.sph_harm_y
+      - scipy==1.18.1
       - healpy==1.20.0
       - astropy==8.0.1
       - matplotlib==3.11.1
@@ -36,8 +37,7 @@ dependencies:
       - pyyaml==6.0.3
       - tqdm==4.70.0
       - mpmath==1.4.1           # limTOD dependency
-      - emcee==3.1.6            # bayesian_skymap's spectral-index step
-      - pygdsm==1.7.1           # GSM2008 / GSM2016 / LFSM sky models (notebooks 02, 12-14, 18); downloads its data on first use
+      - pygdsm==1.7.1           # GSM2008 / GSM2016 / LFSM sky models (test_results.ipynb Parts A, B, E, J, K2); downloads its data on first use
       - h5py==3.16.0            # pygdsm's data files
       - corner==2.3.0
       - pytest==9.1.1

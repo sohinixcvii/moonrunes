@@ -1,0 +1,96 @@
+{
+  "step": "select",
+  "step_number": 4,
+  "written_utc": "2026-11-16T19:55:14+00:00",
+  "produced_by": "run_pipeline.py --step select",
+  "config_path": "/Users/user/Documents/Codes/project3/moonrunes/configs/run_config.yaml",
+  "pipeline_config": {
+    "output_dir": "paper_outputs/pipeline",
+    "model_comparison_config": "model_comparison/config.yaml",
+    "target_file": "HASLAM_DESTRIPED_ONLY.fits",
+    "beam_match_kernel": "tris_cuts",
+    "compare": {
+      "statistic": "evidence",
+      "exclude_tris": true,
+      "seed": 20260903
+    },
+    "select": {
+      "tie_lnz": 1.0
+    },
+    "fit": {
+      "seed": 12345
+    },
+    "predict_408": {
+      "cygnus_ra_deg": 299.9,
+      "cygnus_half_width_deg": 25.0
+    },
+    "sky_models": {
+      "native_fwhm_deg": {
+        "GSM2008": 1.0,
+        "GSM2016": 0.8,
+        "LFSM": 5.1
+      },
+      "carter": {
+        "scale": 1.029,
+        "offset_k": 0.91
+      },
+      "irfan_monopole_k": 8.9,
+      "ginan_freq_mhz": 350.0,
+      "lfsm_beta_from_mhz": 300.0
+    },
+    "rhino": {
+      "freqs_mhz": [
+        60.0,
+        65.0,
+        70.0,
+        75.0,
+        80.0
+      ],
+      "beam_file": "../rhino-beams/npz_beams/DryHornGround.npz",
+      "horizon_file": "../rhino-beams/horizon_masks/JodrellBank.fits",
+      "latitude_deg": 53.235002,
+      "deconvolution_prior": "GSM2016",
+      "sky_models": [
+        "GSM2008",
+        "GSM2016",
+        "LFSM",
+        "GSM2008, Carter correction",
+        "GSM2008, Irfan correction",
+        "GSM2016, GINAN correction"
+      ]
+    }
+  },
+  "products": [
+    "selection.json"
+  ],
+  "summary": {
+    "model": "power law",
+    "parameters": [
+      "A_K",
+      "beta"
+    ],
+    "statistic": "evidence (sum of ln Z over 120 ring samples)",
+    "rule": "highest score; any model within tie_lnz = 1 of it with fewer parameters wins",
+    "scores": {
+      "power law": -10424.44689677425,
+      "curved power law": -10460.721760251214,
+      "moment expansion (order 2)": -10565.162228608744,
+      "moment expansion (order 3)": -10573.89067671875
+    },
+    "score_minus_best": {
+      "power law": 0.0,
+      "curved power law": -36.27486347696322,
+      "moment expansion (order 2)": -140.71533183449355,
+      "moment expansion (order 3)": -149.4437799444986
+    },
+    "units_won": {
+      "power law": 98,
+      "curved power law": 22,
+      "moment expansion (order 2)": 0,
+      "moment expansion (order 3)": 0
+    },
+    "candidates_within_tie": [
+      "power law"
+    ]
+  }
+}

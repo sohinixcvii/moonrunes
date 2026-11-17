@@ -233,9 +233,11 @@ outputs/**
 !outputs/**/*.pdf
 !outputs/**/*.svg
 !outputs/**/*.md
+res/ARCADE_*.fits
+res/JUNO*.fits
 
-# Regenerable caches anywhere: UltraNest reruns, ML fits, sky-model fits (notebooks 11-18 rebuild them).
-# Files already committed (model_comparison/diagnostic_plots/cache/*.npz) stay tracked until
+# Regenerable caches anywhere: UltraNest reruns, ML fits, sky-model fits (notebooks/test_results.ipynb rebuilds them).
+# Files already committed (paper_outputs/model_comparison/diagnostic_plots/cache/*.npz) stay tracked until
 # removed from the index with `git rm --cached`.
 **/cache/
 *.npz

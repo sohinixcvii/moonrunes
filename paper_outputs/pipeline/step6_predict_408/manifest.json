@@ -1,0 +1,142 @@
+{
+  "step": "predict_408",
+  "step_number": 6,
+  "written_utc": "2026-11-16T19:58:58+00:00",
+  "produced_by": "run_pipeline.py --step predict_408",
+  "config_path": "/Users/user/Documents/Codes/project3/moonrunes/configs/run_config.yaml",
+  "pipeline_config": {
+    "output_dir": "paper_outputs/pipeline",
+    "model_comparison_config": "model_comparison/config.yaml",
+    "target_file": "HASLAM_DESTRIPED_ONLY.fits",
+    "beam_match_kernel": "tris_cuts",
+    "compare": {
+      "statistic": "evidence",
+      "exclude_tris": true,
+      "seed": 20260903
+    },
+    "select": {
+      "tie_lnz": 1.0
+    },
+    "fit": {
+      "seed": 12345
+    },
+    "predict_408": {
+      "cygnus_ra_deg": 299.9,
+      "cygnus_half_width_deg": 25.0
+    },
+    "sky_models": {
+      "native_fwhm_deg": {
+        "GSM2008": 1.0,
+        "GSM2016": 0.8,
+        "LFSM": 5.1
+      },
+      "carter": {
+        "scale": 1.029,
+        "offset_k": 0.91
+      },
+      "irfan_monopole_k": 8.9,
+      "ginan_freq_mhz": 350.0,
+      "lfsm_beta_from_mhz": 300.0
+    },
+    "rhino": {
+      "freqs_mhz": [
+        60.0,
+        65.0,
+        70.0,
+        75.0,
+        80.0
+      ],
+      "beam_file": "../rhino-beams/npz_beams/DryHornGround.npz",
+      "horizon_file": "../rhino-beams/horizon_masks/JodrellBank.fits",
+      "latitude_deg": 53.235002,
+      "deconvolution_prior": "GSM2016",
+      "sky_models": [
+        "GSM2008",
+        "GSM2016",
+        "LFSM",
+        "GSM2008, Carter correction",
+        "GSM2008, Irfan correction",
+        "GSM2016, GINAN correction"
+      ]
+    }
+  },
+  "products": [
+    "prediction_408.csv",
+    "residuals_408.csv",
+    "scale_offset_408.csv"
+  ],
+  "summary": {
+    "model": "power law",
+    "median_prediction_K": 32.14969680553959,
+    "median_prediction_sigma_K": 0.16835815214236347,
+    "prediction_sigma_range_K": [
+      0.15008889334210676,
+      0.2202025725885234
+    ],
+    "haslam_minus_prediction": {
+      "median_K": -3.250624809286233,
+      "rms_K": 3.4940449082678873
+    },
+    "residuals_408": {
+      "GSM2016": {
+        "median_K": -0.8350627496653686,
+        "rms_K": 2.2123694730928576,
+        "chi2_per_N": 133.56172999552402,
+        "rank": 1
+      },
+      "Haslam, Carter correction": {
+        "median_K": -1.841278315081139,
+        "rms_K": 1.995175139841652,
+        "chi2_per_N": 139.90528243932118,
+        "rank": 2
+      },
+      "LFSM": {
+        "median_K": -3.001010143319788,
+        "rms_K": 3.3585710472051593,
+        "chi2_per_N": 387.2014838523264,
+        "rank": 3
+      },
+      "Haslam (uncorrected)": {
+        "median_K": -3.250624809286448,
+        "rms_K": 3.4940449082678806,
+        "chi2_per_N": 419.282348934845,
+        "rank": 4
+      },
+      "GSM2008": {
+        "median_K": -3.2625225288248965,
+        "rms_K": 3.498956859769631,
+        "chi2_per_N": 420.87331594123754,
+        "rank": 5
+      },
+      "GSM2016, GINAN correction": {
+        "median_K": 0.5043773608980491,
+        "rms_K": 5.6729834721198396,
+        "chi2_per_N": 1082.326402142309,
+        "rank": 6
+      },
+      "Haslam, Irfan correction": {
+        "median_K": -9.43492354209027,
+        "rms_K": 9.558084030270308,
+        "chi2_per_N": 3169.588096848587,
+        "rank": 7
+      }
+    },
+    "scale_offset_haslam": {
+      "all": {
+        "a": 1.016924281332967,
+        "sigma_a": 0.038261520434066464,
+        "b_K": -3.865317328780222,
+        "sigma_b_K": 1.13766092251921,
+        "N": 120
+      },
+      "excluding Cygnus A \u00b1 25\u00b0": {
+        "a": 1.0552394103659433,
+        "sigma_a": 0.05365482994963238,
+        "b_K": -4.802001627299003,
+        "sigma_b_K": 1.4671846482657804,
+        "N": 103
+      }
+    },
+    "cygnus_window_samples": 17
+  }
+}

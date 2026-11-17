@@ -1,0 +1,185 @@
+{
+  "step": "ring_tods",
+  "step_number": 2,
+  "written_utc": "2026-11-16T19:38:39+00:00",
+  "produced_by": "run_pipeline.py --step ring_tods",
+  "config_path": "/Users/user/Documents/Codes/project3/moonrunes/configs/run_config.yaml",
+  "pipeline_config": {
+    "output_dir": "paper_outputs/pipeline",
+    "model_comparison_config": "model_comparison/config.yaml",
+    "target_file": "HASLAM_DESTRIPED_ONLY.fits",
+    "beam_match_kernel": "tris_cuts",
+    "compare": {
+      "statistic": "evidence",
+      "exclude_tris": true,
+      "seed": 20260903
+    },
+    "select": {
+      "tie_lnz": 1.0
+    },
+    "fit": {
+      "seed": 12345
+    },
+    "predict_408": {
+      "cygnus_ra_deg": 299.9,
+      "cygnus_half_width_deg": 25.0
+    },
+    "sky_models": {
+      "native_fwhm_deg": {
+        "GSM2008": 1.0,
+        "GSM2016": 0.8,
+        "LFSM": 5.1
+      },
+      "carter": {
+        "scale": 1.029,
+        "offset_k": 0.91
+      },
+      "irfan_monopole_k": 8.9,
+      "ginan_freq_mhz": 350.0,
+      "lfsm_beta_from_mhz": 300.0
+    },
+    "rhino": {
+      "freqs_mhz": [
+        60.0,
+        65.0,
+        70.0,
+        75.0,
+        80.0
+      ],
+      "beam_file": "../rhino-beams/npz_beams/DryHornGround.npz",
+      "horizon_file": "../rhino-beams/horizon_masks/JodrellBank.fits",
+      "latitude_deg": 53.235002,
+      "deconvolution_prior": "GSM2016",
+      "sky_models": [
+        "GSM2008",
+        "GSM2016",
+        "LFSM",
+        "GSM2008, Carter correction",
+        "GSM2008, Irfan correction",
+        "GSM2016, GINAN correction"
+      ]
+    }
+  },
+  "products": [
+    "ring_tods.npz",
+    "ring_tods.csv",
+    "beam_matched_tods.npz",
+    "beam_matched_tods.csv",
+    "beam_matched_tods_meta.csv",
+    "sky_tods.npz"
+  ],
+  "summary": {
+    "ring_samples": 120,
+    "ra_deg": [
+      0.0,
+      357.0
+    ],
+    "data_sets": {
+      "TRIS_600": {
+        "freq_mhz": 600.5,
+        "samples_with_a_point": 120,
+        "median_T_K": 12.353404332430404,
+        "median_sigma_K": 0.06675327707311456
+      },
+      "TRIS_820": {
+        "freq_mhz": 817.8,
+        "samples_with_a_point": 120,
+        "median_T_K": 5.071597005680478,
+        "median_sigma_K": 0.4301406746635338
+      },
+      "LWA_35MHz.fits": {
+        "freq_mhz": 35.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 14102.273066827263,
+        "median_sigma_K": 2820.454613365453
+      },
+      "LWA1_38.fits": {
+        "freq_mhz": 38.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 12253.40745709792,
+        "median_sigma_K": 2450.681491419584
+      },
+      "LWA1_40.fits": {
+        "freq_mhz": 40.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 10600.395926950001,
+        "median_sigma_K": 2120.07918539
+      },
+      "LWA1_45.fits": {
+        "freq_mhz": 45.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 8059.664374674119,
+        "median_sigma_K": 1611.932874934824
+      },
+      "MAIPU_45mhZ.fits": {
+        "freq_mhz": 45.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 7499.8886907003925,
+        "median_sigma_K": 133.32954513470816
+      },
+      "LWA1_50.fits": {
+        "freq_mhz": 50.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 6251.03169123441,
+        "median_sigma_K": 1250.2063382468823
+      },
+      "LWA1_60.fits": {
+        "freq_mhz": 60.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 4139.134743715687,
+        "median_sigma_K": 827.8269487431375
+      },
+      "LWA1_70.fits": {
+        "freq_mhz": 70.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 2843.986257367901,
+        "median_sigma_K": 568.7972514735802
+      },
+      "LWA1_74.fits": {
+        "freq_mhz": 74.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 2518.1048549991337,
+        "median_sigma_K": 503.6209709998268
+      },
+      "LWA_80MHz.fits": {
+        "freq_mhz": 80.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 2135.893885375878,
+        "median_sigma_K": 427.1787770751756
+      },
+      "CHIPASS_1400MHz.fits": {
+        "freq_mhz": 1400.0,
+        "samples_with_a_point": 0,
+        "median_T_K": null,
+        "median_sigma_K": null
+      },
+      "STOCKERT_VILLA_1400MHZ.fits": {
+        "freq_mhz": 1420.0,
+        "samples_with_a_point": 120,
+        "median_T_K": 1.0680308887107668,
+        "median_sigma_K": 0.5031309222941766
+      },
+      "RHODES_HARTRAO_2326MHz.fits": {
+        "freq_mhz": 2326.0,
+        "samples_with_a_point": 0,
+        "median_T_K": null,
+        "median_sigma_K": null
+      }
+    },
+    "haslam": {
+      "file": "HASLAM_DESTRIPED_ONLY.fits",
+      "samples": 120,
+      "median_T_K": 28.918145743180332,
+      "median_sigma_K": 4.166844393221286
+    },
+    "sky_models_408": {
+      "Haslam (uncorrected)": 28.918145743180546,
+      "Haslam, Carter correction": 30.66677196973287,
+      "Haslam, Irfan correction": 22.73384701037653,
+      "GSM2008": 28.910596623252285,
+      "GSM2016": 31.33275223029157,
+      "GSM2016, GINAN correction": 32.79683607424917,
+      "LFSM": 27.624243690194067
+    }
+  }
+}

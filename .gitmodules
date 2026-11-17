@@ -1,4 +1,0 @@
-[submodule "external/bayesian_skymap"]
-	path = external/bayesian_skymap
-	url = git@github.com:sohinixcvii/bayesian_skymap.git
-	branch = main

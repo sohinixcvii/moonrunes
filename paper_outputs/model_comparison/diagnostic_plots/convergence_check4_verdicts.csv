@@ -1,0 +1,10 @@
+sample,RA [deg],comparison,exact ΔlnZ,exact verdict,lowest ΔlnZ,highest ΔlnZ,runs agreeing with exact
+0,0.0,curved PL − power law,-0.36396354261228225,tie,-0.5894242723621517,-0.058971092505146316,8 of 8
+0,0.0,moment (2nd order) − power law,-1.2588569970285732,favours power law,-1.5857447743994442,-0.9484019340730185,7 of 8
+0,0.0,moment (3rd order) − power law,-1.3508234885028116,favours power law,-1.49637749339675,-1.083528911691758,8 of 8
+89,267.0,curved PL − power law,-1.095665900212083,favours power law,-1.6921491695098183,-1.0204352270728805,8 of 8
+89,267.0,moment (2nd order) − power law,-1.274286507880916,favours power law,-1.3396550535058083,-0.9104703264874274,6 of 8
+89,267.0,moment (3rd order) − power law,-1.081118844213151,favours power law,-1.2986642883736579,-0.8981558270482708,4 of 8
+102,305.75,curved PL − power law,-0.26555222588754646,tie,-0.45015386306390326,0.15641674538373707,8 of 8
+102,305.75,moment (2nd order) − power law,-1.440754054177546,favours power law,-1.6293990530567015,-1.252151291876416,8 of 8
+102,305.75,moment (3rd order) − power law,-1.5068828669913046,favours power law,-2.0517871172983746,-1.2648689429932034,8 of 8

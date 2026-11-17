@@ -2,7 +2,7 @@
 
 What each input declares
 ------------------------
-Read from the files, not from convention (``notebooks/04_coordinate_frames``):
+Read from the files, not from convention (``notebooks/diagnostics.ipynb`` Part B, was ``04_coordinate_frames``):
 
 =================  ======================  ========  =====  ==================
 file               frame keyword           ordering  nside  mask on disk
