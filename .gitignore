@@ -250,6 +250,9 @@ res/JUNO*.fits
 # Too large for GitHub (>100 MB per file); download per DATA_SOURCES.md.
 res/CHIPASS_1400MHz.fits
 
+# Session reports: local notes, not part of the repository.
+docs/reports/
+
 # Editor / OS / tool leftovers
 .claude/
 .idea/
