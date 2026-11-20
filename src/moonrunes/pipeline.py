@@ -25,9 +25,8 @@ Steps (``STEPS``), each reading the products of the steps before it:
 
 ``report`` collects the summary every step writes into its ``manifest.json`` and writes ``PIPELINE_REPORT.md``.
 
-Products go to ``pipeline.output_dir`` (``paper_outputs/pipeline/``), one folder per step (``STEP_DIRS``).  The
-file formats are the ones the notebooks already read (``notebooks/10_paper_plots.ipynb``,
-``notebooks/test_results.ipynb``), so a product can be swapped for its notebook-made predecessor.
+Products go to ``pipeline.output_dir`` (``paper_outputs/pipeline/``), one folder per step (``STEP_DIRS``), in the
+formats the notebooks read (``notebooks/tests_analysis/``, ``notebooks/10_paper_plots.ipynb``).
 Everything is configured in ``configs/run_pipeline.yaml`` (the data, beam, ring, corrections and ``pipeline:``) and,
 for the models, priors, sampler, error bars and the comparison's statistic, ``configs/model_comp_config.yaml``
 (``pipeline.model_comparison_config``).  No setting is in both.
@@ -67,7 +66,7 @@ STEP_DIRS = {
 REPORT_NAME = "PIPELINE_REPORT.md"
 
 # The 408 MHz sky models, in the order every reader of sky_tods.npz expects
-# (test_results.ipynb Parts B, E-H: 0 Haslam, 1 Carter, 2 Irfan, 3 GSM2008, 4 GSM2016, 5 GINAN, 6 LFSM).
+# (tests_analysis Parts B, E-H: 0 Haslam, 1 Carter, 2 Irfan, 3 GSM2008, 4 GSM2016, 5 GINAN, 6 LFSM).
 SKY_408 = ["Haslam (uncorrected)", "Haslam, Carter correction", "Haslam, Irfan correction",
            "GSM2008", "GSM2016", "GSM2016, GINAN correction", "LFSM"]
 # The sky models carried to the TRIS frequencies (the paper's Figure 4).
@@ -168,7 +167,7 @@ def with_kernel(config: Config, kernel: str) -> Config:
 
 
 class Context:
-    """One pipeline run: the config, and the TOD-route inputs built once and shared by steps 1, 2 and 7."""
+    """One pipeline run: the config, and the TOD-route inputs built once and shared by steps 1 and 2."""
 
     def __init__(self, config: Config, verbose: bool = True, overwrite: bool = False):
         self.config = config
@@ -267,8 +266,71 @@ def irfan_scaling(sky_cfg, nside: int, nu_mhz: float, from_mhz: float = 408.0) -
     return np.exp(beta * (x1 - x0) + cs * (x1 ** 2 - x0 ** 2))
 
 
+#: A diagnostic model: the base model's uncorrected 408 MHz map carried with Irfan & Puglisi's spectrum
+#: (``irfan_scaling``) and no offset subtracted -- the "{base}, Irfan correction" model without its
+#: ``- (irfan_monopole_k - T_CMB,RJ(408))`` term.  Used only to split the Irfan correction (``irfan_split``).
+IRFAN_SPECTRUM_ONLY = "{}, Irfan spectrum only"
+IRFAN_SPLIT_BASES = ["GSM2008", "GSM2016"]      # step 2 splits both; step 7 has only GSM2008 + Irfan
+
+
+def irfan_split(corrected, spectrum_only, base, rtol: float = 1e-9):
+    """Split the Irfan correction, (Irfan-corrected model) − (base model), into
+    offset part = corrected − spectrum_only (the carried offset) and spectrum part = spectrum_only − base
+    (Irfan & Puglisi's spectrum against the base model's own).  Returns (total, offset, spectrum); raises if
+    offset + spectrum differs from total by more than rtol × max|total| (NaN must match NaN)."""
+    c, s, b = (np.asarray(x, dtype=float) for x in (corrected, spectrum_only, base))
+    total, offset, spectrum = c - b, c - s, s - b
+    scale = float(np.nanmax(np.abs(total))) if np.isfinite(total).any() else 1.0
+    if not np.allclose(offset + spectrum, total, rtol=0.0, atol=rtol * max(scale, 1e-300), equal_nan=True):
+        raise AssertionError("Irfan split: offset + spectrum != total (max diff {:.3g} K)".format(
+            float(np.nanmax(np.abs(offset + spectrum - total)))))
+    return total, offset, spectrum
+
+
+def irfan_split_rows(out: Dict[str, np.ndarray], maps408: Dict[str, tuple], nu_tris: Dict[str, float], sky_cfg,
+                     observe, floor: float) -> List[dict]:
+    """Step 2's table of the Irfan split along the ring (irfan_split_tris.csv), one row per base model and TRIS band:
+    total = corrected − base, offset part = corrected − spectrum only, spectrum part = spectrum only − base, from the
+    ``modeltris::`` TODs in ``out``.  Checks that the parts add up (irfan_split) and that the offset part is the
+    408 MHz offset −(irfan_monopole_k − T_CMB,RJ(408)) times Irfan & Puglisi's scaling observed through the same beam
+    (``observe(map, frame, native_fwhm) -> (tod, weight)``; samples below ``floor`` dropped).  Every row has the same
+    columns (the percentages are "of the base model", the model named in its own column)."""
+    import healpy as hp
+
+    from . import sky_maps
+
+    irfan_off = -(float(sky_cfg["irfan_monopole_k"]) - float(sky_maps.cmb_rj_k(408.0)))
+    rows = []
+    for base in IRFAN_SPLIT_BASES:
+        nside_b = hp.npix2nside(maps408[base][0].size)
+        for key_t, nu_t in nu_tris.items():
+            g = np.asarray(out["modeltris::{}::{}".format(base, key_t)], dtype=float)
+            tot, off, spe = irfan_split(out["modeltris::{}, Irfan correction::{}".format(base, key_t)],
+                                        out["modeltris::{}::{}".format(IRFAN_SPECTRUM_ONLY.format(base), key_t)], g)
+            s_tod, s_w = observe(irfan_scaling(sky_cfg, nside_b, nu_t), "G", maps408[base][2])
+            s_tod = np.where(np.asarray(s_w) >= floor, np.asarray(s_tod, float), np.nan)
+            off_check = float(np.nanmax(np.abs(off - irfan_off * s_tod)))
+            if off_check > 1e-9 * float(np.nanmax(np.abs(off))):
+                raise AssertionError("step 2 Irfan split: offset part != offset x scaling ({:.3g} K)".format(off_check))
+            row = {"base model": base, "band": key_t, "frequency (MHz)": nu_t, "offset at 408 MHz (K)": irfan_off,
+                   "median Irfan scaling S(ν)/S(408) through the beam": float(np.nanmedian(s_tod))}
+            for part, v in (("total", tot), ("offset part", off), ("spectrum part", spe)):
+                row.update({"median {} (K)".format(part): float(np.nanmedian(v)),
+                            "min {} (K)".format(part): float(np.nanmin(v)), "max {} (K)".format(part): float(np.nanmax(v)),
+                            "range (max − min) {} (K)".format(part): float(np.nanmax(v) - np.nanmin(v)),
+                            "median {} (% of the base model)".format(part): float(np.nanmedian(100 * v / g))})
+            row["offset share of total (ring sums)"] = float(np.nansum(off) / np.nansum(tot))
+            row["spectrum share of total (ring sums)"] = float(np.nansum(spe) / np.nansum(tot))
+            row["max |offset + spectrum − total| (K)"] = float(np.nanmax(np.abs(off + spe - tot)))
+            row["max |offset part − offset × scaling| (K)"] = off_check
+            rows.append(row)
+    if any(list(r) != list(rows[0]) for r in rows):
+        raise AssertionError("irfan_split_rows: rows with different columns")
+    return rows
+
+
 def _sky_model_maps_408(inp, sky_cfg) -> Dict[str, tuple]:
-    """name -> (CMB-removed RJ map, frame, native FWHM) at 408 MHz, in SKY_408 order (as test_results Part A/B)."""
+    """name -> (CMB-removed RJ map, frame, native FWHM) at 408 MHz, in SKY_408 order."""
     from pygdsm import GlobalSkyModel, GlobalSkyModel16, LowFrequencySkyModel
     from pygdsm.mckay25 import generate_mckay25_correction, T_CMB
 
@@ -339,7 +401,10 @@ def _sky_model_maps_tris(inp, sky_cfg, maps408, nu_tris: Dict[str, float]) -> Di
                 scale = at_nu[base] / base408[base]
             skies["{}, {}".format(base, corr)] = (m408 * scale, "G", float(native[base]))
         skies["LFSM, stretched"] = (lfsm_408 * (nu / 408.0) ** lfsm_beta, "G", float(native["LFSM"]))
-        out[key_t] = {n: skies[n] for n in SKY_TRIS}
+        for base in IRFAN_SPLIT_BASES:          # diagnostic: the Irfan model without its offset (irfan_split)
+            scale = irfan_scaling(sky_cfg, hp.npix2nside(base408[base].size), nu)
+            skies[IRFAN_SPECTRUM_ONLY.format(base)] = (base408[base] * scale, "G", float(native[base]))
+        out[key_t] = {n: skies[n] for n in SKY_TRIS + [IRFAN_SPECTRUM_ONLY.format(b) for b in IRFAN_SPLIT_BASES]}
     return out
 
 
@@ -387,7 +452,7 @@ def step_ring_tods(ctx: Context) -> dict:
     long["T_K " + tgt["file"]], long["sigma_K " + tgt["file"]] = h_T, h_S
     _write_csv(d / "ring_tods.csv", [dict(zip(long, vals)) for vals in zip(*long.values())])
 
-    # ---- every map and every sky model through the same beam, in notebook 18's format (beam_matched_tods.npz)
+    # ---- every map and every sky model through the same beam (beam_matched_tods.npz)
     spec = elliptical_beam.beam_spec_from_config(config, kernel="tris_cuts")
     floor = float(config.require("beam_matching.weight_floor"))
     out, meta = {"ra_deg": ra}, []
@@ -427,12 +492,16 @@ def step_ring_tods(ctx: Context) -> dict:
             tod, w = observe(sky, fr, native)
             record("model " + key_t, name, nu_tris[key_t], native, np.where(np.asarray(w) >= floor, tod, np.nan),
                    w, "modeltris::{}::{}".format(name, key_t))
+
+    # ---- the Irfan correction split along the ring (irfan_split_rows), before the beam-matched products are written
+    split_rows = irfan_split_rows(out, maps408, nu_tris, sky_cfg, observe, floor)
+    _write_csv(d / "irfan_split_tris.csv", split_rows)
     np.savez(d / "beam_matched_tods.npz", **out)
     _write_csv(d / "beam_matched_tods_meta.csv", meta)
     _write_csv(d / "beam_matched_tods.csv",
                [dict(zip(["ra_deg"] + [k for k in out if not k.startswith("weight::") and k != "ra_deg"], vals))
                 for vals in zip(ra, *[out[k] for k in out if not k.startswith("weight::") and k != "ra_deg"])])
-    # the 408 MHz sky models in the format test_results.ipynb Parts B and E-I read (raw TOD + coverage)
+    # the 408 MHz sky models in the format tests_analysis Parts B and E-I read (raw TOD + coverage)
     np.savez(d / "sky_tods.npz", names=np.array(SKY_408),
              **{"tod_{}".format(i): raw408[n][0] for i, n in enumerate(SKY_408)},
              **{"cov_{}".format(i): raw408[n][1] for i, n in enumerate(SKY_408)})
@@ -445,10 +514,14 @@ def step_ring_tods(ctx: Context) -> dict:
                    "median_sigma_K": _nanmedian(h_S)},
         "sky_models_408": {n: _nanmedian(np.where(raw408[n][1] >= MIN_COVERAGE, raw408[n][0], np.nan))
                            for n in SKY_408},
+        "irfan_split_tris": {"{} {}".format(r["base model"], r["band"]): {
+            k: r[k] for k in ("median total (K)", "median offset part (K)", "median spectrum part (K)",
+                              "range (max − min) total (K)", "range (max − min) offset part (K)",
+                              "range (max − min) spectrum part (K)")} for r in split_rows},
     }
     write_manifest(d, "ring_tods", config, summary,
                    ["ring_tods.npz", "ring_tods.csv", "beam_matched_tods.npz", "beam_matched_tods.csv",
-                    "beam_matched_tods_meta.csv", "sky_tods.npz"])
+                    "beam_matched_tods_meta.csv", "sky_tods.npz", "irfan_split_tris.csv"])
     return summary
 
 
@@ -597,7 +670,7 @@ def fit_path(config: Config, unit: int, model: str) -> Path:
 
 
 def prior_key(mc: dict) -> str:
-    """The key test_results.ipynb Part B checks a fit file against (its three base parameters)."""
+    """The prior key a fit file is checked against (the three base parameters)."""
     return json.dumps({n: mc["priors"][n] for n in ("A_K", "beta", "C")}, sort_keys=True)
 
 
@@ -737,7 +810,7 @@ def predict(config: Config, freqs_mhz, n_units: int):
 # ---------------------------------------------------------------------------
 def york(x, y, sx, sy, inflate=True, n_iter=200, tol=1e-12):
     """y = a x + b with errors on both axes (York et al. 2004, Am. J. Phys. 72, 367; no x-y correlation);
-    sigma inflated by sqrt(chi2/dof) when > 1.  The same code as test_results.ipynb Part F."""
+    sigma inflated by sqrt(chi2/dof) when > 1.  tests_analysis Parts E, G, H and I carry copies of this code."""
     vx, vy = np.asarray(sx, float) ** 2, np.asarray(sy, float) ** 2
     a = np.polyfit(x, y, 1)[0]
     for _ in range(n_iter):
@@ -786,7 +859,7 @@ def step_predict_408(ctx: Context) -> dict:
         pred["T_K " + nm] = T_MOD[nm]
     _write_csv(d / "prediction_408.csv", [dict(zip(pred, vals)) for vals in zip(*pred.values())])
 
-    # model - prediction, chi2 with the prediction's sigma (test_results Part B's table, for our model)
+    # model - prediction, chi2 with the prediction's sigma (tests_analysis Part B reads these rows for our model)
     rows = []
     for nm in names:
         r = T_MOD[nm] - P
@@ -802,7 +875,7 @@ def step_predict_408(ctx: Context) -> dict:
         q["rank"] = i
     _write_csv(d / "residuals_408.csv", rows)
 
-    # model = a P + b, York, errors on both axes (test_results Part F), all samples and Cygnus A excluded
+    # model = a P + b, York, errors on both axes (tests_analysis Part F plots it), all samples and Cygnus A excluded
     cyg_ra, cyg_half = float(pcfg(config, "predict_408.cygnus_ra_deg")), float(pcfg(config, "predict_408.cygnus_half_width_deg"))
     cyg = np.abs((ra - cyg_ra + 180.0) % 360.0 - 180.0) <= cyg_half
     sp0 = np.nan_to_num(SP, nan=0.0)
@@ -837,16 +910,19 @@ def step_predict_408(ctx: Context) -> dict:
 # step 7: RHINO
 # ---------------------------------------------------------------------------
 def step_rhino(ctx: Context) -> dict:
-    """test_results.ipynb Part J Test 6 (formerly notebook 19), fed by our model (step 5)."""
+    """Our model (step 5) at the RHINO frequencies: through the TRIS beam, Wiener-deconvolved, and through the RHINO
+    beam at Jodrell Bank, with the sky models through both beams and the checks in rhino_checks.csv."""
     import healpy as hp
     from scipy.interpolate import RegularGridInterpolator
-    from limTOD.simulator import pointing_beam_in_eq_sys
 
     from . import elliptical_beam, frames, sky_maps
     from .sed_prototype import tod_method_key
     from .stage1_tris_maps import import_limtod_tris
 
     config = ctx.config
+    # puts the limTOD checkout (paths.limtod) on sys.path when limTOD is not installed, so step 7 runs on its own
+    import_limtod_tris(config)
+    from limTOD.simulator import pointing_beam_in_eq_sys
     rh = config.section("pipeline")["rhino"]
     sky_cfg = config.section("pipeline")["sky_models"]
     freqs = [float(f) for f in rh["freqs_mhz"]]
@@ -878,6 +954,12 @@ def step_rhino(ctx: Context) -> dict:
     del pts, th, psi
 
     sky_models = list(rh["sky_models"])
+    # diagnostic model for the Irfan split (rhino_checks.csv): GSM2008's uncorrected 408 MHz map carried with
+    # Irfan & Puglisi's spectrum, no offset; written like the others but left out of the report's ranking
+    IRFAN_G08, IRFAN_SO = "GSM2008, Irfan correction", IRFAN_SPECTRUM_ONLY.format("GSM2008")
+    if not {"GSM2008", IRFAN_G08} <= set(sky_models):
+        raise ConfigError("pipeline.rhino.sky_models needs GSM2008 and {} for the Irfan split".format(IRFAN_G08))
+    sky_models.append(IRFAN_SO)
     native = {q: float(sky_cfg["native_fwhm_deg"][q.split(",")[0]]) for q in sky_models}
     carter, irfan = sky_cfg["carter"], float(sky_cfg["irfan_monopole_k"])
     # the cache key: every setting the sky-model TODs depend on (Irfan: irfan_key)
@@ -918,6 +1000,7 @@ def step_rhino(ctx: Context) -> dict:
                                                         * np.asarray(g08.generate(f), dtype=float) / g08_408),
                "GSM2008, Irfan correction": lambda f: ((g08_408 + irfan_off)
                                                        * irfan_scaling(sky_cfg, hp.npix2nside(g08_408.size), f)),
+               IRFAN_SO: lambda f: g08_408 * irfan_scaling(sky_cfg, hp.npix2nside(g08_408.size), f),
                "GSM2016, GINAN correction": ginan}
         SKY = {}
         for q in sky_models:
@@ -961,7 +1044,12 @@ def step_rhino(ctx: Context) -> dict:
 
     prior_model = str(rh["deconvolution_prior"])
     support = (A16 / A16.max(axis=1, keepdims=True) > float(config.require("tris.beam_response_threshold"))).any(axis=0)
-    RH = {k: [] for k in ("ours", "ours_sigma", "closure", "support", "below_horizon")}
+    RH = {k: [] for k in ("ours", "ours_sigma", "closure", "support", "below_horizon",
+                          "sigma_coherent_ring", "sigma_coherent_prior", "irfan_scaling_tris", "irfan_scaling_rhino")}
+    # the Irfan split's offset check: Irfan & Puglisi's scaling S(ν)/S(408) on GSM2008's grid, through both beams
+    from pygdsm import GlobalSkyModel
+    nside_g08 = hp.npix2nside(np.asarray(GlobalSkyModel(freq_unit="MHz", include_cmb=False).generate(408.0)).size)
+    irfan_off408 = -(irfan - float(sky_maps.cmb_rj_k(408.0)))
     RH.update({q: [] for q in sky_models})
     for j, f in enumerate(freqs):
         R = rhino_operator(f)
@@ -976,8 +1064,20 @@ def step_rhino(ctx: Context) -> dict:
         RH["ours"].append(R @ x)
         RH["ours_sigma"].append(np.sqrt(var))
         RH["closure"].append(A16 @ x - T_TRIS[j])
+        # var = diag(R Σ Rᵀ), Σ = P − P Aᵀ M⁻¹ A P the Wiener posterior covariance (checked against Σ formed
+        # explicitly: agreement to 1e-14).  It treats the ring errors (diag s²) and the prior (diag P) as
+        # independent between samples and pixels, so the RHINO beam averages them down, while the ring σ is mostly
+        # survey scale terms common to the whole ring.  The fully correlated limits (rhino_checks.csv): every ring
+        # sample off by +1σ together, δ(R x) = R P Aᵀ M⁻¹ s; every pixel's prior mean off by +1σ together (P held
+        # fixed), δ(R x) = R (I − P Aᵀ M⁻¹ A) σ_prior.
+        sp = np.sqrt(P)
+        RH["sigma_coherent_ring"].append(np.abs(RPAt @ (Minv @ S_TRIS[j])))
+        RH["sigma_coherent_prior"].append(np.abs(R @ (sp - PAt @ (Minv @ (A16 @ sp)))))
         for q in sky_models:
             RH[q].append(R @ SKY[q][1][j])
+        s_tod, s_eq = tris_tod(irfan_scaling(sky_cfg, nside_g08, f), native["GSM2008"])
+        RH["irfan_scaling_tris"].append(s_tod)
+        RH["irfan_scaling_rhino"].append(R @ hp.ud_grade(s_eq, NSIDE))
         ctx.say("  {:g} MHz done".format(f))
     RH = {k: np.array(v) for k, v in RH.items()}
 
@@ -1003,17 +1103,53 @@ def step_rhino(ctx: Context) -> dict:
             by_beam.setdefault(beam, {})["{:g}".format(f)] = {"median_K": row["median this work (K)"],
                                                                "median_sigma_K": row["median σ this work (K)"]}
     _write_csv(d / "rhino_summary.csv", rows)
+    # closure: the Wiener map observed back through the TRIS operator, minus the predicted ring TOD, per ring sample
     checks = [{"frequency (MHz)": f, "max |A x - d| (K)": float(np.abs(RH["closure"][j]).max()),
+               "median |A x - d| (K)": float(np.median(np.abs(RH["closure"][j]))),
                "median σ_d (K)": float(np.median(S_TRIS[j])),
                "RHINO beam on TRIS-covered pixels, min over LST": float(RH["support"][j].min()),
-               "RHINO beam below the horizon": float(RH["below_horizon"][j])} for j, f in enumerate(freqs)]
+               "RHINO beam below the horizon": float(RH["below_horizon"][j]),
+               "median σ/T, TRIS ring": float(np.median(S_TRIS[j] / T_TRIS[j])),
+               "median σ/T, RHINO beam, diag(R Σ Rᵀ) (as quoted)": float(np.median(RH["ours_sigma"][j] / RH["ours"][j])),
+               "median σ/T, RHINO beam, ring errors fully correlated":
+                   float(np.median(RH["sigma_coherent_ring"][j] / RH["ours"][j])),
+               "median σ/T, RHINO beam, prior errors fully correlated":
+                   float(np.median(RH["sigma_coherent_prior"][j] / RH["ours"][j]))}
+              for j, f in enumerate(freqs)]
+    # The Irfan split (irfan_split), per beam: total = Irfan-corrected GSM2008 − GSM2008, offset part = Irfan-corrected
+    # − spectrum only, spectrum part = spectrum only − GSM2008.  K, per cent of this work, and each part's share of the
+    # total (ring sums, so the two shares add to 1).  Checked: the sum, and offset part = offset at 408 MHz × S(ν)/S(408)
+    # through the same beam.
+    for beam, ours, mods, scl in (("TRIS beam", T_TRIS, {q: SKY[q][0] for q in sky_models}, RH["irfan_scaling_tris"]),
+                                  ("RHINO beam", RH["ours"], {q: RH[q] for q in sky_models}, RH["irfan_scaling_rhino"])):
+        for j, row in enumerate(checks):
+            tot, off, spe = irfan_split(mods[IRFAN_G08][j], mods[IRFAN_SO][j], mods["GSM2008"][j])
+            off_check = float(np.max(np.abs(off - irfan_off408 * scl[j])))
+            if off_check > 1e-9 * float(np.max(np.abs(off))):
+                raise AssertionError("step 7 Irfan split, {}: offset part != offset x scaling ({:.3g} K)".format(
+                    beam, off_check))
+            p = "Irfan split, {}: ".format(beam)
+            for part, v in (("total", tot), ("offset part", off), ("spectrum part", spe)):
+                row[p + "median {} (K)".format(part)] = float(np.median(v))
+                row[p + "median {} (% of this work)".format(part)] = float(np.median(100 * v / ours[j]))
+            row[p + "offset share of total (ring sums)"] = float(np.sum(off) / np.sum(tot))
+            row[p + "spectrum share of total (ring sums)"] = float(np.sum(spe) / np.sum(tot))
+            row[p + "median Irfan scaling S(ν)/S(408)"] = float(np.median(scl[j]))
+            row[p + "max |offset + spectrum − total| (K)"] = float(np.max(np.abs(off + spe - tot)))
+            row[p + "max |offset part − offset × scaling| (K)"] = off_check
     _write_csv(d / "rhino_checks.csv", checks)
     summary = {"model": model, "frequencies_mhz": freqs, "deconvolution_prior": prior_model,
                "this_work": by_beam,
                "median_model_minus_this_work_fraction_rhino_beam": {
                    q: [r["median ({} − this work) / this work".format(q)] for r in rows if r["beam"] == "RHINO"]
                    for q in sky_models},
-               "max_closure_K": float(np.abs(RH["closure"]).max())}
+               "max_closure_K": float(np.abs(RH["closure"]).max()),
+               "median_closure_K": {"{:g}".format(f): float(np.median(np.abs(RH["closure"][j])))
+                                    for j, f in enumerate(freqs)},
+               "irfan_offset_at_408_K": irfan_off408,
+               "irfan_split": {b: {part: [r["Irfan split, {}: median {} (K)".format(b, part)] for r in checks]
+                                   for part in ("total", "offset part", "spectrum part")}
+                               for b in ("TRIS beam", "RHINO beam")}}
     write_manifest(d, "rhino", config, summary,
                    ["rhino_tods_tris_beam.csv", "rhino_tods_rhino_beam.csv", "rhino_summary.csv", "rhino_checks.csv",
                     "cache/rhino_sky_models.npz"])
@@ -1119,7 +1255,8 @@ def _report_rhino(config: Config) -> List[str]:
         rows = _read_csv_rows(d / fname)
         col = lambda name: np.array([float(r[name]) if r[name] not in ("", "nan") else np.nan for r in rows])
         models = [k[len("T_K_{:g}MHz_".format(freqs[0])):] for k in rows[0]
-                  if k.startswith("T_K_{:g}MHz_".format(freqs[0])) and not k.endswith("_this_work")]
+                  if k.startswith("T_K_{:g}MHz_".format(freqs[0])) and not k.endswith("_this_work")
+                  and not k.endswith(IRFAN_SPECTRUM_ONLY.format(""))]                 # the split's diagnostic model
         res = []
         for q in models:
             chi2, n, med, all_d = 0.0, 0, [], []

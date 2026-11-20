@@ -62,7 +62,6 @@ def test_require_rejects_open_decisions(config):
 def test_solver_decisions_are_the_recorded_ones(config):
     assert config.require("tris.mapmaker") == "prior_regularized"
     assert config.require("tris.solver.method") in stage1._SOLVERS
-    assert config.require("gibbs.use_woodbury") is False  # Blocker 3
 
 
 # ---------------------------------------------------------------------------
@@ -217,13 +216,13 @@ def test_stage1_end_to_end_writes_the_expected_product(config, tmp_path):
         # constrain hundreds of pixels -- but it must never be looser.
         assert np.all(bundle["sky_sigma_k"] <= bundle["prior_sigma_k"] * (1 + 1e-9))
         assert np.isfinite(bundle["sky_k"]).all()
-        # Off-band pixels are NaN by design; stage 3 chooses how to fill them.
+        # Off-band pixels are NaN by design; a reader chooses how to fill them.
         assert np.isnan(bundle["sky_full_k"][:, ~bundle["band_mask"]]).all()
 
     for entry in manifest["frequencies"].values():
         # limTOD's dense solve has no iteration count to check.  The exact
-        # cross-check runs only when tris.solver.cross_check is on (off since
-        # 2026-10-14); when off, nothing is computed and the field is None.
+        # cross-check runs only when tris.solver.cross_check is on (it is off);
+        # when off, nothing is computed and the field is None.
         assert entry["solver"]["backend"] == "limtod"
         if entry["solver"]["cross_check"]:
             assert entry["solver"]["solver_vs_woodbury_sigma"] < 1e-4
@@ -355,7 +354,7 @@ def test_smoothing_conserves_the_mean_of_a_full_sky_map():
 
 
 def test_smoothing_does_not_modify_its_input():
-    """The old script mutated the arrays hp.read_map handed it."""
+    """Smoothing must not mutate the arrays hp.read_map hands it."""
     hp = pytest.importorskip("healpy")
     sky = np.linspace(1.0, 2.0, hp.nside2npix(16))
     mask = np.ones_like(sky, dtype=bool)

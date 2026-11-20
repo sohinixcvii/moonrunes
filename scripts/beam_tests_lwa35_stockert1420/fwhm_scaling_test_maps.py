@@ -1,7 +1,7 @@
 """Two-step vs one-step beam matching with four FWHM scalings, on LWA1 35 MHz and Stockert 1420 MHz.
 
 The same test as ``scripts/fwhm_scaling_test.py`` (which runs it on Haslam 408 MHz; the test itself is
-``notebooks/test_results.ipynb`` Part K2, "Two-step against one-step beam matching", ``PIPELINE.md`` App. E):
+``notebooks/tests_analysis/`` Part K2, "Two-step against one-step beam matching", ``docs/PIPELINE.md`` Appendix D):
 
 1. step 1: the map is smoothed with the made-up "complicated" survey beam (5 x 3 deg oval main lobe at
    PA 30 deg, a -15 dB ring at 7 deg, a -25 dB 20 deg halo);
@@ -184,7 +184,7 @@ def run_map(fname, config, specs, configs, band, scalings, labels):
                 f"it to the target beam, told the survey beam has the width given (= two-step). That is compared with "
                 f"the map smoothed straight to the target beam (= one-step). residual = two-step - one-step [K]; "
                 f"fractional difference = two-step / one-step - 1 [%]; std = standard deviation; nside {NSIDE_OUT}; "
-                f"pixels kept in both maps only. Test from notebooks/03, as scripts/fwhm_scaling_test.py.\n")
+                f"pixels kept in both maps only. Test from tests_analysis Part K2, as scripts/fwhm_scaling_test.py.\n")
         w = csv.writer(f)
         w.writerow([CSV_HEADERS[c] for c in cols])
         for r in rows:
@@ -306,7 +306,7 @@ def comparison(all_rows, labels):
         axes[1, c].set_xticklabels(fst.SCALING_ORDER)
         axes[1, c].set_xlabel("survey-beam width told to the pipeline")
     axes[0, 0].legend(fontsize=7.5, frameon=False)
-    fig.suptitle("Two-step vs one-step beam matching on three maps (Haslam: earlier run, survey width only)",
+    fig.suptitle("Two-step vs one-step beam matching on three maps (Haslam: the Haslam test, survey width only)",
                  x=0.01, ha="left", fontsize=11)
     plt.tight_layout()
     fig.savefig(OUT_ROOT / "comparison_with_haslam.png", dpi=150, facecolor="white")

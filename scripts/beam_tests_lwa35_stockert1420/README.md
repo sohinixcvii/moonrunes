@@ -1,6 +1,6 @@
 # Beam-matching and beam-averaging tests at the ends of the frequency range: LWA1 35 MHz and Stockert 1420 MHz
 
-Run 2026-10-28. Results are in `test_outputs/lwa35_stockert/`. The two Haslam 408 MHz beam tests, repeated on the lowest- and highest-frequency
+Results are in `test_outputs/lwa35_stockert/`. The two Haslam 408 MHz beam tests, repeated on the lowest- and highest-frequency
 maps that reach the TRIS ring:
 
 1. **Beam matching:** two-step vs one-step matching to the TRIS beam, with four ways of quoting an elliptical survey
@@ -42,7 +42,7 @@ parameters are the original ones (not tuned).
 
 ### What the test does
 
-The same steps as the Haslam test (`notebooks/test_results.ipynb` Part K2, was `notebooks/03`, "Two-step against one-step beam matching"; `PIPELINE.md` App. E):
+The same steps as the Haslam test (`notebooks/tests_analysis/` Part K2, "Two-step against one-step beam matching"; `docs/PIPELINE.md` Appendix D):
 
 1. **Step 1:** smooth the map with a made-up "complicated" survey beam: a 5 × 3° oval main lobe with its long axis
    30° east of north, a −15 dB ring at 7° and a −25 dB 20° halo. Its measured main-lobe widths are 5.010° (major)
@@ -74,13 +74,13 @@ Fractional difference two-step / one-step − 1 [%], **TRIS-cut kernel** (the pi
 | Map, width given | minor | geometric | arithmetic | major |
 |---|---|---|---|---|
 | **median** | | | | |
-| Haslam, survey only (earlier run) | +0.24 | +0.19 | +0.18 | +0.11 |
+| Haslam, survey only (the Haslam test) | +0.24 | +0.19 | +0.18 | +0.11 |
 | LWA1 35, survey only | +0.18 | +0.16 | +0.16 | +0.13 |
 | LWA1 35, survey + native | +0.11 | +0.09 | +0.08 | +0.05 |
 | Stockert, survey only | +0.04 | +0.03 | +0.03 | +0.02 |
 | Stockert, survey + native | +0.04 | +0.03 | +0.03 | +0.02 |
 | **std in the TRIS stripe** | | | | |
-| Haslam, survey only (earlier run) | 0.50 | 0.40 | 0.39 | 0.24 |
+| Haslam, survey only (the Haslam test) | 0.50 | 0.40 | 0.39 | 0.24 |
 | LWA1 35, survey only | 0.68 | 0.61 | 0.60 | 0.48 |
 | LWA1 35, survey + native | 0.41 | 0.33 | 0.31 | 0.20 |
 | Stockert, survey only | 0.15 | 0.12 | 0.11 | 0.07 |
@@ -139,7 +139,7 @@ From `test_outputs/lwa35_stockert/beam_averaging_blobs/comparison_with_haslam.cs
 
 | Map (variant) | ν | ln(ν/ν_ref) | largest shape change | at LST | per unit \|ln ratio\| | normalisation | without beam |
 |---|---|---|---|---|---|---|---|
-| Haslam 408 (as given; earlier run) | 600 | +0.39 | 0.27% | 297° | 0.70% | −0.04% | 8.1% |
+| Haslam 408 (as given; the Haslam test) | 600 | +0.39 | 0.27% | 297° | 0.70% | −0.04% | 8.1% |
 | | 820 | +0.70 | 0.49% | 297° | 0.70% | −0.08% | 15.1% |
 | LWA1 35 (as given) | 600 | +2.84 | 1.94% | 30° | 0.68% | −0.17% | 78.0% |
 | | 820 | +3.15 | 2.18% | 30° | 0.69% | −0.18% | 89.5% |
@@ -186,8 +186,8 @@ Between TRIS 600 and 820 MHz (ln ratio 0.31) it is ~0.2%, below the TRIS 820 MHz
 - **Percentages depend on the map's contrast.** A map with a large uniform part (the CMB in Stockert) gives smaller
   fractional differences for the same absolute error; compare the kelvin columns of the CSVs too.
 - **The TRIS beam is the same at 35, 600, 820 and 1420 MHz** in the beam-averaging test, as everywhere in the pipeline.
-- **Nominal TRIS frequencies** (600, 820 MHz) in the beam-averaging test, as in the original.
-- **The beam-averaging test uses the older limTOD observer** (`_native_tod`), as the Haslam test did, so the three maps
+- **Nominal TRIS frequencies** (600, 820 MHz) in the beam-averaging test, as in the Haslam test.
+- **The beam-averaging test uses the native-resolution limTOD observer** (`Inputs._native_tod`), as the Haslam test did, so the three maps
   are compared like for like. The pipeline's ring TODs are beam-matched (`sed.tod_beam`); the TRIS beam is the same
   measured cut beam in both.
 

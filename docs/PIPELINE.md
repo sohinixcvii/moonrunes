@@ -1,10 +1,10 @@
 # The moonrunes pipeline
 
-*Last updated 2026-11-17. Part I describes the end-to-end pipeline that `run_pipeline.py` runs: what each step does,
-what it reads and writes, how it is configured, and which paper figures and tables come from it. Part II is the
-detailed reference for stage 1 (the TRIS maps), the older stage 2 and the beam matching, and the appendices.
-`README.md` is the quick start, `HANDOVER.md` maps every paper item to its source, `CHANGELOG.md` records the
-changes, and `paper_outputs/pipeline/PIPELINE_REPORT.md` summarises what the last run found.*
+*Part I describes the end-to-end pipeline that `run_pipeline.py` runs: what each step does and why, what it reads
+and writes, how it is configured, and which paper figures and tables come from it. Part II is the detailed reference
+for the methods: the TRIS maps (step 0), the beam matching, the conventions, and the tests behind them (Appendices
+A–E). `README.md` is the overview, `QUICKSTART.md` (the handover) maps every paper item to its source, `CHANGELOG.md`
+lists the decisions in force, and `paper_outputs/pipeline/PIPELINE_REPORT.md` summarises what the last run found.*
 
 ---
 
@@ -73,7 +73,7 @@ flowchart TD
     RB --> S7
     S3 & S4 & S5 & S6 & S7 --> REP
     S0 & S2 & S5 & S7 --> PP
-    S2 & S3 & S5 --> TR
+    S0 & S2 & S3 & S5 & S6 --> TR
 ```
 
 ## P3. Running it
@@ -87,18 +87,20 @@ python run_pipeline.py --step report         # rewrite the report from the steps
 python run_pipeline.py --step all --overwrite   # redo products that exist (including the step 5 fit cache)
 ```
 
-* `--nside` and `--run-name` apply to step 0 only. `--stage 1` and `--stage 2` are the older interface
-  (`--stage 1` is step 0; `--stage 2` is the older beam matching of Haslam and ARCADE 2 alone, which nothing
-  reads). `--stage 3`–`5` point to `--step`.
+* `--nside` and `--run-name` apply to step 0 only. `--stage 1` runs step 0; `--stage 2` beam-matches Haslam and
+  ARCADE 2 on their own (§5; nothing downstream reads it).
 * Each step writes `manifest.json` (settings and a summary) next to its products; `--step report` collects them.
-* **Run time** (the first full run, 2026-11-16, from the times in each `manifest.json`): step 0 at 18:17; step 1
-  written 19:31; step 2 about 7 minutes later (TOD-route inputs plus the pygdsm sky models; pygdsm downloads its
+* **Run time** (from the times in each `manifest.json` of a full run): step 0 about 12 s; step 2 about
+  10–20 minutes (TOD-route inputs plus the pygdsm sky models; pygdsm downloads its
   data on first use); step 3 about 17 minutes of UltraNest (120 samples × 4 models, 11 points each); step 4 seconds;
   step 5 about 4 minutes (120 UltraNest fits, 13 points each); step 6 seconds; step 7 about 15 seconds with its
-  sky-model cache reused. Steps 0 and 1 may not have run back to back, so their times are not durations.
+  sky-model cache reused (about 9 minutes when it is rebuilt).
 * **Caches:** step 5 reuses a fit file when its prior key, TOD key and data points match (`--overwrite` redoes them);
   step 7 reuses `cache/rhino_sky_models.npz` when its key (frequencies, models, beams, TOD method, ring RA, nside, the Irfan settings)
-  matches. Steps 1–3 and 6 always recompute.
+  matches. Steps 1–4 and 6 always recompute. Step 0 rewrites its products when `run.overwrite` is true (it is) or
+  with `--overwrite`, and otherwise stops if they exist.
+* Other options: `--config` (another run config), `--no-report`, `--quiet`; `--archive-dir` (step 0 only) and
+  `--output-dir` (`--stage 1` and `2` only).
 
 ## P4. Configuration
 
@@ -115,9 +117,12 @@ Two files, both in `configs/`, with **no setting in both**:
 | Setting | Value | Used by |
 |---|---|---|
 | `sed.exclude_maps` | ARCADE 2 ×2, Juno ×2 (the LWA1 38–74 MHz maps are in) | steps 1–2: which maps in `res/` are allowed |
+| `pipeline.output_dir` | `paper_outputs/pipeline` | steps 1–7 and the report (step 0 writes to `run.outputs_dir`, `outputs/stage1`) |
 | `pipeline.target_file` | `HASLAM_DESTRIPED_ONLY.fits` | steps 1–2, 6 |
 | `pipeline.beam_match_kernel` | `tris_cuts` (measured E/H cuts, 19.155° × 23.366°) | step 1 |
 | `sed.tod_beam` | `beam_matched` | step 2 (TODs: the `tris_cuts` kernel at the ring pointings) |
+| `beam_matching.weight_floor` | 0.5 | step 1 (a map pixel is kept where at least this fraction of the beam weight was observed) and step 2's `beam_matched_tods.npz`. The SED points of `ring_tods.npz` and step 6's sky-model samples use `sed_prototype.MIN_COVERAGE` instead, a separate constant in the code, also 0.5 |
+| `tris:`, `beam:` | stage 1's settings (§6) | step 0; step 7 reuses `tris.nside`, `tris.prior.*` (its deconvolution prior width) and `tris.beam_response_threshold` (its TRIS-coverage check) |
 | `comparison.statistic` (model config) | `evidence` (UltraNest) | step 3 (`max_likelihood` = no Occam penalty) |
 | `comparison.exclude_tris` (model config) | `true` | step 3 |
 | `pipeline.select.tie_lnz` | 1.0 | step 4 |
@@ -136,7 +141,9 @@ Code: `src/moonrunes/pipeline.py` (`step_<name>`). Products: `paper_outputs/pipe
   level; details in §4 below.
 * **Reads:** the TRIS archive (`paths.tris_archive_dir`), GSM2008 (prior), `tris:` and `beam:` in the config.
 * **Writes:** `outputs/stage1/tris_maps_<run name>.npz`, `stage1_manifest.json`.
-* **Read by:** every step that builds `sed_prototype.Inputs` (the band mask); Figure 3 (the maps); the diagnostics.
+* **Read by:** steps 1 and 2, which build `sed_prototype.Inputs` from it (the band mask and the TRIS rings);
+  `10_paper_plots` (cell 3 builds `Inputs`; cell 7 draws the maps, Figure 3); `tests_analysis` Part K2;
+  `notebooks/diagnostics.ipynb`.
 
 ### Step 1 — `beam_match`
 * **Does:** every allowed map (the usable fit maps in `res/` not in `sed.exclude_maps`, plus the Haslam target) is
@@ -161,20 +168,26 @@ Code: `src/moonrunes/pipeline.py` (`step_<name>`). Products: `paper_outputs/pipe
   its own 300–408 MHz index). Step 7 carries GSM2008 + Irfan to 60–80 MHz the same way.
 * **Writes:** `ring_tods.npz` / `.csv` (the SED table: keys, ν, T, σ per sample, Haslam T and σ, TOD key);
   `beam_matched_tods.npz` / `.csv` / `_meta.csv` (`survey::<file>`, `model408::<name>`, `modeltris::<name>::<TRIS
-  band>`); `sky_tods.npz` (the 408 MHz models with their coverage, in the order Haslam, Carter, Irfan, GSM2008,
-  GSM2016, GINAN, LFSM).
+  band>`; also `modeltris::<GSM2008 | GSM2016>, Irfan spectrum only::<band>`, the base model's 408 MHz
+  map carried with Irfan & Puglisi's spectrum and no offset); `sky_tods.npz` (the 408 MHz models with their coverage, in
+  the order Haslam, Carter, Irfan, GSM2008, GSM2016, GINAN, LFSM); `irfan_split_tris.csv` (per base
+  model and TRIS band: the Irfan correction along the ring split into total = Irfan-corrected − base, offset part =
+  Irfan-corrected − spectrum only, spectrum part = spectrum only − base, `pipeline.irfan_split`: median, min, max and
+  range in K, median in per cent of the base model, each part's share of the ring sum; checked that the parts add up
+  and that the offset part is −(8.9 K − T_CMB,RJ(408)) × the beam-averaged `irfan_scaling`).
 * **Read by:** steps 3, 5, 6, 7; `10_paper_plots` (Figures 4, 8, 9: `beam_matched_tods.npz`); `notebooks/tests_analysis/` Parts
-  A, B, E–I.
+  A–C, E–J and L (B, C, J and L take their SED points, Haslam and the TRIS rings from `ring_tods.npz` through
+  `pipeline.load_ring_tods` and `pipeline.points`).
 
 ### Step 3 — `compare`
 * **Does:** at every ring sample, the usable points (finite, T > 0, σ > 0) of the allowed **surveys only** (TRIS
-  excluded) — currently LWA1 35, Maipu 45, LWA1 80 and Stockert 1420; CHIPASS and Rhodes/HartRAO never reach the
-  ring — are fitted with every model of `configs/model_comp_config.yaml`. With `statistic: evidence`, UltraNest's ln Z
+  excluded) — currently 11: LWA1 35, the seven LWA1 38–74 maps, Maipu 45, LWA1 80 and Stockert 1420; CHIPASS and
+  Rhodes/HartRAO never reach the ring — are fitted with every model of `configs/model_comp_config.yaml`. With `statistic: evidence`, UltraNest's ln Z
   per model (Gaussian likelihood with the published σ, priors as configured); with `max_likelihood`, the best fit in
   the prior box (24 starts). Samples with fewer than `min_points` (4) points are skipped.
 * **Writes:** `evidence_per_unit_tod.csv` (ln Z ± error per sample and model) and `evidence_summary_tod.csv` (summed
   ln Z, wins), or the `maxlike_*` equivalents — the same format as `scripts/model_comparison/run_comparison.py`.
-* **Read by:** step 4; `notebooks/tests_analysis/` Parts C and D (Section 5's counts).
+* **Read by:** step 4; the report; `notebooks/tests_analysis/` Parts C and D (Section 5's counts).
 
 ### Step 4 — `select`
 * **Does:** sums ln Z over the ring samples per model; the highest wins, except that a model within `tie_lnz` of it
@@ -183,8 +196,8 @@ Code: `src/moonrunes/pipeline.py` (`step_<name>`). Products: `paper_outputs/pipe
 * **Read by:** steps 5–7.
 
 ### Step 5 — `fit` (our spectral model)
-* **Does:** the selected model fitted at every ring sample to every allowed data set **with TRIS** (currently six
-  points: TRIS 600.5 and 817.8, LWA1 35, Maipu 45, LWA1 80, Stockert 1420) with UltraNest, keeping the posterior:
+* **Does:** the selected model fitted at every ring sample to every allowed data set **with TRIS** (currently 13
+  points: TRIS 600.5 and 817.8 and step 3's 11 surveys) with UltraNest, keeping the posterior:
   the same likelihood, priors and sampler as step 3, seed `fit.seed` + sample.
 * **Writes:** `fits/unit###__<model>.npz` (`maxpoint`, `samples`, `logz`, `names`, the points `keys`/`nu`/`t`/`s`,
   `prior_key`, `tod_key`), `ring_ra.npy`, `fit_summary.csv` (per sample: best-fit and posterior median ± std of
@@ -192,29 +205,36 @@ Code: `src/moonrunes/pipeline.py` (`step_<name>`). Products: `paper_outputs/pipe
 * **Our spectral model:** at frequency ν and ring sample i, T_i(ν) = model(ν; θ_i,max) (UltraNest's maximum-likelihood
   point), with σ_i(ν) = the standard deviation of model(ν; θ) over the posterior samples
   (`moonrunes.pipeline.predict`). For the power law at 408 MHz this is exactly A and its posterior σ.
-* **Read by:** steps 6–7; `10_paper_plots` (Figures 8 and 9); `notebooks/tests_analysis/` Parts B, D–I, K2.
+* **Read by:** steps 6–7; the report; `10_paper_plots` (Figures 8 and 9); `notebooks/tests_analysis/` Parts B, D–I,
+  K2 and L (`pipeline.fit_data_sets` lists the data sets from the fit files; `pipeline.our_model` and `predict` give
+  the model).
 
 ### Step 6 — `predict_408`
 * **Does:** our model at 408 MHz along the ring (it already includes the TRIS beam, since every fitted point was a
   TRIS-beam TOD) against the Haslam TOD and the 408 MHz sky models of step 2: model − prediction (median, rms, χ²/N
   with σ = the prediction's σ), and the York fit model = a·P + b with errors on both axes (every model given Haslam's
-  σ, as `notebooks/tests_analysis/` Part F), over all samples and without Cygnus A ± 25°.
+  σ; `notebooks/tests_analysis/` Part F plots this table), over all samples and without Cygnus A ± 25°.
 * **Writes:** `prediction_408.csv` (per sample: P, σ_P, Haslam, Haslam − P, every 408 MHz model),
   `residuals_408.csv` (`tab:408-residuals`), `scale_offset_408.csv` (`tab:scale-offset`).
-* **Read by:** the paper tables (by hand); the report.
+* **Read by:** the paper tables (by hand); the report; `notebooks/tests_analysis/` Part B (the power law's rows of
+  its χ² table are `residuals_408.csv`) and Part F (it plots `scale_offset_408.csv` and does not refit).
 
 ### Step 7 — `rhino`
 * **Does:** our model at 60, 65, 70, 75, 80 MHz along the ring (through the TRIS beam), deconvolved from the TRIS
   beam with a Wiener filter (operator A = the TRIS cut beam at the ring pointings on nside 16; prior = a sky model,
-  `deconvolution_prior`, with stage 1's prior width 10% ⊕ 0.3 K), then observed with the RHINO `DryHornGround` beam
+  `deconvolution_prior`, with stage 1's prior width 10% ⊕ 0.3 K, floored at 1 mK), then observed with the RHINO `DryHornGround` beam
   at the Jodrell Bank zenith above its horizon, LST = ring RA. The sky models go through both beams the same way;
   GSM2008 + Irfan is carried from 408 MHz with Irfan & Puglisi's β_s and c_s (`irfan_scaling`), GSM2008 + Carter with
   GSM2008's own spectrum, GINAN is built at each frequency.
   Uncertainty through the RHINO beam: √diag(R Σ Rᵀ) with Σ the Wiener posterior covariance.
-* **Writes:** `rhino_tods_tris_beam.csv`, `rhino_tods_rhino_beam.csv` (per LST: this work ± σ and every model, K),
-  `rhino_summary.csv` (medians, model − this work), `rhino_checks.csv` (closure, RHINO beam on TRIS-covered sky, power
-  below the horizon), `cache/rhino_sky_models.npz`.
-* **Read by:** `10_paper_plots` (Figure 10 and `rhino_tods_tris_beam`).
+* **Writes:** `rhino_tods_tris_beam.csv`, `rhino_tods_rhino_beam.csv` (per LST: this work ± σ and every model, K;
+  the models include the diagnostic "GSM2008, Irfan spectrum only", which the report's ranking leaves out),
+  `rhino_summary.csv` (medians, model − this work), `rhino_checks.csv` (closure |A x − d|: maximum and median over the
+  ring per frequency; RHINO beam on TRIS-covered sky, power below the horizon; checks of the uncertainty:
+  median σ/T along the ring and through the RHINO beam, and σ/T through the RHINO beam if the ring errors or the prior
+  errors were fully correlated instead of independent; the Irfan split per beam, as in step 2's
+  `irfan_split_tris.csv`, with medians in K and in per cent of this work, the shares, and the two checks), `cache/rhino_sky_models.npz`.
+* **Read by:** the report; `10_paper_plots` cells 25–26 (Figure 10 and `rhino_tods_tris_beam`).
 
 ### Report
 `python run_pipeline.py --step report` (also run at the end of every pipeline run) writes
@@ -242,22 +262,22 @@ products (`pipeline.REPORT_TABLES`):
 | step 3 comparison | **excluded** (`comparison.exclude_tris`) | yes | — | — | never |
 | step 5 fit | yes | yes | — | — | never |
 
-So the comparison uses 11 points per sample and the fit 13. The paper's Sections 5–7 were written from an earlier
-4-point comparison and 6-point fit, without the LWA1 38–74 MHz maps (see P10).
+So the comparison uses 11 points per sample and the fit 13.
 
 ## P7. Products and who reads them
 
 | Product | Step | Read by |
 |---|---|---|
-| `outputs/stage1/tris_maps_tris_haslam_v0.npz` | 0 | every `Inputs`; `10_paper_plots` cell 7 (Figure 3); diagnostics |
+| `outputs/stage1/tris_maps_tris_haslam_v0.npz` | 0 | every `Inputs` (steps 1–2, `10_paper_plots` cell 3); `10_paper_plots` cell 7 (Figure 3); `tests_analysis` K2; diagnostics |
+| `step1_beam_matched_maps/beam_matched_maps.npz` | 1 | nothing (a product in its own right) |
 | `step2_ring_tods/beam_matched_tods.npz` | 2 | `10_paper_plots` cells 1, 3, 10, 22, 28; `tests_analysis` A, E, H, I |
-| `step2_ring_tods/sky_tods.npz` | 2 | step 6; `tests_analysis` B, E–H |
-| `step2_ring_tods/ring_tods.npz` | 2 | steps 3, 5, 6, 7 |
-| `step3_model_comparison/evidence_*.csv` | 3 | step 4; `tests_analysis` C, D |
-| `step4_model_selection/selection.json` | 4 | steps 5–7 |
-| `step5_fit/fits/`, `ring_ra.npy` | 5 | steps 6–7; `10_paper_plots` cells 22, 28; `tests_analysis` B, D–I, K2 |
-| `step6_predict_408/*.csv` | 6 | paper tables `tab:408-residuals`, `tab:scale-offset` (by hand) |
-| `step7_rhino/rhino_tods_*.csv` | 7 | `10_paper_plots` cells 25–26 |
+| `step2_ring_tods/sky_tods.npz` | 2 | step 6; `tests_analysis` A, B, E–H |
+| `step2_ring_tods/ring_tods.npz` | 2 | steps 3, 5, 6, 7; `tests_analysis` B, C, J, L |
+| `step3_model_comparison/evidence_*.csv` | 3 | step 4; the report; `tests_analysis` C, D |
+| `step4_model_selection/selection.json` | 4 | steps 5–7; the report |
+| `step5_fit/fits/`, `ring_ra.npy` | 5 | steps 6–7; `10_paper_plots` cells 22, 28; `tests_analysis` B, D–I, K2, L |
+| `step6_predict_408/*.csv` | 6 | paper tables `tab:408-residuals`, `tab:scale-offset` (by hand); the report; `tests_analysis` B (`residuals_408.csv`), F (`scale_offset_408.csv`) |
+| `step7_rhino/rhino_tods_*.csv` | 7 | `10_paper_plots` cells 25–26; the report |
 
 ## P8. Conventions
 
@@ -271,54 +291,45 @@ temperature.
 
 ## P9. The notebooks and the pipeline
 
-The `notebooks/tests_analysis/` Parts read the pipeline's products rather than building them: Part A the TODs (step 2),
-Part B the power-law fits and 408 MHz sky-model TODs (steps 5 and 2), Part J's Test 6 the RHINO prediction (step 7).
-The older build cells are archived in `../moonrunes_archive_2026-11-16/notebooks/test_results.ipynb.before_pipeline`. Parts B (curved power law), F (scale-offset figures) and J (Tests 1–5 on
-13 points) remain as checks with outputs in `test_outputs/`. `scripts/model_comparison/run_comparison.py` is a
-standalone tool (the same two configs and data sets; it also runs the map route); the pipeline uses its helper
-functions. `notebooks/10_paper_plots.ipynb` reads `paper_outputs/pipeline/` and `outputs/stage1/`.
+The `notebooks/tests_analysis/` Parts read the pipeline's products and do not rebuild them:
 
-## P10. The 2026-11-16 run against the paper
+* **Part A:** step 2's TODs, against TODs observed at each map's native resolution.
+* **Part B:** step 2's ring TODs and 408 MHz sky-model TODs, step 5's power-law fits and the power law's χ² rows of
+  step 6; it fits only the curved power law, on step 2's points.
+* **Part C:** step 3's evidence; its reruns (posteriors, prior sensitivity, convergence, maximum likelihood) use step
+  2's points.
+* **Part D:** step 3's evidence and step 5's fits, plus its own UltraNest runs at other error scales.
+* **Parts E–I and K2:** step 2's TODs and step 5's fits (K2 also stage 1's maps).
+* **Part F:** step 6's scale-offset table, plotted (no refit).
+* **Part J:** step 2's points, with its own weighted-least-squares fits (Tests 1–5).
+* **Part L:** step 2's ring TODs and step 5's fits (`pipeline.our_model`, `pipeline.york`).
 
-Full run of 2026-11-16 (18:17–19:59), LWA1 38–74 MHz maps included (11 points per sample in step 3, 13 in step 5).
-**Paper numbers made from the 4- and 6-point sets are stale** wherever they come from the pipeline:
+Their own results go to `test_outputs/` unless the paper quotes them.
+`scripts/model_comparison/run_comparison.py` is a standalone tool (the same two configs and data sets; it also runs
+the map route); the pipeline uses its helper functions. `notebooks/10_paper_plots.ipynb` reads
+`paper_outputs/pipeline/` and `outputs/stage1/`; its cell 3 also builds `sed_prototype.Inputs` itself, for the TRIS
+rings and the ring RA.
 
-* **Section 5 (step 3):** summed ln Z, power law −10424.45; curved power law −36.27 behind it, moment expansion
-  orders 2 and 3 −140.72 and −149.44. The power law has the highest ln Z at 98 samples, the curved power law at 22
-  (the 4-point run: 120 and 0). Step 4 selects the power law. The "0/114/6" and "68 borderline" counts
-  (main.tex:501) need `notebooks/tests_analysis/` Part C rerun.
-* **Our model (step 5):** A median 32.15 K, posterior σ median 0.168 K; β median −2.487; χ²/dof median 0.59 (the
-  6-point fits: 32.13 K, 0.170 K, −2.483, 1.00).
-* **408 MHz (step 6):** GSM2016 is closest (median −0.84 K, χ²/N 133.6; 6-point fits: −0.81, 130.7).
-* **RHINO (step 7):** fed by our model, as designed; Figure 10 and the Section 7 numbers to be redrawn from
-  `step7_rhino/`.
-* **Step 1** has no notebook predecessor (the map route used `beam_matching.kernel`, the circular kernel).
+## P10. Results
 
-Full results in `PIPELINE_REPORT.md`; the numbers above are from the step manifests.
-
-## P11. Status
-
-One end-to-end run (2026-11-16). Its manifests record the config paths of the time (`configs/run_config.yaml`,
-`scripts/model_comparison/config.yaml`). Since then (2026-11-17) the Irfan correction is carried off 408 MHz with Irfan &
-Puglisi's β_s and c_s maps, so **steps 2 and 7's Irfan products are out of date until those steps are rerun**; every
-other value the run used is unchanged. The report tables (steps 3, 4, 6, 7) appear at the next `--step report`.
-`tests_analysis` and `10_paper_plots` not yet rerun on its products.
+Each step's `manifest.json` records its settings and headline numbers; `paper_outputs/pipeline/PIPELINE_REPORT.md`
+collects them (`--step report`). `QUICKSTART.md` §3–4 says which product each paper item comes from.
 
 ---
 
 # Part II — Reference
 
-The sections below are the earlier description of the stages, kept for their detail; their numbering is unchanged
-so that references elsewhere ("§4", "Appendix A.9") still hold. "Stage 1" is step 0 above. "Stage 2" (§5) is the
-older beam matching of Haslam and ARCADE 2 alone (`run_pipeline.py --stage 2`), which nothing downstream reads; step 1
-applies the same method to every allowed map. "Stage 3" (§6) is `sed_prototype`, whose `Inputs` the pipeline uses.
+The methods in detail. "Stage 1" (§4) is step 0. "Stage 2" (§5) is the beam matching of a map to the TRIS beam,
+frame and grid, as `run_pipeline.py --stage 2` runs it for Haslam and ARCADE 2 on their own; step 1 applies the same
+method to every allowed map, and the TOD route (step 2) evaluates it at the ring pointings. Section numbers start at 2.
 
 ## 2. Inputs
 
-All local. Nothing in the pipeline touches the network. `DATA_SOURCES.md` has the archive
-page for every file.
+All local, except that `pygdsm` downloads its sky-model data on first use (GSM2008 for stage 1's prior; GSM2008,
+GSM2016, LFSM and the GINAN correction in steps 2 and 7). The RHINO beam and horizon (step 7) are outside the repo
+(`../rhino-beams`). `DATA_SOURCES.md` has the archive page for every file.
 
-### Used by the pipeline
+### Used by stages 1 and 2
 
 | input | file(s) | format as found | frame | units | unobserved sky | used by |
 |---|---|---|---|---|---|---|
@@ -331,19 +342,32 @@ Details that matter downstream:
 
 * **TRIS 2.5 GHz** is a 6-point set, not a ring. Stage 1 refuses it.
 * **Each TRIS ring has one row with σ = 0.000 K**, so a noise floor is mandatory
-  (`tris.uncertainty_floor_k`; see §8 for its current value).
+  (`tris.uncertainty_floor_k`; see §6 for its current value).
 * **The TRIS zero level** is published as 0.066 K at 600 MHz, and as **+0.430 / −0.300 K**
   (asymmetric) at 820 MHz.
 * **Beam widths.** TRIS is 19.155° (E) × 23.366° (H), measured from the cuts; the ring
   header's "18°" is 6% off. Haslam is 56′ (`BEAMSIZE`). ARCADE 2 is 11.6° (`BEAMSZ`,
   LAMBDA, Singal et al. 2011).
 
-### Reference maps in `res/`, not used by any stage
+### The survey maps in `res/` (steps 1–7)
 
-`MAIPU_45mhZ.fits`, `LWA_35MHz.fits`, `LWA_80MHz.fits`, `HASLAM_DESTRIPED_ONLY.fits`,
-`CHIPASS_1400MHz.fits`, `STOCKERT_VILLA_1400MHZ.fits`, `RHODES_HARTRAO_2326MHz.fits`,
-`WMAP_K.fits`, `WMAP_Ka.fits`. These are read, plotted and simulated through the TRIS beam
-in `notebooks/diagnostics.ipynb` Part A (was `01`, sections 05–06), which handles their varied formats:
+`moonrunes.sky_maps.discover` reads every map in `res/`. The pipeline uses the usable fit maps that `sed.exclude_maps`
+leaves in, plus the Haslam target (`pipeline.target_file`). Values as `discover` reports them:
+
+| map | ν (MHz) | frame | native FWHM | unit | CMB | in the pipeline |
+|---|---|---|---|---|---|---|
+| `LWA_35MHz.fits`, `LWA1_38/40/45/50/60/70/74.fits`, `LWA_80MHz.fits` (LWA1) | 35–80 | equatorial | 4.65° (35) to 2.04° (80) | K | included | fitted |
+| `MAIPU_45mhZ.fits` | 45 | Galactic | 4.6° | K | included | fitted |
+| `STOCKERT_VILLA_1400MHZ.fits` | 1420 | Galactic | 0.59° | mK | included | fitted |
+| `CHIPASS_1400MHz.fits` | 1400 | Galactic | 0.24° | mK | included | allowed; no ring coverage |
+| `RHODES_HARTRAO_2326MHz.fits` | 2326 | equatorial | 0.33° | K | removed | allowed; no ring coverage |
+| `HASLAM_DESTRIPED_ONLY.fits` | 408 | Galactic | 0.933° | K | included | the target, never fitted |
+| `HASLAM.fits` | 408 | Galactic | 0.933° | K | included | stage 2 only |
+| `ARCADE2_315.fits`, `ARCADE2_341.fits` | 3150, 3410 | Galactic | 11.6° | K (thermodynamic) | included | excluded (`sed.exclude_maps`) |
+| `Juno_600MHz.fits`, `Juno_1248MHz.fits` | 600, 1248 | — | — | — | — | unusable; excluded |
+| `WMAP_K.fits`, `WMAP_Ka.fits` | — | Galactic | — | mK | included | unusable (no frequency) |
+
+Their error bars are `configs/error_bars.csv`. Their varied formats (checked in `notebooks/diagnostics.ipynb` Part A, sections 05–06):
 
 * CHIPASS is an HPX-projection image, converted 1:1 back to nside 1024;
 * Rhodes/HartRAO is a table with no layout keywords: nside and pixel ordering are inferred
@@ -359,12 +383,12 @@ in `notebooks/diagnostics.ipynb` Part A (was `01`, sections 05–06), which hand
 |---|---|---|
 | **Common frame** | **Equatorial** (healpy `C`, J2000) | the frame of the TRIS maps. Everything else is rotated into it; TRIS is never rotated |
 | **Common grid** | **nside 16**, RING (3.66° pixels; `tris.nside` = `beam.nside_new`) | the grid stage 1 makes the TRIS maps on, so every other product is put on the TRIS grid |
-| **Common beam** | **23.366° circular Gaussian**, the larger TRIS axis (`beam_matching.kernel: circular_gaussian`). The measured, elliptical TRIS beam (`tris_cuts`, Appendix A.9) is implemented but not in use | every other map is smoothed to the TRIS beam, never the reverse. Before 2026-10-13 a circular 23.366° Gaussian was used, because `hp.smoothing` cannot apply an elliptical kernel; it is still available as `circular_gaussian` (Appendix A.9) |
+| **Common beam** | **The measured TRIS beam** (`tris_cuts`, 19.155° × 23.366°, Appendix A.9) in the pipeline: `pipeline.beam_match_kernel` (step 1) and `sed.tod_beam: beam_matched` (step 2; step 7's operator). `beam_matching.kernel`, which stage 2 and the map route read, is still the **23.366° circular Gaussian** (`circular_gaussian`, the larger axis) | every other map is smoothed to the TRIS beam, never the reverse. Before 2026-10-13 only the circular kernel existed, because `hp.smoothing` cannot apply an elliptical one |
 | **Unobserved pixels in products** | `hp.UNSEEN` in stage 2; NaN plus an explicit `band_mask` in stage 1 | — |
-| **Temperatures** | each product keeps its survey's own convention, recorded in its manifest | the CMB and RJ/thermodynamic conversions belong to the SED step (stage 3) |
+| **Temperatures** | stage 1 and stage 2 products keep their survey's own convention, recorded in the manifest; from step 2's ring TODs on, everything is Rayleigh–Jeans with the CMB removed (P8) | the CMB and RJ/thermodynamic conversions belong to the SED step |
 | **Pixel ordering on read** | `hp.read_map` reorders NESTED → RING; every consumer reads through it | — |
 
-The frames were confirmed against the sky, not only from headers (`notebooks/diagnostics.ipynb` Part B, was `04`). After
+The frames were confirmed against the sky, not only from headers (`notebooks/diagnostics.ipynb` Part B). After
 rotation, Sgr A*, Cas A and Tau A sit within 0.08–0.15° of their literature positions, and
 the unrotated control misses them by ~4.7°. The TRIS rings peak at RA 305.8°, 5° from the
 predicted Cygnus plane crossing.
@@ -376,7 +400,7 @@ Precession of ~0.014°/yr is negligible against 3° samples.
 
 ## 4. Stage 1 — TRIS maps
 
-`python run_pipeline.py --stage 1` → `stage1_tris_maps.run_stage1()`
+`python run_pipeline.py --step tris_maps` (or `--stage 1`) → `stage1_tris_maps.run_stage1()`
 
 ### 4.1 Model
 
@@ -425,7 +449,7 @@ $$\Sigma = (A^\mathsf{T}N^{-1}A + P^{-1})^{-1}, \qquad \hat{x} = \Sigma(A^\maths
 
 with $\sigma_\mathrm{post} = \sqrt{\mathrm{diag}\,\Sigma}$. Nothing is sampled.
 
-**Convergence cross-check: off** (`tris.solver.cross_check: false`, since 2026-10-14).
+**Convergence cross-check: off** (`tris.solver.cross_check: false`).
 When on, each solve is compared with an exact reference solve (the matrix inversion
 lemma, which needs only a 120×120 inverse), and stage 1 refuses to write a product that
 differs by more than `tris.solver.cross_check_max_sigma` (1e-4 posterior σ). That
@@ -433,7 +457,7 @@ robustness is not needed yet, so the reference is not computed and the manifest 
 `null`. The last products made with it on agreed to ~1e-10 σ.
 
 The residual is $r = d - A\hat{x}$ (zero level included), and $\chi^2 = r^\mathsf{T}N^{-1}r$.
-`notebooks/diagnostics.ipynb` Part C (was `03`) derives the residual's expected scatter,
+`notebooks/diagnostics.ipynb` Part C derives the residual's expected scatter,
 $\mathrm{Cov}(r) = N - A\Sigma A^\mathsf{T}$.
 
 ### 4.5 Output
@@ -455,7 +479,7 @@ diagnostics, the beam-grid comparison and the environment.
 
 ### 4.6 Current numbers
 
-Product written 2026-10-02: nside 16, `nside_hires` 16, automatic noise floor.
+Product written 2026-11-16 (step 0 of the full run): nside 16, `nside_hires` 16, automatic noise floor.
 
 | | 600 MHz | 820 MHz |
 |---|---|---|
@@ -470,15 +494,15 @@ Product written 2026-10-02: nside 16, `nside_hires` 16, automatic noise floor.
 * **The zero level is GSM2008's deficit, not an instrument offset.** It matches the
   template's measured deficit (1.92 K and 0.56 K cold, `notebooks/diagnostics.ipynb` Part A), and the sky
   monopole and $z$ are degenerate (≈ 1). Whether to add $\hat{z}$ back into the sky
-  temperatures is open (TODO N-3).
+  temperatures is open; the TOD route does not use the maps.
 * **`nside_hires` = 16 has a measured cost.** With 64, the same run gives χ² 3.09 / 3.22
   and 388 / 201 narrowed pixels. Separately, the beam is always drawn at the map nside,
-  never finer (S1-7).
+  never finer.
 * **The maps are pixel-scale reconstructions.** Neighbouring pixels trade off by several
   σ, and a few pixels have unphysical (negative CMB-subtracted) values. This matters for
-  the SED step (N-2).
+  any per-pixel comparison with the maps.
 * **A residual bump at RA ≈ 260–340°** (the Cygnus crossing) is unexplained. Candidates are
-  the beam's pixelisation, the prior width, or pixelisation of the sky (N-6).
+  the beam's pixelisation, the prior width, or pixelisation of the sky.
 
 ---
 
@@ -487,7 +511,9 @@ Product written 2026-10-02: nside 16, `nside_hires` 16, automatic noise floor.
 `python run_pipeline.py --stage 2` → `stage2_beam_matching.run_stage2()`
 
 *Why beams must match, what the kernel is, how the smoothing is computed and why the 0.5
-floor: Appendix A. The elliptical kernel (implemented, not in use): Appendix A.9.*
+floor: Appendix A. The elliptical kernel: Appendix A.9. Pipeline step 1 applies the method below to every allowed
+map with the `tris_cuts` kernel (`pipeline.beam_match_kernel`); `--stage 2` itself uses `beam_matching.kernel`
+(`circular_gaussian`), and nothing downstream reads its product.*
 
 ### 5.1 Steps, per map (Haslam, ARCADE 2 3.15, ARCADE 2 3.41)
 
@@ -501,19 +527,19 @@ floor: Appendix A. The elliptical kernel (implemented, not in use): Appendix A.9
      (`frames.rotate_masked`). Data and mask are interpolated separately and divided, so
      the zero fill cannot leak into edge pixels (a plain rotation contaminates ~157 per
      band).
-Steps 3–5 are one function, `match_to_tris_beam()`, which the map route
-(`moonrunes.sed_prototype`) and notebook 07 (removed 2026-11-16; in git at `a5c827c`) also called. It applies whichever kernel
-`beam_matching.kernel` names.
+Steps 3–5 are one function, `match_to_tris_beam()`, which the map route (`moonrunes.sed_prototype`, hence pipeline
+step 1) also calls. It applies the kernel it is given (`beam_matching.kernel` for stage 2, `pipeline.beam_match_kernel`
+for step 1).
 
 3. **Smooth to the TRIS beam.**
-   * **`tris_cuts` and `elliptical_gaussian`** (implemented, not in use): `elliptical_beam.smooth_elliptical`,
+   * **`tris_cuts` and `elliptical_gaussian`** (`tris_cuts` is pipeline step 1's kernel): `elliptical_beam.smooth_elliptical`,
      a direct sum on the sphere with the beam oriented as TRIS saw the sky (Appendix A.9).
      The kernel is chosen per map by `elliptical_beam.kernel_for`:
      * Haslam (0.93°) gets the measured beam itself; it widens the E core by 0.12%.
      * ARCADE 2 (11.6°) gets the measured beam compressed to
        √(19.155² − 11.6²) = 15.24° × √(23.366² − 11.6²) = 20.28°.
      * Partial maps are smoothed **mask-aware**, by the same normalised convolution as below.
-   * **`circular_gaussian`** (in use): `smooth_to_target`, kernel
+   * **`circular_gaussian`** (stage 2's `beam_matching.kernel`): `smooth_to_target`, kernel
      $\sqrt{23.366^2 - \mathrm{native}^2}$: 23.35° for Haslam and 20.28° for ARCADE 2.
      ARCADE 2 is smoothed **mask-aware**: the zero-filled map and the binary mask are both
      smoothed, the first is divided by the second, and a pixel with smoothed weight below
@@ -536,8 +562,7 @@ Steps 3–5 are one function, `match_to_tris_beam()`, which the map route
 
 `outputs/stage2/beam_matched_<run>.npz`: `names`, `maps` and `observed` (one row per map,
 nside 16 RING, equatorial, `hp.UNSEEN` where unobserved), `nside`, `frame`,
-`target_fwhm_deg`, `kernel` (the `beam_matching.kernel` used; absent in products made
-before 2026-10-13, which are all `circular_gaussian`).
+`target_fwhm_deg`, `kernel` (the `beam_matching.kernel` used).
 
 `stage2_manifest.json` holds, per map: input path, declared frame and keyword, rotation
 method, native nside, native FWHM and its source, kernel, units, and the pixel counts at
@@ -551,9 +576,7 @@ overwrite guard as stage 1 applies (`run.overwrite` or `--overwrite`).
 
 ### 5.3 Current numbers
 
-**These are from the circular kernel.** Stage 2 has not been re-run since the elliptical
-kernel became the default (2026-10-13); run `python run_pipeline.py --stage 2 --overwrite`
-and update this table.
+With the configured kernel, `beam_matching.kernel: circular_gaussian`:
 
 | map | native → kernel | observed → after smoothing | extrapolated removed | on the nside 16 grid |
 |---|---|---|---|---|
@@ -566,128 +589,24 @@ ARCADE 2 correlates with Haslam at 0.98 on the common grid.
 
 ### 5.4 Known limitations
 
-* The elliptical TRIS beam is represented by its larger axis (`circular_gaussian`, in
-  use). `beam_matching.kernel: tris_cuts` would apply the measured, elliptical beam
-  (Appendix A.9); it is implemented and tested but not in use.
+* In stage 2 the elliptical TRIS beam is represented by its larger axis
+  (`beam_matching.kernel: circular_gaussian`). The pipeline (steps 1, 2 and 7) applies the measured, elliptical beam
+  (`tris_cuts`, Appendix A.9).
   What remains approximate is the treatment of surveys whose own beam is too broad to
   neglect (LWA1, Maipu, ARCADE 2): there is no exact "subtract the native beam" for a
   non-Gaussian beam, so the measured beam is compressed to the quadrature widths.
-  `notebooks/tests_analysis/` Part K2 (was `03_diagnostics.ipynb`), section "The elliptical beam for the map route", plot 4, measures how close that gets.
+  `notebooks/tests_analysis/` Part K2, section "The elliptical beam for the map route", plot 4, measures how close that gets.
 * ARCADE 2's observed ring is narrower than the 20° kernel at its two junctions: the
   northern arc, and the southern tip where it crosses the Galactic plane. The 0.5 floor
-  removes them, so the ring breaks into two arcs (N-7).
+  removes them, so the ring breaks into two arcs.
 * Pixel rotation's interpolation costs ARCADE 2 a little resolution (~8 mK round-trip rms
   against an 85 mK signal), small next to the 23° smoothing.
 
 ---
 
-## 6. Stage 3 — the SED fit with every map, TRIS included *(prototype)*
+## 6. Decisions recorded in the config
 
-Not in the pipeline yet; the prototype is `moonrunes.sed_prototype`. The maths is in
-Appendix B.
-
-**The fit uses all the maps, TRIS included.** At each point it fits one power law to:
-* TRIS 600 and 820 MHz (absolute);
-* ~~ARCADE 2 3.15 and 3.41 GHz~~: excluded since 2026-10-15 (`sed.exclude_maps`; §1);
-* LWA1 35 and 80 MHz, Maipu 45 MHz, CHIPASS 1400 MHz, Stockert 1420 MHz and Rhodes/HartRAO
-  2326 MHz, wherever each has data.
-
-Haslam is not fitted; it is what the fit is compared with. With ARCADE 2 excluded, each fit
-has 5–8 data points in the map route (per pixel) and 6 in the TOD route (per ring sample).
-TRIS is the only absolutely calibrated point in these fits; the rest are relatively
-calibrated surveys that constrain the spectral shape.
-
-**`notebooks/07_sed_calibration` and `notebooks/08_update_plots` (both removed 2026-11-16; in git at `a5c827c`; nside 16)** fit
-every usable map in `res/` (`moonrunes.sky_maps`) two ways:
-
-* **The TOD route:** limTOD TODs of the native maps → one fit per ring sample, against the
-  real TRIS ring → a correction TOD → a correction map via stage 1's Wiener filter with a
-  zero-mean prior.
-* **The map route:** a per-pixel fit on the TRIS grid, with stage 1 maps + ẑ.
-
-The TOD route finds Haslam **~18% low** along the ring (median +4.0 K, +17.6%, ARCADE 2
-excluded; +12.5% against the destriped-only Haslam in `notebooks/08` (removed 2026-11-16) and `10`). The map
-route finds +0.4 K (+1.5%), but it is circular: stage 1's TRIS maps are mostly the GSM2008 prior, which
-is built partly from Haslam. Those numbers were made with an **assumed 10%** error bar for
-LWA, Maipu, CHIPASS, Stockert and Rhodes.
-
-**With the published survey errors (2026-10-21).** On the TRIS ring the typical σ/|T| is now
-20% for LWA1 35/80 MHz (was 10%), 1.8% for Maipu 45 MHz, and 47% for Stockert 1420 MHz,
-where the 0.5 K zero level is comparable to the CMB-free sky (52% for CHIPASS and Stockert,
-44% for Rhodes on the stripe pixels). Maipu now carries most of the low-frequency weight and
-Stockert very little. Against the destriped-only Haslam:
-
-| | 10% placeholder | published errors |
-|---|---|---|
-| TOD route, prediction − Haslam (median over the ring) | +3.72 K, +12.5% | +3.22 K, +10.9% |
-| TOD route, β (median) | −2.534 | −2.485 |
-| TOD route, χ²/dof (median) | 3.94 | 0.99 |
-| Map route, β (median) | −2.591 | −2.528 |
-| Map route, χ²/dof (median) | 1.42 | 0.47 |
-| Map route, prediction − Haslam (median) | +0.08 K | +1.60 K |
-
-The scale and zero-level errors are common to all points of a survey but are still treated
-as independent per point, so the χ² values are not a goodness-of-fit test. Maipu's 1.7% and
-39 K are the uncertainties of corrections (×1.076, −160 K, Monsalve et al. 2021) that are not
-applied to the map.
-
-**`notebooks/06` (removed 2026-11-16; in git at `a5c827c`; cross-check: TRIS + ARCADE 2 only, nside 16, from the stage 1 and 2
-products)** fits
-every one of the 1272 TRIS-stripe pixels: 167 with ARCADE 2 (3–4 points) and 1105 with TRIS
-only (2 points, exact, no χ²). Where ARCADE 2 is present, the fits are clean (median β −2.79,
-σ(β) ≈ 0.05) and Haslam is **+9.6%** low. Where TRIS is alone, σ(β) is 0.5–0.9 and the
-median of +31% is driven by ẑ (+1% without it).
-The method, as first prototyped on the coarser grid:
-
-* **Overlap:** the pixels where TRIS 600, TRIS 820 and both ARCADE 2 bands all have data
-  (33 on that grid).
-* **SED:** 408 (Haslam, *not fitted*), 600.5 and 817.8 (TRIS, effective frequencies), 3150
-  and 3410 MHz (ARCADE 2), all converted to **RJ temperature with the CMB removed**.
-  ARCADE 2's thermodynamic temperatures go through $T_A = T x/(e^x - 1)$ (Fixsen et al.
-  2011).
-* **Errors:**
-  * TRIS: posterior σ.
-  * ARCADE 2: white noise (Singal et al. 2011, Table 2, propagated through the smoothing,
-    ~0.7 mK) in quadrature with calibration systematics (Fixsen et al. 2011, Table 3:
-    7.5 / 6.0 mK).
-* **Fit:** a weighted power law with $\nu_0$ = 408 MHz, so $A$ is the predicted excess at
-  408 MHz. $\chi^2$ has 2 degrees of freedom and is the per-pixel diagnostic.
-
-**Findings to resolve before stage 3 is built:**
-
-* Two upstream choices each move the median predicted − Haslam by ~20%: whether $\hat{z}$
-  is added to TRIS, and whether TRIS is beam-matched. That is several times the 3% /
-  0.91 K benchmarks, so the benchmarks cannot validate anything yet (N-2, N-3).
-* A few pixels have negative or inconsistent TRIS points, inherited from stage 1's
-  pixel-scale maps.
-* `notebooks/05`–`06` (removed 2026-11-16; in git at `a5c827c`) would have to be re-run on nside 16 against the stage 2 product (N-1).
-
----
-
-## 7. Stages 4 and 5 *(not started)*
-
-*The end-to-end pipeline (Part I) makes the predictions this section anticipated (steps 5–7); a corrected
-full-sky Haslam map and the validation stage are not built.*
-
-* **Stage 4:** choose the error model (multiplicative gain, additive offset, or both;
-  the literature suggests both), derive the correction from stage 3's predicted − raw
-  Haslam, and apply it to full-resolution Haslam. Uniform per coarse pixel first; smooth
-  the correction across pixel boundaries later.
-* **Stage 5:** check the χ² distribution, compare the recovered gain and offset with the
-  ~3% / ~0.91 K benchmarks (`validate.*`), and check β against −3.0 to −2.5.
-
-### A diagnostic that already exists
-
-`notebooks/diagnostics.ipynb` Part A (was `01`) §06 simulates every map in `res/` through the TRIS beam with limTOD's
-`generate_TOD_sky`, and compares the predicted ring with the real TRIS data. Every survey
-gives β ≈ −2.5 to −2.9 against the TRIS 600 MHz ring, **except Haslam, at ≈ −2.1**, with
-the largest deviation where the sky is faint. That points to a scale difference plus a
-zero-level offset between Haslam and TRIS, and it is the one check that never goes
-through a map-maker (N-5).
-
----
-
-## 9. Decisions recorded in the config
+Stage 1, stage 2 and beam-matching keys; the pipeline's own settings are in P4.
 
 | key | value | meaning |
 |---|---|---|
@@ -697,10 +616,10 @@ through a map-maker (N-5).
 | `tris.prior.*` | GSM2008, 10% ⊕ 0.3 K, 1 mK floor | the stage 1 prior |
 | `tris.zero_level_sigma_k` | 0.5 K | zero-level prior, wide enough for both rings |
 | `tris.uncertainty_floor_k` | null | noise floor; `null` = the ring's smallest positive σ (~4 mK) |
-| `tris.solver.cross_check` | false | exact-reference convergence cross-check; **off** since 2026-10-14 |
+| `tris.solver.cross_check` | false | exact-reference convergence cross-check; **off** |
 | `tris.solver.cross_check_max_sigma` | 1e-4 | its tolerance, used only when it is on |
 | `beam.apply_horizon_mask` | true | beam power below the horizon is cut |
-| `beam_matching.kernel` | circular_gaussian | the smoothing kernel's shape: `tris_cuts`, `elliptical_gaussian` or `circular_gaussian` (A.9) |
+| `beam_matching.kernel` | circular_gaussian | the kernel stage 2 and the map route use: `tris_cuts`, `elliptical_gaussian` or `circular_gaussian` (A.9). The pipeline uses `pipeline.beam_match_kernel` (`tris_cuts`) and `sed.tod_beam` instead |
 | `beam_matching.target_fwhm_deg` | 23.366 | the circular kernel's FWHM (larger TRIS axis); used only by `circular_gaussian` |
 | `beam_matching.elliptical.fwhm_e_deg` / `fwhm_h_deg` | 19.155 / 23.366 | the TRIS widths; must match the archive cuts to 0.001° |
 | `beam_matching.elliptical.e_plane_east_of_meridian_deg` | 7.0 | E plane's position angle on the sky |
@@ -713,9 +632,8 @@ through a map-maker (N-5).
 | `beam_matching.elliptical.chunk` | 128 | evaluation points per matrix product (memory) |
 | `beam_matching.haslam_native_fwhm_deg` | 0.93333 | 56′ |
 | `beam_matching.arcade2_native_fwhm_deg` | 11.6 | from the headers |
-| `beam_matching.weight_floor` | 0.5 | masked-smoothing edge cut |
+| `beam_matching.weight_floor` | 0.5 | masked-smoothing edge cut (stage 2, step 1, step 2's `beam_matched_tods.npz`) |
 | `beam_matching.coarse_pixel_rule` | all_children | regrid rule |
-| `validate.*` | 3% scale, 0.91 K zero level, β −3.0 to −2.5 | stage 5 benchmarks (uncertainties, not targets) |
 
 A `null` in the config is an open decision. `config.require()` raises on it rather than
 defaulting.
@@ -843,7 +761,7 @@ at that position. At a straight mask edge, $w = 0.5$ falls exactly on the bounda
 
 That is why ARCADE 2 loses its ring's narrow junctions. Its weights peak at ~0.85
 (median ~0.6), so every ARCADE 2 value is somewhat lopsided, and the floor bounds how much.
-A lower floor keeps more pixels at the price of more bias (`TODO.md` N-7). For a full-sky
+A lower floor keeps more pixels at the price of more bias. For a full-sky
 map, $w = 1$ everywhere and the floor never acts.
 
 ### A.8 Approximations
@@ -851,15 +769,18 @@ map, $w = 1$ everywhere and the floor never acts.
 * *(circular kernel only)* TRIS's beam is elliptical (19.2° × 23.4°) and a single
   `hp.smoothing` kernel is circular. The target is the larger axis, so nothing is left
   sharper than TRIS in any direction; along the narrow axis the matched maps are 22% too
-  wide. The elliptical kernel (A.9, implemented, not in use) would remove this.
+  wide. The elliptical kernel (A.9), which the pipeline uses, removes this.
 * Real beams are not exactly Gaussian. The TRIS cuts have shoulders and sidelobes to
   −49 dB, so "same FWHM" means close, not identical.
 * The stage 1 TRIS **maps** are not simply sky ⊛ TRIS beam. The map-maker partly deconvolved
   the rings into 3.66° pixels, with GSM2008 supplying the detail. The other maps are
   matched to the TRIS **beam**; the TRIS pixel values carry finer, prior-driven structure
-  (`TODO.md` N-2).
 
-### A.9 The elliptical kernel (`beam_matching.kernel`; implemented 2026-10-13, not in use)
+
+### A.9 The elliptical kernel (`tris_cuts`, the pipeline's kernel)
+
+*The pipeline applies `tris_cuts` in steps 1, 2 and 7 (`pipeline.beam_match_kernel`, `sed.tod_beam: beam_matched`).
+`beam_matching.kernel`, which stage 2 and the map route read, is still `circular_gaussian`.*
 
 **Why A.5 cannot do it.** `hp.smoothing` multiplies each multipole by one number $b_\ell$.
 That only describes a kernel that looks the same in every direction around its centre.
@@ -912,7 +833,7 @@ $$T_s(p) = \frac{\sum_q K(p,q)\,M(q)\,T(q)}{\sum_q K(p,q)\,M(q)},\qquad w(p) = \
   (`eval_subdivision` = 2) of each nside 16 output pixel, and averaged. Each output value
   is then a pixel average, as with the circular path's `all_children` regrid.
 * **The cost.** 3072 × 4 output points × 49,152 inputs ≈ 6×10⁸ kernel evaluations per
-  full-sky map, done as blocked matrix products: about 40 s per map (measured 2026-10-14).
+  full-sky map, done as blocked matrix products: about 40 s per map.
 * **The masks.** A pixel is kept if (a) all its sub-pixels at the survey's own nside were
   observed and (b) $w \ge 0.5$ at all four evaluation points. These are the same two rules
   as A.6–A.7, applied on the output grid.
@@ -931,7 +852,7 @@ $B_\mathrm{native} \circledast K = B_\mathrm{TRIS}$.
 | broader | LWA1 80 MHz 2.04°, Maipu 4.6°, LWA1 35 MHz 4.65°, ARCADE 2 11.6° | `scaled_cuts`: the measured beam read at $\theta \times s$, with $s_E = 19.155/\sqrt{19.155^2-n^2}$ and $s_H$ likewise | core 19.155° × 23.366° (exact for Gaussian cores); shoulders approximately the measured shape |
 | broader, alternative | the same | `elliptical_gaussian` (`broad_native_kernel`) | exact Gaussian core, Gaussian shoulders |
 
-`notebooks/tests_analysis/` Part K2 (was `03_diagnostics.ipynb`), section "The elliptical beam for the map route", plot 4, puts a point source through both
+`notebooks/tests_analysis/` Part K2, section "The elliptical beam for the map route", plot 4, puts a point source through both
 routes for ARCADE 2 and LWA1 35 MHz and compares the effective beams with the target.
 
 **Tests.** `scripts/tests/test_elliptical_beam.py` checks:
@@ -946,92 +867,13 @@ routes for ARCADE 2 and LWA1 35 MHz and compares the effective beams with the ta
 
 ---
 
-## Appendix B — The SED fit, mathematically (prototype)
+## Appendix B — Harmonic-space checks
 
-**The fit in use takes every usable map, TRIS included** (§1, §6):
-`moonrunes.sed_prototype` (`fit_power_law`, `map_route`, `tod_route`, `sigma_for`), run in
-`tests_analysis` and `10_paper_plots.ipynb` (and formerly in notebooks 07 and 08, removed 2026-11-16). It is the same weighted power law as below, applied to all the
-points available at each pixel or ring sample (5–10), with $\chi^2$ on $n - 2$ degrees of
-freedom. The sections below derive it for the four-point TRIS + ARCADE 2 cross-check,
-which is its special case.
-
-Code for the four-point cross-check: `notebooks/06_sed_fit.ipynb` (removed 2026-11-16; in git at `a5c827c`).
-
-| cell | contents |
-|---|---|
-| 1 | constants and `antenna_temperature` |
-| 3 | the nside-grid value arrays |
-| 5 | the TRIS temperatures and their variances, and `sed()` |
-| 7 | `power_law`, `fit_all`, and the per-pixel table |
-| 9–10 | the checks and the SED grid |
-| 12 | the sensitivity cases |
-
-It was run on the earlier coarser grid and has not been ported to nside 16 or into
-a stage 3 module yet.
-
-### B.1 Data at each pixel
-
-At each pixel $p$ where all four trusted maps have data, take four points
-$(\nu_i, T_i, \sigma_i)$, all as **Rayleigh-Jeans temperature with the CMB removed**.
-
-**TRIS**, at $\nu$ = 600.5 and 817.8 MHz (effective frequencies):
-
-$$T = \hat{x}_p + \hat{z} - T_\mathrm{CMB,RJ}(\nu), \qquad T_\mathrm{CMB,RJ}(\nu) = T_0\frac{x_0}{e^{x_0}-1},\ x_0 = \frac{h\nu}{kT_0},\ T_0 = 2.72548\ \mathrm{K}$$
-
-with $\sigma^2 = \Sigma_{pp} + \Sigma_{zz} + 2\Sigma_{pz}$ from stage 1's full posterior
-covariance. Whether to include $\hat{z}$ is a choice (`TODO.md` N-3); without it, use
-$\hat{x}_p$ and $\Sigma_{pp}$.
-
-**ARCADE 2**, at $\nu$ = 3150 and 3410 MHz. The maps are thermodynamic, so they are
-converted to antenna temperature first (Fixsen et al. 2011, eq. 7):
-
-$$T = T_A(T_\mathrm{map}) - T_A(T_0), \qquad T_A(T) = T\,\frac{x}{e^{x}-1},\ x = \frac{h\nu}{kT}$$
-
-with
-$\sigma^2 = \sigma_\mathrm{white}^2 + \sigma_\mathrm{cal}^2$:
-
-* $\sigma_\mathrm{white}$: the map noise of 11.8 / 10.1 mK√s (Singal et al. 2011,
-  Table 2), divided by $\sqrt{0.5\,\mathrm{s} \times N_\mathrm{obs}}$ per native pixel and
-  propagated through the smoothing weights and the coarse-pixel average;
-* $\sigma_\mathrm{cal}$: 7.5 / 6.0 mK (Fixsen et al. 2011, Table 3: thermometer and
-  radiometer calibration, instrument emission and atmosphere in quadrature).
-
-**Haslam** (408 MHz) is **not** a fit point: it is the quantity being predicted.
-
-### B.2 Model and fit
-
-$$T(\nu) = A\left(\frac{\nu}{\nu_0}\right)^{\beta}, \qquad \nu_0 = 408\ \mathrm{MHz}$$
-
-so $A$ is the predicted CMB-free temperature at 408 MHz. $(A, \beta)$ minimise
-
-$$\chi^2(A, \beta) = \sum_{i=1}^{4} \left[\frac{T_i - A(\nu_i/\nu_0)^{\beta}}{\sigma_i}\right]^2$$
-
-by weighted non-linear least squares (`scipy.optimize.curve_fit`, `absolute_sigma=True`,
-so the parameter covariance $C$ uses the error bars as given, with no rescaling). The
-starting point is the two-point index between the 600 and 3410 MHz points.
-
-### B.3 Outputs per pixel
-
-* $\hat{A}$, $\hat\beta$, and $\sigma_\beta = \sqrt{C_{\beta\beta}}$;
-* the predicted Haslam value, in Haslam's own convention:
-  $T_{408}^\mathrm{pred} = \hat{A} + T_\mathrm{CMB,RJ}(408\ \mathrm{MHz})$, with
-  $\sigma = \sqrt{C_{AA}}$, because $\partial T/\partial A = 1$ and $\partial T/\partial\beta = 0$
-  at $\nu_0$;
-* $\chi^2_\mathrm{min}$, with $4 - 2 = 2$ degrees of freedom. $\chi^2/2 \gg 1$ means four
-  points are not a power law at that pixel: real spectral curvature (e.g. free-free), or bad
-  inputs;
-* predicted − raw, against the beam-matched, uncalibrated Haslam value at that pixel.
-  This is what stage 4 will turn into a correction.
-
----
-
-## Appendix C — Harmonic-space checks (2026-10-14)
-
-*In response to a collaborator's comment.* Rotating or convolving in spherical-harmonic
+Rotating or convolving in spherical-harmonic
 space is safe only if the map's $a_{\ell m}$ fall to ~zero before $\ell_\mathrm{max}$
 ($= 3\,n_\mathrm{side} - 1$); otherwise truncation and aliasing produce ringing. Plot the
 $C_\ell$ to check, since beam smoothing should supply the suppression.
-`notebooks/tests_analysis/` Part K2 (was `03_diagnostics.ipynb`), section "Harmonic-space checks", has every plot and
+`notebooks/tests_analysis/` Part K2, section "Harmonic-space checks", has every plot and
 printout behind the numbers below.
 
 ### C.1 Where the pipeline uses harmonics
@@ -1041,20 +883,22 @@ harmonic operations:
 
 | # | operation | code | ℓ_max |
 |---|---|---|---|
-| H-a | Haslam G → C | `frames.rotate_full_sky` (`rotate_map_alms`): stage 2, map route, and the archived `sed_prototype.apply_full_resolution` (`../moonrunes_archive_2026-11-16/src/moonrunes/sed_prototype.py.before_2026-11-16_cleanup`) | 1535 |
+| H-a | full-sky map G → C | `frames.rotate_full_sky` (`rotate_map_alms`): every full-sky Galactic map in pipeline steps 1, 2 and 7 (Haslam, the pygdsm models; `Inputs._rotated`, `step_rhino`), stage 2 and the map route | 1535 |
 | H-b | circular smoothing | `smooth_to_target` (`hp.smoothing`), only with `kernel: circular_gaussian` | 3·nside − 1 |
-| H-c | pointing the TRIS beam | limTOD `generate_TOD_sky`: `map2alm` → `rotate_alm` → `alm2map`; stage 1, TOD route | 47 at `nside_hires` 16 |
+| H-c | pointing the TRIS beam | limTOD `generate_TOD_sky`: `map2alm` → `rotate_alm` → `alm2map`; stage 1, and the TOD route only with `sed.tod_beam: native` | 47 at `nside_hires` 16 |
 | H-d | pointing the horizon mask | limTOD, same path, thresholded at 0.5 | 47 |
+| H-e | pointing the RHINO beam (added with step 7, after these checks) | `hp.map2alm` of the RHINO beam at nside 64, then limTOD `pointing_beam_in_eq_sys` with the Jodrell Bank horizon; step 7 | 191 (healpy's default at nside 64) for the `map2alm`; not checked further |
 
 Everything else is in pixel space: the masked-map rotations (`frames.rotate_masked`), the
 GSM2008 prior rotation, every degrade and regrid, and the elliptical kernels
-(Appendix A.9).
+(Appendix A.9), which make every TOD of the pipeline's steps 2 and 7. The checks below cover H-a to
+H-d; H-e has not been checked.
 
 ### C.2 Results
 
 | # | a_ℓm → 0 before ℓ_max? | effect on what the analysis uses |
 |---|---|---|
-| H-a | **no**: raw Haslam tail/peak 1.5×10⁻¹⁰, set by pixelisation, not the 56′ beam | round trip G→C→G: 0.08 K rms, but **+33 K ringing at Cas A** (4779 K pixel), 490 pixels off by > 1 K. On the nside 16 smoothed product: **5×10⁻⁵ %** against smooth-then-rotate. **The full-resolution corrected Haslam (`apply_full_resolution`, notebook 08 Fig. 11) inherits the ringing** (`TODO.md` N-11) |
+| H-a | **no**: raw Haslam tail/peak 1.5×10⁻¹⁰, set by pixelisation, not the 56′ beam | round trip G→C→G: 0.08 K rms, but **+33 K ringing at Cas A** (4779 K pixel), 490 pixels off by > 1 K. On the nside 16 smoothed product: **5×10⁻⁵ %** against smooth-then-rotate. **A full-resolution product made by rotating the raw map this way would inherit the ringing**; the pipeline makes none |
 | H-b | input no (pixelisation, mask edges); **output yes**: every smoothed map reaches tail/peak 10⁻¹¹–10⁻¹⁶ by ℓ ≈ 35 | against the same Gaussian computed exactly in real space: ARCADE 2 (masked ring, ℓ_max 47) ≤ 0.05%; Haslam ≤ 0.48% (0.08% rms), patterned like the known ~0.25% width difference between a Gaussian in ℓ and one in angle, not like ringing |
 | H-c | **marginal**: the beam's C_ℓ(ℓ_max)/C₀ = 1.4×10⁻⁶ and turns up just below ℓ_max (aliasing); its map → a_ℓm → map round trip makes negative pixels down to −0.05% of peak | pointed beam within 0.6% of peak of the exact pixel-space beam; **TODs within 0.043%** of exact on the same sky (0.008% at nside 64) |
 | H-d | **no** (a step) | 36 extra horizon pixels at nside 16 (1572 vs 1536); included in H-c's 0.043% |
@@ -1068,17 +912,18 @@ verified on the way:** limTOD's pointed beam fixes the E plane's position angle 
 
 * At the precision of the SED analysis (per-pixel changes of ~1%, an offset of 13–18%),
   the harmonic steps are negligible for every nside 16 product.
-* The one real exposure is H-a at **full resolution**: N-11.
+* The one real exposure is H-a at **full resolution**: rotating raw nside 512 Haslam to equatorial rings at bright
+  compact sources (+33 K at Cas A). Nothing in the pipeline rotates a full-resolution map it then uses at full
+  resolution; at nside 16 the effect is 5×10⁻⁵ %.
 * `tris.nside_hires` = 64 (with the TOD sky on 64) removes both the beam aliasing (H-c) and
-  the 0.5% pixelisation effect (S1-7).
-* With the circular kernel in use, stage 2's smoothing is H-b. The elliptical kernels
-  would involve no harmonics at all.
+  the 0.5% pixelisation effect.
+* With the circular kernel, stage 2's smoothing is H-b. The pipeline's elliptical kernel involves no harmonics.
 
 ---
 
-## Appendix D — Convolve → deconvolve with limTOD (2026-10-14)
+## Appendix C — Convolve → deconvolve with limTOD
 
-`notebooks/tests_analysis/` Part K2 (was `03_diagnostics.ipynb`), section "Convolve → deconvolve with limTOD".
+`notebooks/tests_analysis/` Part K2, section "Convolve → deconvolve with limTOD".
 
 **Method.** All with limTOD's own functions, on the nside 16 grid.
 
@@ -1119,7 +964,7 @@ verified on the way:** limTOD's pointed beam fixes the E plane's position angle 
   for every map.
 * **Stage 1 is a deconvolution with far less data** (one ring), so its TRIS maps are
   reliable only on large scales. That limits the map route's per-pixel comparison
-  (`TODO.md` N-10).
+
 * **Beam matching** (stage 2, the TOD route) is a convolution, and is exact.
 
 **Along the TRIS ring (LST), with the pipeline's own noise** (`sed_prototype.sigma_for`:
@@ -1136,9 +981,9 @@ Rhodes have no data on the ring):
 
 ---
 
-## Appendix E — Two-step against one-step beam matching (2026-10-14)
+## Appendix D — Two-step against one-step beam matching
 
-`notebooks/tests_analysis/` Part K2 (was `03_diagnostics.ipynb`), section "Two-step against one-step beam matching".
+`notebooks/tests_analysis/` Part K2, section "Two-step against one-step beam matching".
 
 **The test.** With the pipeline's own beam matching (`match_to_tris_beam`), compare:
 1. **Two-step:** Haslam (nside 64, equatorial) convolved with a survey beam, then matched
@@ -1169,7 +1014,7 @@ Rhodes have no data on the ring):
   higher beside it. This is small next to the assumed 10% survey error bars, and
   comparable to the kernel-shape effects.
 
-**Rerun with four FWHM scalings (2026-10-19).** `scripts/fwhm_scaling_test.py` repeats
+**Rerun with four FWHM scalings.** `scripts/fwhm_scaling_test.py` repeats
 this test for the complicated survey beam, with the FWHM given to the pipeline set to the
 main lobe's measured major axis (5.010°, as above), minor axis (3.007°), arithmetic mean
 (4.009°) or geometric mean (3.881°). The kernels, sky, grids and one-step reference are
@@ -1193,7 +1038,7 @@ the same.
 
 ---
 
-## Appendix F — Beam averaging with spectral-index blobs (2026-10-19/20)
+## Appendix E — Beam averaging with spectral-index blobs
 
 `scripts/beam_averaging_blobs/` (script, CSVs, plots and a README with every parameter and caveat).
 

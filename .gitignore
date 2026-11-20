@@ -219,10 +219,13 @@ __marimo__/
 .streamlit/secrets.toml
 
 # ---------------------------------------------------------------------------
-# moonrunes (updated 2026-10-28)
-# Policy: plots (png/pdf/svg), Markdown and code are tracked; regenerable data products,
-# caches and anything near GitHub's 100 MB per-file limit are not.
+# moonrunes
+# Policy: plots (png/pdf/svg), Markdown, CSVs and code are tracked; regenerable data products,
+# caches, data without a clear licence and anything near GitHub's 100 MB per-file limit are not.
 # ---------------------------------------------------------------------------
+
+# Local assistant instructions: never tracked.
+CLAUDE.md
 
 # Pipeline products (stage manifests, maps, posterior samples): ignore all of outputs/ except
 # its plots and Markdown.  "!outputs/**/" re-includes the folders so the rules below can reach files.
@@ -233,12 +236,14 @@ outputs/**
 !outputs/**/*.pdf
 !outputs/**/*.svg
 !outputs/**/*.md
-res/ARCADE_*.fits
-res/JUNO*.fits
 
-# Regenerable caches anywhere: UltraNest reruns, ML fits, sky-model fits (notebooks/test_results.ipynb rebuilds them).
-# Files already committed (paper_outputs/model_comparison/diagnostic_plots/cache/*.npz) stay tracked until
-# removed from the index with `git rm --cached`.
+# Data that must not be redistributed: the Juno maps (no provenance, unit, frame or beam) and Irfan & Puglisi's
+# beta_s / c_s maps (licence not cleared), and anything else under external/.
+res/Juno_*.fits
+external/
+
+# Regenerable products and caches anywhere: the pipeline's step products (run_pipeline.py rebuilds them) and the
+# notebooks' UltraNest / maximum-likelihood / sky-model caches (each notebook rebuilds its own).
 **/cache/
 *.npz
 *.npy
@@ -247,7 +252,7 @@ res/JUNO*.fits
 *.h5
 *.hdf5
 
-# Too large for GitHub (>100 MB per file); download per DATA_SOURCES.md.
+# Too large for GitHub (>100 MB per file); download per docs/DATA_SOURCES.md.
 res/CHIPASS_1400MHz.fits
 
 # Session reports: local notes, not part of the repository.

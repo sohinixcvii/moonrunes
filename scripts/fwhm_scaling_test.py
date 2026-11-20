@@ -1,7 +1,7 @@
 """Two-step vs one-step beam matching, rerun with four FWHM scalings.
 
-The existing test is ``notebooks/test_results.ipynb`` Part K2, section "Two-step against
-one-step beam matching" (``PIPELINE.md`` Appendix E).  It convolves Haslam with a
+The test is ``notebooks/tests_analysis/`` Part K2, section "Two-step against
+one-step beam matching" (``docs/PIPELINE.md`` Appendix D).  It convolves Haslam with a
 complicated, non-Gaussian survey beam (elliptical 5 x 3 deg main lobe at PA 30 deg,
 a -15 dB sidelobe ring at 7 deg, a -25 dB 20 deg error beam), then matches it to the
 TRIS target with ``match_to_tris_beam``, telling the pipeline one FWHM for the survey
@@ -70,7 +70,7 @@ NS64 = 64
 NSIDE_OUT = 16
 HASLAM_FREQ_MHZ = 408.0
 
-# The complicated survey beam, exactly as in test_results.ipynb Part K2.
+# The complicated survey beam, exactly as in tests_analysis Part K2.
 CB = dict(major=5.0, minor=3.0, pa=30.0, ring_r=7.0, ring_w=1.5, ring_db=-15.0,
           shoulder_fwhm=20.0, shoulder_db=-25.0)
 
@@ -192,8 +192,8 @@ def main():
     print(f"FREQUENCY:  {HASLAM_FREQ_MHZ:.0f} MHz")
     print(f"Grid:       equatorial, nside {NS64} in, nside {NSIDE_OUT} out; "
           f"Haslam native FWHM {haslam_native}°")
-    print(f"Test:       notebooks/03 'Two-step against one-step beam matching' "
-          f"(PIPELINE.md App. E), complicated survey beam")
+    print(f"Test:       tests_analysis Part K2 'Two-step against one-step beam matching' "
+          f"(docs/PIPELINE.md Appendix D), complicated survey beam")
     print(f"Metric:     100 * (two-step / one-step - 1) [%]: median, rms, max |Δ|, rms in TRIS stripe")
     print(bar + "\n")
 
@@ -273,7 +273,7 @@ def main():
                 f"survey beam and then the pipeline smooths it to the target beam, told the survey beam is the width "
                 f"given (= two-step). That is compared with Haslam smoothed straight to the target beam (= one-step). "
                 f"residual = two-step - one-step [K]; fractional difference = two-step / one-step - 1 [%]; "
-                f"std = standard deviation; all on nside {NSIDE_OUT} maps. Test from notebooks/03 "
+                f"std = standard deviation; all on nside {NSIDE_OUT} maps. Test from tests_analysis Part K2 "
                 f"(two-step vs one-step beam matching).\n")
         w = csv.writer(f)
         w.writerow([CSV_HEADERS[c] for c in cols])

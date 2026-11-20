@@ -3,12 +3,11 @@
 What this stage produces
 ------------------------
 Haslam and both ARCADE 2 bands, smoothed so that every map carries the same
-effective beam as TRIS, which is the coarsest of the three.  Stage 3 assembles
-per-pixel SEDs from them, and an SED is only meaningful if each point in it was
+effective beam as TRIS, which is the coarsest of the three.  An SED is only meaningful if each point in it was
 measured through the same beam -- otherwise the spectral index picks up the
 resolution difference between surveys as if it were sky.
 
-This is Step 0 of ``tris_haslam_pipeline.md``, applied.
+``match_to_tris_beam`` is also what the map route and pipeline step 1 call.
 
 The kernel (Step 0.1)
 ---------------------

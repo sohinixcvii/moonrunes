@@ -46,7 +46,7 @@ def prior_transform(names: List[str], priors: Dict[str, dict]) -> Callable:
 
 def moment_orders(cfg) -> List[int]:
     """The moment-expansion orders to compare: ``models.moment_orders`` (a list), or the
-    older single ``models.moment_order``."""
+    single ``models.moment_order``."""
     m = cfg["models"]
     orders = m["moment_orders"] if "moment_orders" in m else m["moment_order"]
     orders = [int(orders)] if np.isscalar(orders) else [int(o) for o in orders]

@@ -1,27 +1,20 @@
 # How the TRIS maps were made
 
-**For collaborators.** This records exactly which `limTOD` code, which settings and which
-conventions produced `outputs/stage1/tris_maps_tris_haslam_v0.npz` — the 600 and 820 MHz
-maps that become two of the four trusted points in the SED fit.
+This records which `limTOD` code, which settings and which conventions produce
+`outputs/stage1/tris_maps_tris_haslam_v0.npz` — the 600 and 820 MHz TRIS maps made by pipeline step 0. The TOD route
+(steps 2–7) uses the TRIS ring data directly, not these maps; the maps are used for Figure 3, the map route and the
+cross-check of the geometry, beam and temperature convention.
 
 Everything below was read back out of the code and the run manifest, not from memory. The
 manifest (`outputs/stage1/stage1_manifest.json`) is the machine-readable version; this
 document is the annotated one, and it flags the places where a number is a *decision* we
 made rather than something the archive or limTOD told us.
 
-> **Status note, 2026-10-02.** This document records the product made with
-> `tris.nside_hires: 64`. The config now runs **everything at nside 16**, including
-> `nside_hires`, and `beam.nside_new` is 16. nside 16 is the grid the TRIS stage 1 maps are
-> made on, so every other product is put on the TRIS grid. Same pixels, same solve, but a coarser beam
-> rotation grid: reduced χ² **16.1 / 5.9** (against 3.09 / 3.22 below), zero levels
-> +1.737 / +0.516 K, and **23 / 7** pixels tightened by more than 5% (against 388 / 201).
-> The current run's manifest has the full numbers.
-
 **The short version:** the maps are a prior-regularized MAP reconstruction of two
 120-sample drift rings, solved by **limTOD's own solver** on a deliberately coarse
 **nside 16** grid, over the **1272 pixels the beam actually saw**, with GSM2008 standing in
 as the prior. They remain **prior-dominated** — 120 samples carrying roughly 15 independent
-numbers — and the fitted zero levels (+1.744 K and +0.510 K) are a measurement of GSM2008's
+numbers — and the fitted zero levels (+1.737 K and +0.516 K) are a measurement of GSM2008's
 offset, not of the TRIS archive's zero point. Read the
 [caveats](#what-to-check-before-you-trust-a-number) before quoting anything from them.
 
@@ -33,31 +26,27 @@ offset, not of the TRIS archive's zero point. Read the
 |---|---|
 | **Product** | `outputs/stage1/tris_maps_tris_haslam_v0.npz` |
 | **Run name** | `tris_haslam_v0` |
-| **Written** | 2026-09-21 16:37 UTC |
+| **Written** | 2026-11-16 18:17 UTC (the last `run_pipeline.py --step all`) |
 | **Config** | `configs/run_pipeline.yaml` (the exact block used is copied into the manifest) |
-| **Input data** | the four LAMBDA TRIS text products — see `DATA_SOURCES.md` |
+| **Input data** | the four LAMBDA TRIS text products — see `docs/DATA_SOURCES.md` |
 | **Archive path at run time** | `../limTOD/downloads/TRIS` |
 
 ### Code
 
 | component | version |
 |---|---|
-| `limTOD` | sibling source checkout, **commit `dbe720b`** ("Merge: make the TRIS map figures say what the numbers already said", 14 Aug 2026) |
+| `limTOD` | source checkout at `../limTOD`, **commit `dbe720b`** (`origin/main` of github.com/zzhang0123/limTOD, "Merge: make the TRIS map figures say what the numbers already said", 14 Aug 2026) |
 | Python / numpy / healpy | 3.14.6 / 2.5.2 / 1.20.0 |
 
-`limTOD` was **not** imported as an installed package. The manifest records the path
-`/Users/user/Documents/Codes/project3/limTOD/limTOD/tris/__init__.py`, which is the
-`paths.limtod` fallback in `configs/run_pipeline.yaml`.
+`limTOD` is not imported as an installed package: the manifest records the path of the checkout's
+`limTOD/tris/__init__.py`, the `paths.limtod` fallback in `configs/run_pipeline.yaml`.
 
-> ⚠️ **The manifest records the path, not the commit.** The commit above was recovered by
-> inspecting the checkout afterwards, so it is accurate for this product but is not
+> ⚠️ **The manifest records the path, not the commit.** The commit above was read from the checkout, not
 > captured automatically. See [known gaps](#known-gaps).
 
-> ⚠️ **That checkout has uncommitted changes**, but none of them are in the map-making
-> path. The dirty files are a new untracked `limTOD/tris/binning.py` (the beam-width
-> binning map-maker), its export block in `tris/__init__.py`, its tests, and some
-> docs/notebooks. Every module stage 1 calls — `archive`, `sky`, `beam`, `geometry`,
-> `noise`, `mapmaking` — is clean at `dbe720b`. The maps came from committed code.
+> The checkout also has uncommitted changes (a beam-width binning map-maker, `limTOD/tris/binning.py`, its export
+> block in `tris/__init__.py`, tests and notebooks). None of them is in the map-making path: every module step 0
+> calls — `archive`, `sky`, `beam`, `geometry`, `noise`, `mapmaking` — is as committed at `dbe720b`.
 
 ---
 
@@ -82,8 +71,7 @@ sky→sample operator. The zero level is appended as a column of ones, making it
 nuisance parameter rather than a rank-1 noise term — algebraically equivalent, but it hands
 back the fitted offset.
 
-The solve itself is **not** limTOD's. Stage 1 does it in-repo, deliberately using the same
-Krylov machinery as the recalibration step — see [§5](#5-the-solve).
+The solve is limTOD's own (`TRISMapMakingInputs.solve`) — see [§5](#5-the-solve).
 
 ---
 
@@ -108,7 +96,6 @@ Krylov machinery as the recalibration step — see [§5](#5-the-solve).
 | boresight | `RA = LST`, `dec = latitude` | limTOD default (`tris_zenith_geometry`), parked-zenith |
 | site latitude | 42.4333° (42°26′) | limTOD constant `TRIS_SITE_LATITUDE_DEG` |
 | E-plane roll | `selfrot = −7°` | limTOD constant, from the archive's `NOTE2` ("E-plane tilted 7 degrees Eastwards") |
-| declination band | ±45° about the boresight → **−2.57° to +87.43°** | **decision** (`tris.dec_half_width_deg`) |
 
 > Note the boresight sits at **42.4333°**, the site latitude — not the archive's "+42"
 > *label*. limTOD keeps those as separate constants and uses the latitude for pointing.
@@ -120,7 +107,7 @@ Krylov machinery as the recalibration step — see [§5](#5-the-solve).
 | beam model | built from the archive's E/H cuts, `normalization="peak"` | limTOD, via `cuts=` |
 | measured HPBW | 19.155° (E) / 23.366° (H) | **derived by limTOD from the cut table** — the ring headers say "18 degrees", which is 6% narrow |
 | horizon mask | **on** | **decision** (`beam.apply_horizon_mask`) — the cut beam has ~1.2e-4 of its power below the horizon, ≈0.035 K against 300 K ground, comparable to the published 0.066 K systematic |
-| `nside_hires` | 64 | **decision** — the grid the beam is rotated on. Note the beam itself is drawn at `tris.nside` and only up-sampled to this grid. The config now uses 16; see the status note at the top |
+| `nside_hires` | 16 | **decision** — the grid the beam is rotated on, kept equal to `tris.nside` so every product shares the TRIS grid. The beam itself is drawn at `tris.nside` and only up-sampled to this grid. Cost: reduced χ² 16.1 / 5.9 against 3.09 / 3.22 with 64, and 23 / 7 against 388 / 201 pixels narrowed by more than 5 % |
 | beam normalisation in the projection | `normalize_beam=True` | limTOD default via `build_tris_mapmaking_inputs` |
 
 ### Pixelisation
@@ -132,7 +119,7 @@ Krylov machinery as the recalibration step — see [§5](#5-the-solve).
 | pixels retained | **1272** (41.4% of sky) | measured, not geometric — see below |
 | beam power retained | **99.604%** | what the 1% cut costs |
 | free parameters | **1273** (1272 sky + 1 zero level) | — |
-| ordering / frame | RING, **equatorial** | verified in `notebooks/diagnostics.ipynb` Part A (was `01_explore_data`) |
+| ordering / frame | RING, **equatorial** | verified in `notebooks/diagnostics.ipynb` Part A |
 
 ### Pixel selection — on the beam, not on a declination band
 
@@ -140,12 +127,11 @@ A pixel is retained when the beam response at it exceeds `tris.beam_response_thr
 the peak response **for at least one observation**. The comparison is against that
 observation's own peak, not a global maximum.
 
-This replaced the earlier `dec_half_width_deg: 45.0` band cut, which selected on geometry
-alone: it kept pixels inside the band the beam never illuminated, and cut pixels in the
-beam's wings that it did. The criterion now matches the physical statement — keep what the
-horn actually saw.
+A cut on declination alone would keep pixels inside the band that the beam never illuminated and cut pixels in the
+beam's wings that it did; this criterion keeps what the horn actually saw.
 
-**Convergence over the threshold**, as the collaborator asked, at 0.003 / 0.01 / 0.03:
+**Convergence over the threshold**, at 0.003 / 0.01 / 0.03 (measured with `nside_hires: 64`, hence the reduced χ²
+of ~3):
 
 | threshold | pixels | sky fraction | beam power kept | zero level 600 | zero level 820 | reduced χ² 600 / 820 |
 |---:|---:|---:|---:|---:|---:|---:|
@@ -227,7 +213,7 @@ but it is an assumption we own, not a fact.
 | setting | value |
 |---|---|
 | `tris.solver.regularization` | `1e-12`, added to the diagonal before inversion — a bias on the answer as well as a numerical guard, so it stays as small as conditioning allows |
-| cross-check | **off since 2026-10-14** (`tris.solver.cross_check: false`). When on, every solve is compared against an exact reference solve (the matrix inversion lemma) and the product is refused if it misses by more than `cross_check_max_sigma` |
+| cross-check | **off** (`tris.solver.cross_check: false`). When on, every solve is compared against an exact reference solve (the matrix inversion lemma) and the product is refused if it misses by more than `cross_check_max_sigma` |
 
 **Measured cost.** The dense path scales as the cube of the parameter count. At the
 configured nside 16 it is effectively free:
@@ -248,10 +234,8 @@ the test suite against a dense reference, but does not make the maps.
 **Because "it finished" is not "it converged"**, stage 1 can cross-check every solve
 against the exact matrix inversion lemma at a single frequency: a 120×120 inner matrix,
 cheap, and *not* the multi-frequency approximation above. With the check on, stage 1
-refuses to write a product that fails it. **It is switched off since 2026-10-14**
-(`tris.solver.cross_check: false`), because that robustness is not needed yet. Products
-made since then carry no convergence check, and their posterior σ is limTOD's own. The
-last run with it on gave:
+refuses to write a product that fails it. **It is switched off** (`tris.solver.cross_check: false`): the current
+product carries no convergence check, and its posterior σ is limTOD's own. The last run with it on gave:
 
 | | 600 MHz | 820 MHz |
 |---|---:|---:|
@@ -263,38 +247,37 @@ last run with it on gave:
 
 ## 6. What came out
 
+From `outputs/stage1/stage1_manifest.json` (2026-11-16):
+
 | | 600 MHz (νeff 600.5) | 820 MHz (νeff 817.8) |
 |---|---:|---:|
-| fitted zero level | +1.7442 ± 0.0425 K | +0.5101 ± 0.0269 K |
-| reduced χ² (dof 120) | 3.09 | 3.22 |
-| residual RMS | 0.025 K | 0.036 K |
-| prior → posterior σ (median) | 1.1846 → 1.1559 K | 0.7162 → 0.7053 K |
-| pixels whose σ shrank >5% | **388 of 1272** | **201 of 1272** |
-| minimum beam coverage | 0.9958 | 0.9958 |
+| fitted zero level | +1.7369 ± 0.0428 K | +0.5158 ± 0.0271 K |
+| reduced χ² (dof 120) | 16.14 | 5.88 |
+| residual RMS | 0.056 K | 0.050 K |
+| prior → posterior σ (median) | 1.1846 → 1.1773 K | 0.7162 → 0.7118 K |
+| pixels whose σ shrank >5% | **23 of 1272** | **7 of 1272** |
+| minimum beam coverage | 0.9960 | 0.9960 |
 | monopole degeneracy | ≈1.0 | ≈1.0 |
 
-Those fitted offsets reproduce the GSM2008 deficits measured independently in
-`notebooks/diagnostics.ipynb` Part A (was `01_explore_data`; 1.92 K and 0.56 K cold) — a real check that the
-geometry, beam and convention translation came through intact.
+The fitted offsets reproduce the GSM2008 deficits measured independently by observing GSM2008 through the TRIS beam
+in `notebooks/diagnostics.ipynb` Part A (1.92 K and 0.56 K cold) — a check that the geometry, beam and convention
+translation came through intact.
 
 ---
 
 ## What to check before you trust a number
 
-1. **The maps are still prior-dominated, but much less so.** The beam suppresses harmonics
-   above *m* ≈ 8, so 120 samples carry roughly **15 independent numbers** — against 1,273
-   free parameters. At the old nside 64 the posterior σ beat the prior by >5% for just
-   **2** of 25,704 pixels; at nside 16 it does so for **388 of 1272** at 600 MHz and **201 of
-   1272** at 820 MHz. Coarsening the grid is what bought that.
+1. **The maps are prior-dominated.** The beam suppresses harmonics above *m* ≈ 8, so 120 samples carry roughly
+   **15 independent numbers** — against 1,273 free parameters. The posterior σ beats the prior by more than 5 % for
+   **23 of 1272** pixels at 600 MHz and **7** at 820 MHz (388 / 201 with `nside_hires: 64`).
 2. **The zero levels measure GSM2008, not the archive.** The monopole degeneracy is ≈1, so
    with a per-pixel prior this tight the nuisance offset is the only place a template error
    can go.
-3. **The reduced χ² of ~3.1 is expected, not a failure.** It is the signature of a template
-   that is kelvins cold, forward-modelled against absolutely calibrated data.
+3. **The reduced χ² (16.1 / 5.9; ~3.1 with `nside_hires: 64`) is expected, not a failure.** It is the signature of
+   a template that is kelvins cold, forward-modelled against absolutely calibrated data on a coarse beam grid.
 4. **The fitted zero level carries a ~0.1 K systematic from the pixel-selection
    threshold**, on top of its quoted statistical error. See the convergence table.
-5. **Nothing here is Haslam-independent yet** — GSM2008 is built from surveys that include
-   Haslam 408 MHz.
+5. **Nothing here is Haslam-independent** — GSM2008 is built from surveys that include Haslam 408 MHz.
 6. **2.5 GHz is not in these maps** at all.
 
 ## Known gaps
@@ -316,10 +299,9 @@ geometry, beam and convention translation came through intact.
 python run_pipeline.py --stage 1
 ```
 
-Requires the TRIS archive at `paths.tris_archive_dir`, `pygdsm` for the GSM2008 template,
-and `limTOD` (installed, or the sibling checkout at `paths.limtod`). Stage 1 refuses to
-overwrite an existing product unless `run.overwrite` is set. It takes about 12 s, of which
-the two Krylov solves are 0.45 s.
+(or `--step tris_maps`). Requires the TRIS archive at `paths.tris_archive_dir`, `pygdsm` for the GSM2008 template,
+and the limTOD checkout at `paths.limtod`. Step 0 refuses to overwrite an existing product unless `run.overwrite` is
+set (it is, in the config). It takes about 12 s; the two solves take 0.1 s each.
 
 Read the products back through the one contract everything downstream uses:
 

@@ -1,4 +1,4 @@
-"""Beam-width (FWHM) tests: the same checks as notebooks/test_results.ipynb Part K1.
+"""Beam-width (FWHM) tests: the same checks as notebooks/tests_analysis/ Part K1.
 
 The archive-cut tests need limTOD and the TRIS archive (``paths.tris_archive_dir``)
 and are skipped without them.  The smoothing tests need only healpy.
@@ -133,7 +133,7 @@ def test_smoothing_width_and_quadrature_chain():
 @pytest.mark.parametrize("normalization", ["none", "peak"])
 def test_round_trip_gaussian_map_through_fwhm_function(tris_and_cuts, normalization):
     # Test 2: Gaussian beam map (19.155/23.366) -> E/H cuts read off the map -> the FWHM
-    # function -> the same two numbers to 0.1%.  Holds from nside 128 up (test_results.ipynb Part K1, sec. 6).
+    # function -> the same two numbers to 0.1%.  Holds from nside 128 up (tests_analysis Part K1, sec. 6).
     tris, _, _ = tris_and_cuts
     angles = np.arange(0.0, 60.0, 0.05)
     m = tris.approximate_tris_gaussian_beam_map(nside=128, fwhm_e_deg=FWHM_E, fwhm_h_deg=FWHM_H,

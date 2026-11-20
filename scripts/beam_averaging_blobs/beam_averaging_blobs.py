@@ -53,7 +53,7 @@ from moonrunes.stage1_tris_maps import import_limtod_tris  # noqa: E402
 # ---------------------------------------------------------------------------
 # PARAMETERS -- fixed before the first run; not tuned to the result.
 # ---------------------------------------------------------------------------
-HASLAM_FILE = "HASLAM_DESTRIPED_ONLY.fits"   # in the repo's res/ folder; "HASLAM.fits" was the first run
+HASLAM_FILE = "HASLAM_DESTRIPED_ONLY.fits"   # in the repo's res/ folder; set to "HASLAM.fits" for the other Haslam version
 NU_REF_MHZ = 408.0
 BETA0 = -2.7                         # background spectral index
 N_BLOBS = 4                           # 3-5 allowed; the lists below must have this length

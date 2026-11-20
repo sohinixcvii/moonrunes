@@ -39,34 +39,31 @@ several ``n x n`` float64 arrays it allocates is ~4.9 GB and the peak is
 ``TRIS_MAP_PROVENANCE.md``.
 
 :func:`krylov_map_solve` is retained as the matrix-free reference
-implementation the test suite pins against a dense solve; it is no longer what
-makes the maps.  :func:`lhs_diagonal` gives the Jacobi preconditioner of that
+implementation the test suite pins against a dense solve; it does not make the maps.  :func:`lhs_diagonal` gives the Jacobi preconditioner of that
 solve analytically.
 
 Because "it returned an array" is not "it solved the system" -- a dense
 factorisation with a regularizer added to the diagonal can come back biased
 without raising -- a solve *can* be cross-checked against the exact Woodbury
-identity (``tris.solver.cross_check``; **off since 2026-10-14**, when the
-reference is not computed at all)
+identity (``tris.solver.cross_check``; **off**, in which case the reference is not
+computed at all)
 
     (A^T N^-1 A + P^-1)^-1 = P - P A^T (N + A P A^T)^-1 A P,
 
 which is cheap here (the ring has 120 samples, so the inner matrix is 120x120)
-and is *not* the approximation Blocker 3 rules out -- that one drops
-cross-frequency coupling in the multi-frequency Gibbs solver; this one is an
-algebraic identity at a single frequency.  The posterior standard deviation in
+and is not an approximation: it is an algebraic identity at a single frequency
+(no cross-frequency coupling is dropped).  The posterior standard deviation in
 the product comes from limTOD's own solve, not from this identity.
 
-Blocker 2, honestly
--------------------
-There is no true sky for real data, and Berkhuijsen (1972) is not in hand yet,
-so GSM2008 stands in as both the prior template and the reference "truth".
+The prior
+---------
+There is no true sky for real data, so GSM2008 stands in as both the prior
+template and the reference "truth".
 That is circular and the manifest says so (``prior_equals_truth``).  The
 walkthrough measured GSM2008 as ~1.9 K cold at 600 MHz; with a template that
 wrong, the fitted zero level absorbs the model offset and the reduced
 chi-square climbs.  Both numbers are reported per frequency rather than
-smoothed over -- they are the honest product of one ring plus a template, and
-stage 5 reads them.
+smoothed over -- they are the honest product of one ring plus a template.
 """
 
 from __future__ import annotations
@@ -140,7 +137,7 @@ def lhs_diagonal(
 
 @dataclass(frozen=True)
 class KrylovSolution:
-    """Result of one MAP solve, with everything stage 5 needs to judge it."""
+    """Result of one MAP solve, with everything needed to judge it."""
 
     parameters: np.ndarray
     info: int
@@ -255,8 +252,7 @@ def woodbury_reference(
     ``S = P - P A^T (N + A P A^T)^-1 A P`` and
     ``x = mu + P A^T (N + A P A^T)^-1 (d - A mu)``.  The inner matrix is
     ``n_samples x n_samples`` (120 for a TRIS ring), so this is exact and cheap
-    even with 25k sky pixels -- it is an algebraic identity at one frequency,
-    not the multi-frequency Woodbury acceleration Blocker 3 rules out.
+    even with 25k sky pixels -- it is an algebraic identity at one frequency.
 
     Returns ``(mean, variance)``, both over all parameters.
     """
@@ -278,7 +274,7 @@ def woodbury_reference(
 
 
 # ---------------------------------------------------------------------------
-# the sky template (Blocker 2 substitute)
+# the sky template (GSM2008, standing in for the prior and the "truth")
 # ---------------------------------------------------------------------------
 def gsm2008_template(
     frequency_mhz: float, nside: int, *, tris_convention: bool = True
@@ -343,7 +339,7 @@ class TRISFrequencyMap:
 def beam_response_pixels(
     operator: np.ndarray, threshold: float
 ) -> Tuple[np.ndarray, Dict[str, Any]]:
-    """Pixels the beam actually saw, per the collaborator's criterion.
+    """Pixels the beam actually saw.
 
     A pixel is retained when the beam response at it exceeds ``threshold`` of
     the peak response **for at least one observation**.  ``operator`` is the
@@ -433,8 +429,7 @@ def solve_frequency(
     # Two passes.  The first projects the beam onto the WHOLE sky so the
     # response at every pixel is known; the second rebuilds the operator on
     # just the pixels that pass the beam-response threshold.  Selecting on the
-    # beam rather than on a declination band is the collaborator's criterion
-    # and is the physical statement: keep what the horn actually saw.
+    # beam rather than on a declination band is the physical statement: keep what the horn actually saw.
     #
     # The full-sky pass is affordable only because this is a deliberately
     # coarse map -- 768 pixels at nside 8, 3072 at nside 16.
@@ -467,12 +462,11 @@ def solve_frequency(
     if not inputs.has_zero_level:  # pragma: no cover - zero_level_sigma_k is required
         raise RuntimeError("expected a zero-level nuisance column")
 
-    # ---- prior / truth (Blocker 2: GSM2008 stands in for both) -------------
+    # ---- prior / truth (GSM2008 stands in for both) -------------------------
     template_name = str(config.require("tris.prior.template")).lower()
     if template_name != "gsm2008":
         raise ConfigError(
-            "tris.prior.template only implements 'gsm2008' (the Blocker 2 "
-            "substitute); got {!r}".format(template_name)
+            "tris.prior.template only implements 'gsm2008'; got {!r}".format(template_name)
         )
     template_full = gsm2008_template(effective_mhz, nside)
     prior_mean_sky, prior_sigma_sky = tris.tris_prior_from_template(
@@ -515,7 +509,7 @@ def solve_frequency(
     # biased without raising.  When tris.solver.cross_check is true, the
     # answer is compared against an exact reference solve (the matrix
     # inversion lemma; the inner matrix is n_samples x n_samples) and the run
-    # stops if they disagree.  It is OFF since 2026-10-14: the reference is not
+    # stops if they disagree.  It is OFF in the config: the reference is not
     # computed at all, and the manifest records the comparison as None.
     cross_check = bool(config.require("tris.solver.cross_check"))
     cross_check_max_sigma = float(config.require("tris.solver.cross_check_max_sigma"))
@@ -547,7 +541,7 @@ def solve_frequency(
         raise RuntimeError(
             "limTOD's solve at {} MHz sits {:.3e} posterior sigma from the "
             "exact Woodbury reference (tolerance {:.1e}); it raised nothing, "
-            "which is exactly the silently-wrong case stage 5 exists to catch "
+            "which is exactly the silently-wrong case this check exists to catch "
             "-- lower tris.solver.regularization or check the "
             "conditioning".format(
                 frequency_mhz, solver_vs_exact_sigma, cross_check_max_sigma,
@@ -747,8 +741,7 @@ def run_stage1(
     mapmaker = str(config.require("tris.mapmaker"))
     if mapmaker != "prior_regularized":
         raise ConfigError(
-            "stage 1 implements tris.mapmaker='prior_regularized' (the "
-            "gameplan's stage 1.4 decision); 'beamwidth_binning' is "
+            "stage 1 implements tris.mapmaker='prior_regularized'; 'beamwidth_binning' is "
             "limTOD.tris.tris_beamwidth_binning_map and is not wired up here"
         )
     if verbose:
@@ -766,14 +759,14 @@ def run_stage1(
     ]
 
     # Both rings share an RA grid and a boresight declination, so they share a
-    # pixel band.  Stage 3 stacks them into one (Nfreq, npix) array, so a
+    # pixel band.  The product stacks them into one (Nfreq, npix) array, so a
     # mismatch here would be a silent misalignment downstream.
     reference = results[0]
     for result in results[1:]:
         if not np.array_equal(result.pixel_indices, reference.pixel_indices):
             raise RuntimeError(
                 "the {} MHz and {} MHz rings solved different pixel sets; "
-                "stage 3 cannot stack them".format(
+                "they cannot be stacked".format(
                     reference.frequency_mhz, result.frequency_mhz
                 )
             )
@@ -804,8 +797,8 @@ def run_stage1(
         "data_k": np.vstack([r.data_k for r in results]),
         "residual_k": np.vstack([r.residual_k for r in results]),
         "beam_coverage": np.vstack([r.beam_coverage for r in results]),
-        # Full-sky maps with NaN outside the solved band.  Stage 3 decides how
-        # to fill before degrading to nside_new -- that is its call, not ours.
+        # Full-sky maps with NaN outside the solved band; a reader decides how
+        # to fill before degrading to nside_new.
         "sky_full_k": np.vstack([r.healpix_map() for r in results]),
         "sky_sigma_full_k": np.vstack([r.healpix_sigma() for r in results]),
     }
@@ -832,8 +825,8 @@ def run_stage1(
             "truth_template": "gsm2008",
             "prior_equals_truth": True,
             "note": (
-                "No true sky exists for real TRIS data and Berkhuijsen (1972) "
-                "is not in hand, so GSM2008 is both the prior template and the "
+                "No true sky exists for real TRIS data, so GSM2008 is both the "
+                "prior template and the "
                 "reference truth. Agreement between the stage 1 map and "
                 "truth_k is therefore circular and is NOT evidence the "
                 "pipeline recovered anything. The walkthrough measured GSM2008 "
@@ -844,10 +837,10 @@ def run_stage1(
             ),
         },
         "blocker_3_note": (
-            "The map solve is the direct Krylov solve (LinearOperator + "
-            "{}), never the multi-frequency Woodbury acceleration. The "
-            "Woodbury identity used for the posterior variance is exact at a "
-            "single frequency; the cross-check against it is {}.".format(
+            "The map solve is limTOD's dense Wiener filter (wiener_filter_map); "
+            "the in-repo Krylov solver ({}) is the tests' reference. The "
+            "Woodbury identity is exact at a single frequency; the cross-check "
+            "against it is {}.".format(
                 config.require("tris.solver.method"),
                 "on" if config.require("tris.solver.cross_check") else
                 "OFF (tris.solver.cross_check: false), so the map is limTOD's "
@@ -877,7 +870,7 @@ def run_stage1(
 
 
 # ---------------------------------------------------------------------------
-# reading stage 1 back (notebooks, stage 3, stage 5)
+# reading stage 1 back (the pipeline and the notebooks)
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class Stage1Products:

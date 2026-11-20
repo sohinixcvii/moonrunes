@@ -1,9 +1,8 @@
-"""Stage 3 prototype: the TOD route and the map route of the SED calibration.
+"""The SED inputs: the TOD route and the map route, the ring TODs and the survey uncertainties.
 
-The same calculation the former ``notebooks/07_sed_calibration`` developed step by step
-(removed 2026-11-16; in git at ``a5c827c``), packaged so that the notebooks can call it.
-It is a prototype, not a pipeline stage: it writes nothing, and the choices it
-makes are the module constants below.
+``Inputs`` builds everything the pipeline's steps 1 and 2 (and the notebooks) need from the maps: the TRIS rings,
+every allowed map beam-matched to the TRIS beam on the nside 16 grid and as a ring TOD, and each point's uncertainty.
+It writes nothing; the choices it makes are the module constants below and the config.
 
 * **Map route** (:func:`map_route`): every usable map matched to the TRIS beam
   on the nside grid (stage 2 procedure, :func:`match_to_tris_beam`, with the
@@ -39,8 +38,7 @@ NU0_MHZ = 408.0
 ASSUMED_FRACTION = 0.10
 #: ARCADE 2 calibration uncertainty, Fixsen et al. 2011 Table 3 (K).
 ARCADE_CAL_K = {3150.0: 7.5e-3, 3410.0: 6.0e-3}
-#: Each survey's own published uncertainty, keyed by file (2026-10-21, replacing the 10%
-#: placeholder).  ``scale`` is the temperature-scale (gain) error as a fraction of T,
+#: Each survey's own published uncertainty, keyed by file.  ``scale`` is the temperature-scale (gain) error as a fraction of T,
 #: ``zero_k`` the zero-level error and ``noise_k`` the rms noise, all 1 sigma.
 #: sigma_for combines them as scale*|T| (+) zero_k (+) noise_k, in quadrature, per point.
 #: 0 means the source quotes no such term.  ``choice`` notes where a value is a judgement.
@@ -59,37 +57,37 @@ PUBLISHED_ERRORS: Dict[str, Dict[str, object]] = {
         scale=0.20, zero_k=0.0, noise_k=0.0,
         source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
                "15-25% (conservative), for both structure and sky-averaged temperature",
-        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz"),
     "LWA1_40.fits": dict(
         scale=0.20, zero_k=0.0, noise_k=0.0,
         source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
                "15-25% (conservative), for both structure and sky-averaged temperature",
-        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz"),
     "LWA1_45.fits": dict(
         scale=0.20, zero_k=0.0, noise_k=0.0,
         source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
                "15-25% (conservative), for both structure and sky-averaged temperature",
-        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz"),
     "LWA1_50.fits": dict(
         scale=0.20, zero_k=0.0, noise_k=0.0,
         source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
                "15-25% (conservative), for both structure and sky-averaged temperature",
-        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz"),
     "LWA1_60.fits": dict(
         scale=0.20, zero_k=0.0, noise_k=0.0,
         source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
                "15-25% (conservative), for both structure and sky-averaged temperature",
-        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz"),
     "LWA1_70.fits": dict(
         scale=0.20, zero_k=0.0, noise_k=0.0,
         source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
                "15-25% (conservative), for both structure and sky-averaged temperature",
-        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz"),
     "LWA1_74.fits": dict(
         scale=0.20, zero_k=0.0, noise_k=0.0,
         source="LAMBDA fg_lwa1_radio_maps_info (Dowell et al. 2017): calibration accuracy "
                "15-25% (conservative), for both structure and sky-averaged temperature",
-        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz; added 2026-10-29"),
+        choice="20% = middle of the quoted 15-25% range, as for 35 and 80 MHz"),
     "MAIPU_45mhZ.fits": dict(
         scale=0.017, zero_k=39.0, noise_k=0.0,
         source="Monsalve et al. 2021 (LAMBDA fg_maipu_info): scale 1.076 +/- 0.034 and zero "
@@ -114,11 +112,11 @@ PUBLISHED_ERRORS: Dict[str, Dict[str, object]] = {
     "HASLAM.fits": dict(
         scale=0.10, zero_k=3.0, noise_k=0.0,
         source="Haslam et al. 1982: 10% temperature scale, 3 K zero level",
-        choice="target map, not a fit point; used only by notebook 03's noise test"),
+        choice="target map, not a fit point"),
     "HASLAM_DESTRIPED_ONLY.fits": dict(
         scale=0.10, zero_k=3.0, noise_k=0.0,
         source="Haslam et al. 1982: 10% temperature scale, 3 K zero level",
-        choice="target map, not a fit point; used only by notebook 03's noise test"),
+        choice="target map, not a fit point"),
 }
 MIN_COVERAGE = 0.5
 #: Every value ``sed.tod_beam`` may take (see :meth:`Inputs.ring_tod`).
@@ -243,7 +241,7 @@ class Inputs:
         self.beam = self.tris.tris_cut_beam_map(self.cuts, nside=self.nside, normalization="peak")
         self.horizon = self.tris.tris_horizon_mask(self.nside)
         # The ring TODs (sed.tod_beam): beam-matched to the TRIS cut beam at the ring
-        # pointings (zenith drift: RA = LST, Dec = site latitude), or the older native route.
+        # pointings (zenith drift: RA = LST, Dec = site latitude), or the native-resolution route.
         self.tod_beam = tod_beam(config)
         self.tod_key = tod_method_key(config)
         if self.tod_beam == "beam_matched":
@@ -307,7 +305,7 @@ class Inputs:
         """``(TOD, coverage)`` of map ``m`` along the ring, as ``sed.tod_beam`` says.
 
         ``beam_matched`` (:meth:`_beam_matched_tod`) needs ``m["fwhm_deg"]``, the map's
-        own beam; ``native`` (:meth:`_native_tod`) is the older route.  ``coverage`` is
+        own beam; ``native`` (:meth:`_native_tod`) observes the map at its own resolution.  ``coverage`` is
         the observed-weight fraction; a sample is used when it is >= MIN_COVERAGE."""
         if self.tod_beam == "beam_matched":
             return self._beam_matched_tod(m)
@@ -316,14 +314,14 @@ class Inputs:
     def _beam_matched_tod(self, m):
         """Stage 2's beam matching (``tris_cuts`` kernel, :mod:`moonrunes.elliptical_beam`)
         evaluated at the ring pointings: the TRIS cut beam with the map's own beam taken
-        out, so every TOD sees the TRIS beam once.  ``test_results.ipynb`` Part A builds the same TODs."""
+        out, so every TOD sees the TRIS beam once."""
         rotated, observed = self._rotated(m)
         r = elliptical_beam.smooth_at_positions(np.where(observed, rotated, 0.0), observed,
                                                 float(m["fwhm_deg"]), self.tod_spec, self.ring_vec)
         return np.asarray(r["values"], dtype=float), np.asarray(r["weight"], dtype=float)
 
     def _native_tod(self, m):
-        """The older TOD: the map at its own resolution, on the nside grid, observed with
+        """The native-resolution TOD: the map at its own resolution, on the nside grid, observed with
         limTOD's TRIS beam -- so the map's own beam stays in on top of the TRIS beam.
         Kept for ``sed.tod_beam: native`` and for beam tests that want exactly that."""
         import healpy as hp

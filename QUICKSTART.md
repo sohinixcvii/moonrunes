@@ -1,227 +1,211 @@
 # Handover
 
-What someone taking this project over needs: which notebook cell makes which paper figure, table and number; the
-environment; the data and what may not be shared; constants defined in more than one place; notebook previews that
-are out of date; and the open items. As of **2026-11-16**. Line numbers in `main.tex` refer to the paper repo
-(`Papers_and_reports/moonrunes_paper/main.tex`) as of that date.
+What someone taking this project over needs: how to reproduce the paper's results, which code makes which figure,
+table and number, the environment, the data that may not be shared, constants defined in more than one place, the
+state of the stored notebook outputs, and the open items. The method itself is in `docs/PIPELINE.md`; the datasets in
+`docs/DATA_SOURCES.md`; every plot in `docs/PLOT_INDEX.md`; the decisions in force in `CHANGELOG.md`.
 
-Notebook overview: `NOTEBOOK_INDEX.md`. Every plot: `PLOT_INDEX.md`. Every dataset: `DATA_SOURCES.md`. Pipeline:
-`PIPELINE.md`. Rules for working in this repo: `CLAUDE.md`.
+The paper lives in a separate repository (`moonrunes_paper`, `main.tex`). Paper items are referred to by their
+LaTeX labels, which do not move when the text is edited.
 
 ---
 
-## 1. Reproducing the paper, in order
+## 1. Reproducing the results, in order
 
-1. **The pipeline:** `python run_pipeline.py --step all` (steps 0–7 and the report; `PIPELINE.md` Part I). Step 0
-   writes the TRIS maps to `outputs/stage1/`; steps 1–7 write `paper_outputs/pipeline/step*/`; the report is
-   `paper_outputs/pipeline/PIPELINE_REPORT.md`. It ran end to end on 2026-11-16 (18:17–19:59), with the LWA1
-   38–74 MHz maps included (11 points per sample in step 3, 13 in step 5). Settings: `configs/run_pipeline.yaml` and
-   `configs/model_comp_config.yaml` (`PIPELINE.md` P4; no setting is in both).
-2. **`notebooks/tests_analysis/`**, Parts C–I, K and L, one notebook per Part (they read the pipeline's products; A, B and J are checks). `notebooks/test_results.ipynb` is the merged notebook they were split from (record only).
-   Parts C–I make the paper's remaining numbers (`tab:step1`, Section 5's counts and residuals, zero levels,
-   robustness).
-3. **`notebooks/10_paper_plots.ipynb`** → the paper repo's `figures/` folder. Do not run the last line of cell 25
-   (`rhino_tods_tris_beam`, not in the paper) unless that file is wanted.
-4. `notebooks/diagnostics.ipynb` is independent (checks of the inputs and of stage 1).
+1. **The pipeline:** `python run_pipeline.py --step all` (one to two hours). Step 0 writes the TRIS maps to
+   `outputs/stage1/`; steps 1–7 write `paper_outputs/pipeline/step*/`; the report is
+   `paper_outputs/pipeline/PIPELINE_REPORT.md`. Every step writes a `manifest.json` with the settings it used.
+   The `.npz` products are git-ignored, so a fresh clone must run this first.
+2. **`notebooks/tests_analysis/`**, one notebook per Part (`README.md` there gives the order: A, then B before D–I and
+   K2, H before I). They read the pipeline's products. Parts C–I and L make paper numbers; A, B, J and K are checks.
+   Part D runs about 840 UltraNest fits (tens of minutes); K2 takes about 35 minutes.
+3. **`notebooks/10_paper_plots.ipynb`** writes the figures straight into the paper repository's `figures/` folder
+   (the path is set in cell 1, `OUT`; change it on another machine). Back up the old figures first. The last line of
+   cell 25 writes `rhino_tods_tris_beam`, which the paper does not use; skip it unless that file is wanted.
+4. `notebooks/diagnostics.ipynb` is independent: checks of the input files, the coordinate frames and the TRIS maps.
 
-`scripts/model_comparison/run_comparison.py` is not part of the chain: the comparison is pipeline step 3. It is
-a standalone tool (the same two configs and data sets, plus the map route) writing to
-`paper_outputs/model_comparison/results/`.
+`scripts/model_comparison/run_comparison.py` is a standalone version of the model comparison (the same configs, plus
+the map route); the pipeline does not use it. Its last output is in `paper_outputs/model_comparison/results/`.
 
 ## 2. Environment
 
-`environment.yml` describes the conda environment **`limtod`** (Python 3.14, healpy 1.20.0, matplotlib 3.11.1,
-pygdsm 1.7.1, ultranest 4.6.3, joblib 1.6.0 for the parallel fits of `10_paper_plots` Figure 7). limTOD is imported from the local checkout `../limTOD` (`configs/run_pipeline.yaml`
-`paths.limtod`), which carries local changes; do not `pip install limTOD`. The TRIS archive files are read from
-`../limTOD/downloads/TRIS` (`paths.tris_archive_dir`). Notebooks run from `notebooks/`.
+`environment.yml` describes the conda environment `limtod` (Python 3.14, healpy 1.20.0, matplotlib 3.11.1, pygdsm
+1.7.1, ultranest 4.6.3, joblib 1.6.0). limTOD is imported from the checkout `../limTOD` (`paths.limtod`;
+github.com/zzhang0123/limTOD at commit `dbe720b`), which has changes to `limTOD.tris` that the PyPI release does not;
+do not `pip install limTOD`. The TRIS archive files are read from `../limTOD/downloads/TRIS`
+(`paths.tris_archive_dir`); the RHINO beam and horizon mask from `../rhino-beams/` (step 7 only). The `tests_analysis`
+Parts find the repository root themselves (from any folder inside it); `10_paper_plots` and `diagnostics` must be run
+from `notebooks/` or the repository root. Headless: `jupyter execute <notebook>`.
 
 ## 3. Paper figures
 
-All in `notebooks/10_paper_plots.ipynb` (cell numbers 0-based), written to the paper repo's `figures/` as PDF + PNG.
-Six-point set = TRIS 600, TRIS 820, LWA1 35, Maipu 45, LWA1 80, Stockert 1420. Ring = 120 samples, RA 0–357° in 3°
-steps, Dec +42.433°; beam = `tris_cuts` 19.155° × 23.366° (E plane 7° east of the meridian), coverage ≥ 0.5.
+All made by `notebooks/10_paper_plots.ipynb` (cell numbers 0-based), as PDF + PNG. Ring = 120 samples, RA 0–357° in 3°
+steps, Dec +42.433°; beam = `tris_cuts`, 19.155° × 23.366° (E plane 7° east of the meridian); samples kept where the
+observed beam weight is ≥ 0.5. "Step 5's data sets" = every map `sed.exclude_maps` leaves in with data on the ring
+(LWA1 35, 38, 40, 45, 50, 60, 70, 74, 80; Maipu 45; Stockert 1420) plus TRIS 600.5 and 817.8: 13 points.
 
 | File | Label | Cell(s) | Inputs and configuration |
 |---|---|---|---|
-| `fig1_data_maps_tris_slice` | `fig:maps-slice` | 5 | five maps (`SURVEY_FILES`, cell 1 lines 37–38: LWA1 35, Maipu 45, LWA1 80, Haslam, Stockert), native resolution, no beam. Not the LWA1 38–74 MHz maps used by Figure 10 |
-| `fig2_method_tris_beam` | `fig:tris-beam` | 20 | `beam_spec_from_config(kernel="tris_cuts")`; asserts 19.155/23.366 |
-| `fig3_method_tris_maps` | `fig:tris-maps` | 7 | stage-1 maps (map route, circular 23.366° kernel in stage 2); stage-1 zero level **not added** |
-| `fig4_method_models_vs_tris_tods` | `fig:tods-600-820` | 10 | TRIS ring data; model TODs from pipeline step 2 (`beam_matched_tods.npz`: Carter, Irfan at 408 MHz and GINAN at 350 MHz; Carter and GINAN carried with the base model's spectrum, Irfan with Irfan & Puglisi's β_s and c_s maps) |
-| `fig5_tt_beta_matrix` | `fig:beta-matrix-ring` | 12 (York), 14 | 7 ring TODs (six-point set + Haslam); York, σ × √(χ²/ν); pairs need ≥ 20 samples |
-| `fig6_tt_beta_vs_frequency` | `fig:beta-vs-freq` | 16 | as fig5 |
-| `fig7_modelcomp_fits_vs_tris` | `fig:modelcomp-tris` | 18 | its own maximum-likelihood refits (24 starts), six-point set, priors from `configs/model_comp_config.yaml` |
-| `fig8_skymodel_models_vs_prediction_408` | `fig:models-vs-prediction-408` | 28 | prediction = pipeline step 5 (our model: UltraNest maximum-likelihood A and posterior σ; 13 points with TRIS since the 2026-11-16 run, six in the paper's version); models from step 2 |
-| `fig9_skymodel_tris_anchor_gz` | `fig:tris-anchor` | 22–23 | Haslam = g·P + z (York), 103 samples (Cygnus A ± 25° out); data sets, data and errors from step 5's fit files (every map `sed.exclude_maps` leaves in with data on the ring, plus TRIS: 13 points); cell 22 checks its TRIS-only fits against `paper_outputs/nb08_paper_plots/fig15_*.csv` (open item 7) |
-| `fig10_rhino_tods_rhino_beam` | `fig:rhino-rhino-beam` | 25 (function), 26 | `paper_outputs/pipeline/step7_rhino/rhino_tods_rhino_beam.csv`: **our model (step 5, UltraNest; 13 points with TRIS in the 2026-11-16 run)**, Wiener deconvolution with a GSM2016 prior, RHINO beam from `../rhino-beams/`; GSM2008 + Irfan carried with Irfan & Puglisi's β_s and c_s (stale in the 2026-11-16 products until step 7 is rerun). Step 7 has run; **the figure in the paper is the earlier 13-point weighted-least-squares version and needs redrawing** |
+| `fig1_data_maps_tris_slice` | `fig:maps-slice` | 5 | the eleven survey maps of step 5's data sets and Haslam, native resolution, no beam, two columns |
+| `fig2_method_tris_beam` | `fig:tris-beam` | 20 | `beam_spec_from_config(kernel="tris_cuts")`; asserts 19.155° / 23.366° |
+| `fig3_method_tris_maps` | `fig:tris-maps` | 7 | step 0's TRIS maps; the fitted zero level is not added |
+| `fig4_method_models_vs_tris_tods` | `fig:tods-600-820` | 10 | TRIS ring data (labelled on the plot); model TODs from step 2 (`beam_matched_tods.npz`); Carter and GINAN carried with the base model's spectrum, Irfan with Irfan & Puglisi's β_s and c_s |
+| `fig5_tt_beta_matrix` | `fig:beta-matrix-ring` | 12 (York fits), 14 | 14 ring TODs (step 5's data sets + Haslam), 90 pairs; York, σ × √(χ²/ν); pairs need ≥ 20 samples; LWA1 45 vs Maipu 45 skipped (equal frequencies). Drawn full width |
+| `fig6_tt_beta_vs_frequency` | `fig:beta-vs-freq` | 16 | as Figure 5 |
+| `fig7_modelcomp_fits_vs_tris` | `fig:modelcomp-tris` | 18 | its own maximum-likelihood fits (24 starts, in parallel) on step 5's data sets; priors from `configs/model_comp_config.yaml` |
+| `fig8_skymodel_models_vs_prediction_408` | `fig:models-vs-prediction-408` | 28 | our model at 408 MHz (step 5: maximum-likelihood A, posterior σ) against step 2's 408 MHz model TODs |
+| `fig9_skymodel_tris_anchor_gz` | `fig:tris-anchor` | 22–23 | Haslam = g·P + z (York), 103 samples (Cygnus A ± 25° out), step 5's data and errors; the β grid and reference points are read from `paper_outputs/nb08_paper_plots/fig15_part3_g_z_vs_beta.csv` and the TRIS-only fits checked against `fig15_part1_haslam_gain_offset.csv` (open item 6) |
+| `fig10_rhino_tods_rhino_beam` | `fig:rhino-rhino-beam` | 25 (function), 26 | step 7's `rhino_tods_rhino_beam.csv`: our model, Wiener-deconvolved with a GSM2016 prior, observed with the RHINO beam at the Jodrell Bank zenith |
 
 ## 4. Paper tables and quoted numbers
 
-The tables are typed into `main.tex` by hand (the paper's `tables/` folder is empty). Cell numbers below are those of
-`notebooks/test_results.ipynb` unless stated; in `notebooks/tests_analysis/`, subtract the Part's offset (table in its `README.md`).
+The tables are typed into `main.tex` by hand.
 
 | Paper item | Made by | Configuration to state |
 |---|---|---|
-| `tab:surveys` (main.tex:140) | by hand; matches `DATA_SOURCES.md:173–181` and `src/moonrunes/sed_prototype.py:47–122` | lists LWA1 35 and 80 only (Figure 10 uses nine LWA1 maps) |
-| `tab:step1` (main.tex:363) | Part E, cell 148 → `paper_outputs/phil_plots/plot6a_models_fitted_to_tris.csv` | **TRIS = a·model + b**, weighted least squares, errors on TRIS only, covariance × χ²/ν; TRIS data from Part B's cache, models from Part A |
-| `tab:408-residuals` (main.tex:541) | pipeline step 6 → `paper_outputs/pipeline/step6_predict_408/residuals_408.csv` (also printed by `10_paper_plots` cell 28; Part B's check: `test_outputs/sky_models_408/chi2_sky_models_vs_fits.csv`) | χ² with σ = prediction posterior σ only (no model error). **The % columns are in no file in the repo** |
-| `tab:scale-offset` (main.tex:570) | pipeline step 6 → `paper_outputs/pipeline/step6_predict_408/scale_offset_408.csv` (the same York fit as Part F; its table: `test_outputs/plot3_haslam_vs_fit/`) | **model = a·P + b**, York, errors on both axes, σ inflated; every model given Haslam's σ (10% ⊕ 3 K); Cygnus A ± 25° → 103 samples |
-| Section 5 verdict "0/114/6", "68 borderline" (main.tex:501) | Part C, cells 44 and 80, from pipeline step 3 (`paper_outputs/pipeline/step3_model_comparison/`; **the 2026-11-16 run has 11 points, the paper's counts came from the 4-point 2026-10-29 run: rerun Part C**) | **four points, TRIS excluded by design** (open item 1) |
-| Stacked residuals "TRIS 817.8 −1.46σ, LWA1 80 +0.80σ" (main.tex:503) | Part D, cell 110 | six-point UltraNest fits from Part B (open item 2) |
-| 408 MHz prediction "median 32.13 K, σ 0.17 K" (main.tex:523) | pipeline step 6 (`prediction_408.csv`); also `10_paper_plots` cell 28 | our model (step 5). **The 2026-11-16 run (13 points) gives 32.15 K, σ 0.168 K**; the paper's value is from six points |
-| Zero levels as fitted offsets (main.tex:394) | Part H, cells 206–208 (Tables 1–2) | six-point set |
-| g, z robustness (main.tex:396; by keyword also 490, 507–508, 607) | Part I, cell 228 → `paper_outputs/robustness_check/robustness_table.csv` | six-point baseline, 103 samples |
-| Ratio "0.81 … 0.97" (main.tex:647) | Part F, Summary (cell 175) | the notebook says **0.98** (open item 5) |
-| Section 7 numbers (main.tex:601–617, 628, 671, 689) | pipeline step 7 → `paper_outputs/pipeline/step7_rhino/rhino_summary.csv`; `10_paper_plots` cells 25–26 print them | **our model (step 5); the paper's numbers come from the earlier 13-point weighted-least-squares fit and are stale** |
-| Beam tests (main.tex:271–275) | `notebooks/tests_analysis/` Parts K3 (`scripts/beam_averaging_blobs/`) and K4 (`scripts/fwhm_scaling_test.py`), shown from saved results | — |
-| Zero levels +1.74 and +0.52 K (main.tex:303; Figure 3 caption) | stage 1 (pipeline step 0) → `outputs/stage1/stage1_manifest.json`, `frequencies.600.zero_level_k` = 1.7369 K and `frequencies.820.zero_level_k` = 0.5158 K; also printed by `10_paper_plots` cell 7 | the 2026-11-16 product: nside 16, GSM2008 prior; fitted, not added to the maps; `outputs/stage1/` is git-ignored, so step 0 rebuilds it |
-| 23 and 7 of 1272 pixels narrowed by more than 5 per cent (main.tex:303) | `stage1_manifest.json`, `frequencies.<600, 820>.pixels_shrunk_gt_5pct` = 23, 7; `n_sky_pixels` = 1272 | posterior against prior σ per pixel; same product |
-| Median posterior-to-prior width 0.998 and 0.999 (main.tex:303) | `stage1_manifest.json`, `frequencies.<600, 820>.sigma_shrinkage_median` = 0.9985, 0.9987 | same product |
-| Stripe Dec +7.8° to +77.2° (Figure 3 caption; Figure 1's stripe) | `10_paper_plots` cell 1 (`DEC_LO`, `DEC_HI`: the stage 1 band mask's pixel-centre declinations, +9.59° to +75.34°, ± half an nside 16 pixel); its stored output prints it, and it was recomputed from `outputs/stage1/tris_maps_tris_haslam_v0.npz` | band = the 1272 pixels where the beam response exceeds 0.01 of its peak |
-| Fisher shares and σ(ln A) leave-out (main.tex:625: 88, 79–95 and 11 per cent; 0.006, 0.065, 0.25; < 2e-5) and g at the median index (main.tex:625–626) | `notebooks/tests_analysis/` Part L, cells 11 (each quoted number with its definition, six-survey and 13-point values) and 13 (g) → `paper_outputs/fisher_share/` | Fisher (ln A, β) of T = A (ν/408)^β at step 5's 13-point fit (UltraNest maximum-likelihood point), errors as now, 103 samples (Cygnus A ± 25° masked); definitions of the old notebook 08 cell 54; the quoted values are the six-survey ones, which Part L reproduces |
+| `tab:surveys` | by hand, from `docs/DATA_SOURCES.md` and `configs/error_bars.csv` | survey uncertainties as published (`CHANGELOG.md`) |
+| `tab:step1` | Part E, cell 26 → `paper_outputs/phil_plots/plot6a_models_fitted_to_tris.csv` | **TRIS = a·model + b**, weighted least squares, errors on TRIS only, covariance × χ²/ν |
+| `tab:408-residuals` | step 6 → `paper_outputs/pipeline/step6_predict_408/residuals_408.csv` (printed by `10_paper_plots` cell 28) | χ² with σ = the prediction's posterior σ only |
+| `tab:scale-offset` | step 6 → `scale_offset_408.csv` (plotted by Part F) | **model = a·P + b**, York, errors on both axes, σ inflated; every model given Haslam's σ (10 % ⊕ 3 K); Cygnus A ± 25° out → 103 samples |
+| Section 5 counts (wins, ties, borderline samples) | Part C, cells 13 and 49 (`part6_counts_masked.csv`), from step 3 | step 3's data sets: 11 surveys, **TRIS excluded by design** |
+| Stacked residuals by survey | Part D, cell 17 → `paper_outputs/model_choice/stacked_residuals.csv` | criterion 1 uses step 3 (no TRIS); criteria 2–5 use fits with TRIS |
+| 408 MHz prediction (median and σ) | step 6 → `prediction_408.csv`; also `10_paper_plots` cell 28 | our model (step 5) |
+| Zero levels as fitted offsets | Part H, cells 12 and 14 → `paper_outputs/zero_level_offsets/table1_offsets.csv`, `table2_chi2.csv` | one offset per survey, shared by all samples, priors from the published systematics |
+| g, z robustness | Part I, cell 9 → `paper_outputs/robustness_check/robustness_table.csv` | baseline: step 5's data sets, 103 samples |
+| Haslam against the prediction (ratios) | Part F (reads step 6) | York, as `tab:scale-offset` |
+| Section 7 (RHINO) numbers | step 7 → `rhino_summary.csv`, `rhino_checks.csv`; `10_paper_plots` cells 25–26 print the medians | our model; the closure, the uncertainty limits and the Irfan split are in `rhino_checks.csv` (`CHANGELOG.md`) |
+| Irfan spread along the ring at 600 / 820 MHz | step 2 → `irfan_split_tris.csv` (`range (max − min) total (K)`) | Irfan-corrected model − base model, through the TRIS beam |
+| Fisher shares, σ(ln A) leave-out, g at the median index | Part L, cells 9, 11, 13 → `paper_outputs/fisher_share/` | Fisher (ln A, β) of T = A (ν/408)^β at step 5's fit, 103 samples |
+| Beam tests | Parts K3 (`scripts/beam_averaging_blobs/`), K4 (`scripts/fwhm_scaling_test.py`), K5 (`scripts/beam_tests_lwa35_stockert1420/`), shown from saved results | — |
+| TRIS zero levels +1.74 / +0.52 K; 23 / 7 of 1272 pixels narrowed > 5 %; posterior/prior width 0.998 / 0.999 | step 0 → `outputs/stage1/stage1_manifest.json` (`frequencies.<f>.zero_level_k`, `pixels_shrunk_gt_5pct`, `sigma_shrinkage_median`); `10_paper_plots` cell 7 prints them | nside 16, GSM2008 prior; the zero level is fitted, not added to the maps |
+| TRIS stripe Dec +7.8° to +77.2° | `10_paper_plots` cell 1 (`DEC_LO`, `DEC_HI`) | the 1272 pixels where the beam response exceeds 0.01 of its peak |
 
-## 5. Data, and what may not be shared
+## 5. Data that may not be shared
 
-Every dataset, its source and its uncertainty: `DATA_SOURCES.md`. Do **not** copy or expose:
+Every dataset, its source and its uncertainty: `docs/DATA_SOURCES.md`. Do **not** copy or redistribute:
 
-- `res/Juno_600MHz.fits`, `res/Juno_1248MHz.fits`: no provenance in the repo (header has only NSIDE/ORDERING; no unit,
-  frame, beam or citation). Excluded from every fit (`sed.exclude_maps`).
-- `external/irfan_puglisi_2025/*.npy`: third-party maps (Irfan & Puglisi 2025), git-ignored; licence not in the repo
-  (to be cleared with the authors). Used by the pipeline's Irfan correction off 408 MHz (steps 2 and 7,
-  `pipeline.sky_models.irfan_beta_map`, `irfan_cs_map`) and by Part J's β comparison.
-- Anything derived from `../rhino-beams/` (RHINO beam and Jodrell Bank horizon mask): outside the repo; used by Part J
-  Test 6 and so by Figure 10.
-- `log_28thoct_allmaps_3rdmomentadded.txt`: contains local absolute paths.
+- `res/Juno_600MHz.fits`, `res/Juno_1248MHz.fits` (git-ignored): no provenance (the header has only NSIDE and
+  ORDERING; no unit, frame, beam or citation). Excluded from every fit.
+- `external/irfan_puglisi_2025/*.npy` (git-ignored): Irfan & Puglisi 2025's β_s and c_s maps; the licence is not
+  cleared with the authors. Used by the Irfan correction off 408 MHz (steps 2 and 7) and by Part J's β comparison.
+- Anything derived from `../rhino-beams/` (the RHINO beam and the Jodrell Bank horizon mask): used by step 7 and so
+  by Figure 10.
+- Logs or outputs that contain local absolute paths.
 
-`res/CHIPASS_1400MHz.fits` is git-ignored (`.gitignore:249`). The other maps in `res/` are LAMBDA products.
+`res/CHIPASS_1400MHz.fits` is git-ignored (too large). The other maps in `res/` are LAMBDA products.
 
 ## 6. Constants defined in more than one place
 
-Not merged; listed so that a change is made everywhere. "TR" = `notebooks/test_results.ipynb` cell numbering (in `notebooks/tests_analysis/`, subtract the Part's offset: `README.md` there), "PP" =
-`notebooks/10_paper_plots.ipynb`, "c:L" = cell:line.
+Not merged; listed so that a change is made everywhere. "PP" = `notebooks/10_paper_plots.ipynb`; "A c2:15" = Part A,
+cell 2, line 15.
 
 | Constant | Where | Agree? |
 |---|---|---|
-| Cygnus A RA 299.9° | TR A c3:32, B c15:51, C c34:55, D c95:22, F c162:17, G c178:18, H c196:33; PP c1:44 | yes |
-| Cygnus half-window | 25° in TR F c162:17, G c178:18, PP c22:14; Parts C and D also use ±15° | **no** (two windows) |
-| Carter 1.029, 0.91 K | TR A c3:27, J c235:49, B c15 (`HASLAM_CORRECTIONS`) | yes |
-| Irfan monopole 8.9 K | `run_pipeline.yaml` `pipeline.sky_models.irfan_monopole_k`; TR A c3:28, B c15:32, J c235:50 | yes |
-| Irfan ν₀ = 45 MHz and the β_s / c_s files | `run_pipeline.yaml` `pipeline.sky_models.irfan_*`; TR J c243:2–3 (`IRFAN_NU0`, `IRFAN_FILES`) | yes (both read the files as Galactic, RING) |
-| GINAN anchor 350 MHz | TR A c3:29, B c15:48 | yes |
-| Coverage floor 0.5 | `sed_prototype.py:123` `MIN_COVERAGE`; `run_pipeline.yaml` `beam_matching.weight_floor`; TR E c124:22, F c162:15, G c178:16 (`COV_MIN`); diagnostics A c62:9 | yes |
-| `INFLATE` (σ × √(χ²/ν)) | TR E c124:25, F c162:16, G c178:17, H c210:1, I c222:47; PP c1:42 | yes |
-| ν0 = 408 MHz | `sed_prototype.py:36`, `configs/model_comp_config.yaml` `models.nu0_mhz`, TR I c222:44, PP c22:14; TR H and J read the config | yes |
-| TRIS frequencies 600.5 / 817.8 | TR A c3:31 (hard-coded); computed from the ring files in TR E and PP c3 | yes |
-| T–T pair cut `MIN_RATIO` | 1.0 in TR E c124:23 and PP c1:43 (the removed notebook 08 used 1.3) | yes now |
-| T_CMB | 2.72548 K in `sky_maps.py:316`; 2.725 K in pygdsm, used for GINAN (TR A, B) | **no** (≤ 22 mK on the GINAN map) |
-| Survey error bars | `sed_prototype.py:47–122` (`PUBLISHED_ERRORS`) and `configs/error_bars.csv` | yes (two copies) |
+| Cygnus A RA 299.9° | `run_pipeline.yaml` `pipeline.predict_408.cygnus_ra_deg`; A c2:15, B c2:52, C c3:56, D c2:24, F c2:18, G c2:20, H c2:34, I c3:48, L c1:20; PP c1:43 | yes |
+| Cygnus half-window | 25° in `pipeline.predict_408.cygnus_half_width_deg`, C c47:2, F c2:18, G c2:20, I c3:48, L c1:20, PP c22:13; **15°** as an alternative in C c47:3 and D c2:25 | two windows, by design |
+| Carter 1.029, 0.91 K | `run_pipeline.yaml` `pipeline.sky_models.carter`; B c2:36 | yes |
+| Irfan monopole 8.9 K | `pipeline.sky_models.irfan_monopole_k`; B c2:33 | yes |
+| Irfan ν₀ = 45 MHz and the β_s / c_s files | `pipeline.sky_models.irfan_*`; Part J cell 11 | yes |
+| GINAN anchor 350 MHz | `pipeline.sky_models.ginan_freq_mhz`; B c2:49 | yes |
+| Coverage floor 0.5 | `sed_prototype.py` `MIN_COVERAGE`; `beam_matching.weight_floor`; E c2:24, F c2:17, G c2:18, K2 c64:12 (`COV_MIN`) | yes |
+| σ × √(χ²/ν) when χ²/ν > 1 (`INFLATE`) | `pipeline.york`; E c2:27, G c2:19, H c16:1, I c3:50; PP c1:41 | yes |
+| ν₀ = 408 MHz | `sed_prototype.py`; `model_comp_config.yaml` `models.nu0_mhz`; I c3:47, L c1:19, PP c22:13 | yes |
+| T–T pair cut `MIN_RATIO` 1.0 | E c2:25, PP c1:42 | yes |
+| T_CMB | 2.72548 K in `sky_maps.py`; 2.725 K inside pygdsm, used for GINAN | **no** (≤ 22 mK on the GINAN map) |
+| Survey uncertainties | `sed_prototype.py` `PUBLISHED_ERRORS` and `configs/error_bars.csv` | yes (two copies) |
+| York fit | `pipeline.york`; copies in Parts E, G, H, I and PP cells 12, 22 | yes |
 
-## 7. Stale notebook previews
+## 7. Stored notebook outputs
 
-Stored outputs that may not match the current code or files. "Stale" means the stored text or image predates a
-change; it is not proof that a number is different.
-
-- **`10_paper_plots.ipynb`:** run on 2026-11-16 before the save names became `figN_…`, so its "saved …" lines print the
-  old file names. The figures in the paper repo are the `figN_` files.
-- **`tests_analysis/` Parts and `diagnostics.ipynb`:** stored outputs are from the original notebooks, not
-  re-run after the merge (Part L excepted). Part D cell 6 holds the error of the failed 2026-11-17 run (fixed since). Part K2's first code cell (a copy of the old setup cell) has no output.
-- **Part B Summary:** χ²/N 134.0 / 134.2 (run of 2026-10-23) against 130.72 / 137.11 in its own CSV and in the paper.
-- **Part J first cell:** says "4 survey points … and both TRIS frequencies"; `DATASETS` and its outputs have 13.
-- **Diagnostics Part C and `tests_analysis` Part K2:** partly on the earlier grid (TODO N-1).
-- **`notebooks/tests_analysis/` Parts A and B:** the cells that read the pipeline's TODs and 408 MHz sky-model TODs have no
-  stored output. Part J has no Test 6 cells (RHINO is step 7). Other cells' stored outputs print the old paths.
-- **`10_paper_plots.ipynb`:** its stored outputs predate the switch to the pipeline's products (paths in printed
-  lines are the old ones); Figure 10's cells need step 7 to have run. Cells 18 (parallel fits), 22–23 (Figure 9 on the
-  pipeline's data sets), 25 (RHINO line widths) and the run-time cells have changed since the stored outputs.
+The notebooks are committed with their outputs. Last runs: Parts B–G, I–L on 2026-11-17 or 2026-11-18; Part K2 on
+2026-11-18. Older: Part A (several cells have no stored output), Part H (its outputs are from the six-survey subset),
+and `diagnostics.ipynb` (Part A shows the TRIS maps of an nside 8 run; Part C runs on earlier grids). Each Part's first
+code cell records the start time and its last cell prints the run time.
 
 ## 8. Open items
 
-1. **Section 5's comparison excludes TRIS by design** (pipeline step 3, `comparison.exclude_tris: true` in
-   `configs/model_comp_config.yaml`): 11 points per sample (LWA1 35, the seven LWA1 38–74 MHz maps, Maipu 45,
-   LWA1 80, Stockert 1420; 4 in the 2026-10-29 run). main.tex:501 describes it as made on the six ring surveys
-   including TRIS; the text should change, not the code.
-2. **Part D combines two data sets** by design: criterion 1 is the step 3 evidence (no TRIS); criteria 2–5 use the
-   six-point fits (TRIS included).
-3. **Survey sets:** `sed.exclude_maps` does not list the LWA1 38–74 MHz maps, so the pipeline uses
-   11 points (step 3) and 13 (step 5, and everything built on it: steps 6–7, and the `notebooks/tests_analysis/` Parts and
-   `10_paper_plots` cells that read step 5). **The paper's Sections 5–7, `tab:408-residuals`, `tab:scale-offset`,
-   Figure 8 and Figure 10 were made from the 4- and 6-point sets and are stale until regenerated** (`PIPELINE.md`
-   P10 gives the 2026-11-16 run's headline numbers). `tab:surveys` and Figure 1 show the six-point surveys. Figure 7
-   (`10_paper_plots` cell 18) and `notebooks/tests_analysis/` Part J choose their data sets themselves (six and 13 points).
-4. **"a" means opposite things in `tab:step1` and `tab:scale-offset`,** and the two tables use different fitters and
-   error models (see §4).
-5. **main.tex:647 says 0.97; Part F says 0.98.** The "2–3 K after the best single gain and offset" in the same sentence
-   may come from Part G; not confirmed.
-6. **`tab:408-residuals` % columns** are not in any file in the repo.
-7. **Figure 9's check reads `paper_outputs/nb08_paper_plots/fig15_*.csv`**, written by notebook 08 (archived in
-   `../moonrunes_archive_2026-11-17/notebooks/08_update_plots.ipynb`; also in git at `a5c827c`). Nothing in the repo
-   writes these files. Its Fisher calculation (cell 54) is `tests_analysis` Part L, which reproduces its printed
-   values on the six surveys.
-8. **GINAN as an outlier (to be confirmed):** the GINAN-corrected GSM2016 is 1.534 × GSM2016 plus an offset carried
-   with GSM2016's spectrum; the multiplicative term spans 8.5 K along the ring at 600 MHz and puts the bumps where the
-   ring crosses the Galactic plane (RA ≈ 69° and 300–321°). **To be confirmed:** anchoring at a lower frequency inside
-   the correction's valid range (e.g. 300 MHz, F = 1.40) would reduce the bumps by about a quarter (multiplicative term
-   only; the offset term was not recomputed).
-9. **`CLAUDE.md` names a colour-vision checker `check_figures_cvd.ipynb`; no such notebook exists.** The checks so far
-   were done with throwaway scripts outside the repo.
-10. **Old notebook numbers left in runtime strings** (not changed, because they end up in printed output or figure
-    text): `src/moonrunes/sed_prototype.py:117, 121` ("notebook 03's noise test" → `notebooks/tests_analysis/` Part K2),
-    `scripts/fwhm_scaling_test.py:195, 276` and `scripts/beam_tests_lwa35_stockert1420/fwhm_scaling_test_maps.py:187`
-    ("notebooks/03" → `notebooks/tests_analysis/` Part K2).
-11. **Juno maps:** provenance, units and frame unknown (see §5).
-12. **TRIS beam width:** the archive header (`res/TRIS_absolute_600.txt`, line 6) says the 3 dB beam is 18° wide in the E
-    plane; the code uses 19.155° (checked in `notebooks/tests_analysis/` Part K1).
-13. **Irfan correction off 408 MHz** follows Irfan & Puglisi 2025 (their eqs. 1, 2, 6, 11): β_s and c_s from their maps,
-    ν₀ = 45 MHz (`pipeline.irfan_scaling`). Open: (a) the licence of `external/irfan_puglisi_2025/*.npy`; (b) their full
-    sky model also adds a free-free template (§3.2), not added here; (c) the maps' frame and ordering are not stated in
-    the paper (Galactic, RING determined from the data, see `DATA_SOURCES.md`); (d) the 2026-11-16 step 2 and step 7
-    Irfan products, Figure 4, Figures 9–10, the step 7 numbers and `notebooks/tests_analysis/` Part E's Irfan plots (6a–6c) predate it; (e) `CLAUDE.md` line 25 says every
-    correction is carried with the base model's spectrum.
-14. **Folders moved on 2026-11-17** (by hand): docs to `docs/`; `model_comparison/`, `beam_averaging_blobs/`,
-    `beam_tests_lwa35_stockert1420/` and `tests/` to `scripts/`. Code, `pyproject.toml` (`testpaths`) and the docs
-    point to the new places; stored notebook outputs and archived files still print the old paths.
+**Method**
 
-## 9. What is in the archive folder
+1. **Correlated errors.** Survey scale and zero-level terms, and TRIS's zero level, are the same for every point of a
+   survey but are added per point as independent noise. Consequences: χ²/dof is not a goodness-of-fit test; the
+   summed ln Z of step 3 counts each independent beam about six times (it ranks the models, but overstates the
+   preference; thinning to one sample per beam gives Δln Z ≈ 5–7 instead of 36 for the curved power law); and step 7's
+   RHINO-beam σ is a lower bound (0.4 % quoted, 0.8–0.9 % with the ring errors correlated, 3.6–4.0 % with the prior
+   correlated: `rhino_checks.csv`). Part H fits one offset per survey as a partial test.
+2. **Stage 1 at nside 16** (`tris.nside_hires: 16`): reduced χ² 16.1 / 5.9 against 3.09 / 3.22 with 64. Kept for
+   speed and so that every product shares the TRIS grid.
+3. **The stage 1 convergence cross-check is off** (`tris.solver.cross_check: false`). Switch it on before using the
+   TRIS maps quantitatively; the TOD route does not use the maps.
+4. **The 820 MHz zero level is asymmetric** (+0.43 / −0.30 K). Stage 1 uses one symmetric 0.5 K prior; the ring
+   errors in the fits use the larger side.
+5. **Beam matching of broad-beam surveys** (`scaled_cuts`, natives above ~1.2°: LWA1, Maipu): the matched beam comes
+   out slightly wider than the target (LWA1 35 MHz +2.4 % / +1.4 %). `elliptical_gaussian` hits the widths but has
+   Gaussian shoulders.
+6. **Figure 9 reads two tables nothing in the repo writes**: `paper_outputs/nb08_paper_plots/fig15_part1_*.csv` and
+   `fig15_part3_*.csv` (the β grid and reference points, and a check of the TRIS-only fits). The calculation should
+   move into `10_paper_plots` cell 22 so the files are produced here. The rest of `nb08_paper_plots/` is not read by
+   anything.
+7. **Maipu 45 MHz:** Monsalve et al. 2021's corrections (×1.076, −160 K) are not applied; only their uncertainties are
+   used. Maipu carries much of the low-frequency weight.
+8. **Judgement calls in the survey uncertainties:** LWA1 20 % is the middle of 15–25 % (Dowell et al. 2017 also publish
+   per-pixel uncertainty maps, not used); CHIPASS borrows Stockert's scale and zero-level errors; Rhodes's are upper
+   limits used as 1σ.
+9. **The Irfan correction:** the licence of the β_s / c_s maps; their full model also adds a free-free template, not
+   added here; the maps' frame and ordering (Galactic, RING) were determined from the data, not stated in the paper.
+10. **GINAN anchor frequency (to be confirmed):** the GINAN-corrected GSM2016 is 1.534 × GSM2016 plus an offset;
+    anchoring at 300 MHz (F = 1.40) instead of 350 MHz would reduce the bumps where the ring crosses the Galactic plane
+    by about a quarter (multiplicative term only; the offset term was not recomputed).
+11. **TRIS beam width:** the archive header says the 3 dB beam is 18° wide in the E plane; the code uses 19.155° from
+    the archive's beam cuts (checked in Part K1).
+12. **The TRIS effective frequencies** (600.5, 817.8 MHz) and bandwidths come from limTOD's table
+    (`../limTOD/limTOD/tris/archive.py`), attributed there to Zannoni et al. 2008 Sect. 2 and Tab. 1; not checked against
+    the paper here. A 2 MHz error at 600 MHz shifts a synchrotron index by about 0.03.
+13. **The 2.5 GHz TRIS channel** (six points, not a ring) is not used.
 
-`../moonrunes_archive_2026-11-16/` (outside the repo) holds what was taken out on 2026-11-16, at its original relative
-path:
+**Housekeeping**
 
-- `notebooks/`: the 14 notebooks merged into `diagnostics.ipynb` and `test_results.ipynb` (see `NOTEBOOK_INDEX.md`).
+14. **Regenerate the tracked step 2 and step 7 tables** before quoting them: `python run_pipeline.py --step ring_tods
+    --no-report` (~20 min), then `--step rhino --no-report`, then `--step report`. The committed
+    `rhino_tods_*.csv`, `rhino_summary.csv`, `rhino_checks.csv`, `ring_tods.csv`, `beam_matched_tods*.csv` and step 2's
+    `manifest.json` predate the code (the Irfan method, the split columns and step 7's checks); `PIPELINE_REPORT.md`
+    predates its tables. Then rerun `10_paper_plots`.
+15. `paper_outputs/model_comparison/results/` is the standalone script's output from 2026-10-29 (4 data sets); rerun
+    `run_comparison.py` or ignore it.
+16. `T_CMB` is defined twice (§6).
+17. A colour-vision check of the figures (protanopia, deuteranopia, tritanopia, greyscale) has been done with
+    scripts outside the repo; there is no checker in the repo.
+18. Part A and Part H have not been rerun since the pipeline's 2026-11-18 step 2 run (their inputs did not change).
+19. The end-to-end tests need the TRIS archive, the FITS files and `pygdsm`; without them they skip, so CI on a bare
+    machine tests only the algebra.
 
-`../moonrunes_archive_2026-11-17/` holds the configs before they moved to `configs/` and `notebooks/08_update_plots.ipynb`
-(its Fisher cells are ported to `tests_analysis` Part L).
-- `src/moonrunes/stage3_assemble.py`, `stage4_calibration.py`, `stage5_validate.py`: empty placeholders.
-- `src/moonrunes/sed_prototype.py.before_2026-11-16_cleanup` and `stage2_beam_matching.py.before_2026-11-16_cleanup`:
-  the two modules before `apply_full_resolution` and `plot_beam_matched` were removed.
+## 9. Where outputs go
 
-Notebooks 02, 05, 06, 07, 08 and 13 are not there; they are in git at `a5c827c`.
-
-## 10. Where outputs go
-
-`paper_outputs/` = what the paper is made from, `test_outputs/` = tests and checks the paper does not use, `outputs/` = pipeline stage products, paper repo `figures/` = the figures. Stored notebook outputs print the paths from before this layout (2026-11-16).
+`paper_outputs/` = what a paper figure, table or number is made from; `test_outputs/` = tests and checks the paper
+does not use; `outputs/` = step 0 / stage products; the paper repository's `figures/` = the figures.
 
 | Folder | What | Written by |
 |---|---|---|
-| `paper_outputs/pipeline/step1_beam_matched_maps/` | every allowed map beam-matched to the TRIS beam (nside 16) | pipeline step 1 |
-| `paper_outputs/pipeline/step2_ring_tods/` | ring TODs and σ of every data set (`ring_tods.npz`); every survey and sky model through the TRIS beam (`beam_matched_tods.npz`, `sky_tods.npz`) | step 2 |
+| `paper_outputs/pipeline/step1_beam_matched_maps/` | every allowed map beam-matched to the TRIS beam (nside 16) | step 1 |
+| `paper_outputs/pipeline/step2_ring_tods/` | ring TODs and σ of every data set (`ring_tods.npz`); every survey and sky model through the TRIS beam (`beam_matched_tods.npz`, `sky_tods.npz`); the Irfan split (`irfan_split_tris.csv`) | step 2 |
 | `paper_outputs/pipeline/step3_model_comparison/` | ln Z per ring sample and model, TRIS excluded | step 3 |
-| `paper_outputs/pipeline/step4_model_selection/` | `selection.json`: the best model | step 4 |
-| `paper_outputs/pipeline/step5_fit/` | our spectral model: the best model's UltraNest fit at every ring sample, TRIS included | step 5 |
-| `paper_outputs/pipeline/step6_predict_408/` | the 408 MHz prediction against Haslam and the 408 MHz models (`tab:408-residuals`, `tab:scale-offset`) | step 6 |
-| `paper_outputs/pipeline/step7_rhino/` | the RHINO prediction through the TRIS and RHINO beams (Figure 10) | step 7 |
-| `paper_outputs/pipeline/PIPELINE_REPORT.md` | what the last run found, step by step | `--step report` |
-| `paper_outputs/model_comparison/diagnostic_plots/` | diagnostics of the step 3 comparison | `notebooks/tests_analysis/` Part C |
+| `paper_outputs/pipeline/step4_model_selection/` | `selection.json`: the selected model | step 4 |
+| `paper_outputs/pipeline/step5_fit/` | our spectral model: the selected model's UltraNest fit at every sample, TRIS included | step 5 |
+| `paper_outputs/pipeline/step6_predict_408/` | the 408 MHz prediction against Haslam and the 408 MHz models | step 6 |
+| `paper_outputs/pipeline/step7_rhino/` | the RHINO prediction through both beams, its checks and the Irfan split | step 7 |
+| `paper_outputs/pipeline/PIPELINE_REPORT.md` | the last run's results, step by step | `--step report` |
+| `paper_outputs/model_comparison/diagnostic_plots/` | diagnostics of the step 3 comparison | Part C |
 | `paper_outputs/model_choice/` | the model-choice decision sheet | Part D |
-| `paper_outputs/phil_plots/` | T–T β, sky models against TRIS (`plot6a_models_fitted_to_tris.csv` = `tab:step1`) | Part E |
+| `paper_outputs/phil_plots/` | T–T β; sky models against TRIS (`plot6a_models_fitted_to_tris.csv` = `tab:step1`) | Part E |
 | `paper_outputs/zero_level_offsets/` | zero-level offsets as fit parameters | Part H |
 | `paper_outputs/robustness_check/` | robustness of the Haslam gain and offset | Part I |
-| `paper_outputs/model_comparison/results/` | the standalone `run_comparison.py` output (the 2026-10-29 run on 4 points) | `scripts/model_comparison/run_comparison.py` |
-| `paper_outputs/nb08_paper_plots/` | the removed notebook 08's figures and tables; `fig15_*.csv` is what Figure 9's cell checks against | notebook 08 (removed) |
-| `test_outputs/beam_matched_vs_old/` | step 2's TODs against the old (native-beam) TODs | Part A |
-| `test_outputs/sky_models_408/` | curved power-law fits, sky models against both fits (`chi2_sky_models_vs_fits.csv`) | Part B |
-| `test_outputs/plot3_haslam_vs_fit/` | the scale-offset fits and figures (a check of step 6) | Part F |
+| `paper_outputs/fisher_share/` | Fisher information on ln A(408) | Part L |
+| `paper_outputs/nb08_paper_plots/` | tables read by Figure 9 (open item 6) | not written by the repo |
+| `paper_outputs/model_comparison/results/` | the standalone comparison script's output | `scripts/model_comparison/run_comparison.py` |
+| `test_outputs/beam_matched_vs_old/` | step 2's TODs against native-resolution TODs | Part A |
+| `test_outputs/sky_models_408/` | curved power-law fits; sky models against both fits | Part B |
+| `test_outputs/plot3_haslam_vs_fit/` | figures of step 6's scale–offset fits | Part F |
 | `test_outputs/plot3_haslam_calibration/` | Haslam with one gain and offset | Part G |
-| `test_outputs/tod_prediction/` | 13-point fits and predicted TODs (Tests 1–5); Test 6's last outputs (2026-11-05) | Part J |
-| `test_outputs/beam_variants/`, `fwhm_scaling_test/`, `scripts/beam_averaging_blobs/<map>/`, `lwa35_stockert/` | beam tests | Part K2; the beam-test scripts (Parts K3–K5) |
-| `outputs/stage1*/` | TRIS maps (the pipeline's step 0 writes `outputs/stage1/`) | step 0 / `--stage 1` |
-| `outputs/stage2/` | the older Haslam + ARCADE 2 beam matching (nothing reads it) | `--stage 2` |
-| paper repo `figures/` | the paper figures `fig1_…`–`fig10_…` | `10_paper_plots.ipynb` |
+| `test_outputs/tod_prediction/` | 13-point fits and predicted TODs (Tests 1–5) | Part J |
+| `test_outputs/beam_variants/`, `fwhm_scaling_test/`, `beam_averaging_blobs/`, `lwa35_stockert/` | beam tests | Part K2; the beam-test scripts |
+| `outputs/stage1*/` | TRIS maps (`outputs/stage1/` is step 0's; the others are variant runs) | step 0 / `--stage 1` |
+| `outputs/stage2/` | Haslam and ARCADE 2 beam-matched on their own | `--stage 2` |

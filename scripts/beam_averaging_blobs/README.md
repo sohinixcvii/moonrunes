@@ -4,8 +4,8 @@
 spectral indices, does beam averaging change the *shape* of antenna temperature vs LST
 across frequencies, and not only its normalisation?
 
-Run 2026-10-19/20. The recorded results use `HASLAM_DESTRIPED_ONLY.fits`. An earlier run on
-`HASLAM.fits` is kept in `test_outputs/beam_averaging_blobs/HASLAM/` for comparison.
+The recorded results use `HASLAM_DESTRIPED_ONLY.fits`; a run on `HASLAM.fits` is in
+`test_outputs/beam_averaging_blobs/HASLAM/` for comparison.
 Results are written to `test_outputs/beam_averaging_blobs/<map stem>/`.
 
 ## What the test does

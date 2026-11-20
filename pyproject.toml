@@ -12,8 +12,8 @@ license = "MIT"
 authors = [{ name = "Sohini Dutta" }]
 
 dependencies = [
-    # limTOD is a normal pip dependency -- it is published on PyPI (1.10.0) and
-    # is NOT vendored or submoduled here.
+    # limTOD: the code needs the source checkout at ../limTOD (github.com/zzhang0123/limTOD, commit dbe720b),
+    # which has changes the PyPI release does not; see environment.yml. Do not install this package with pip.
     "limTOD>=1.10.0",
     "numpy>=1.24",
     "scipy>=1.15",
@@ -27,8 +27,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=7.4", "jupyterlab", "ipykernel"]
 
-# No console-script entry point on purpose: run_pipeline.py at the repo root is
-# the single entry point, mirroring the --stage layout of the HPC pipeline.
+# No console-script entry point: run_pipeline.py at the repo root is the single entry point.
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -10,9 +10,9 @@
 # from pip, as it does in the original environment.
 #
 # limTOD is deliberately NOT installed here. The code uses the limTOD source checkout next to
-# this repo (configs/run_config.yaml paths.limtod: ../limTOD), which carries local changes to
-# limTOD/tris that the PyPI release does not have; the TRIS archive is read from
-# ../limTOD/downloads/TRIS. An installed limTOD would be imported first and shadow it
+# this repo (configs/run_pipeline.yaml paths.limtod: ../limTOD; github.com/zzhang0123/limTOD at
+# commit dbe720b), which has changes to limTOD/tris that the PyPI release does not have; the TRIS
+# archive is read from ../limTOD/downloads/TRIS. An installed limTOD would be imported first and shadow it
 # (moonrunes.stage1_tris_maps.import_limtod_tris), so do not `pip install limTOD` or
 # `pip install -e .` (pyproject.toml lists limTOD as a dependency, which pulls the PyPI one).
 # The notebooks and scripts put src/ on sys.path themselves, so this package needs no install.
@@ -25,8 +25,8 @@ dependencies:
   - ipykernel
   - jupyterlab        # not in the macOS environment (notebooks were run from an editor); for the server
   - nbclient          # run notebooks headless: jupyter execute <notebook>.ipynb
-  - ultranest=4.6.3   # model_comparison/run_comparison.py, test_results.ipynb Parts C and D (PyPI has no Linux wheel; conda-forge does)
-  - joblib=1.6.0      # notebooks/10_paper_plots.ipynb Figure 7 (cell 18): the maximum-likelihood fits in parallel
+  - ultranest=4.6.3   # pipeline steps 3 and 5, scripts/model_comparison, tests_analysis Parts B-D (PyPI has no Linux wheel; conda-forge does)
+  - joblib=1.6.0      # parallel fits: 10_paper_plots Figure 7, tests_analysis Parts B-D
   - pip:
       - numpy==2.5.2
       - scipy==1.18.1
@@ -37,7 +37,7 @@ dependencies:
       - pyyaml==6.0.3
       - tqdm==4.70.0
       - mpmath==1.4.1           # limTOD dependency
-      - pygdsm==1.7.1           # GSM2008 / GSM2016 / LFSM sky models (test_results.ipynb Parts A, B, E, J, K2); downloads its data on first use
+      - pygdsm==1.7.1           # GSM2008 / GSM2016 / LFSM sky models (pipeline steps 0, 2, 7); downloads its data on first use
       - h5py==3.16.0            # pygdsm's data files
       - corner==2.3.0
       - pytest==9.1.1

@@ -207,7 +207,7 @@ def run_map(fname, config, obs, tris_freqs):
 
 
 def comparison(results, tris_freqs):
-    """Haslam (earlier run, read from its CSV) next to the two maps: per-frequency numbers and the curves."""
+    """Haslam (the Haslam test, read from its CSV) next to the two maps: per-frequency numbers and the curves."""
     hrows = list(csv.DictReader(line for line in open(HASLAM_SUMMARY) if not line.startswith("#")))
     hcurve_rows = list(csv.DictReader(open(HASLAM_SUMMARY.parent / "t_vs_lst.csv")))
     hl = np.array([float(r["lst_deg"]) for r in hcurve_rows])
@@ -242,7 +242,7 @@ def comparison(results, tris_freqs):
     fig, axes = plt.subplots(1, len(tris_freqs), figsize=(7 * len(tris_freqs), 4.6), sharey=True)
     for ax, nu in zip(np.atleast_1d(axes), tris_freqs):
         ax.plot(hl, [float(r[f"shape_change_pct_{nu:g}"]) for r in hcurve_rows], color="0.45", lw=1.8,
-                label="Haslam 408 MHz (as given; earlier run)")
+                label="Haslam 408 MHz (as given; the Haslam test)")
         for (d, rows, curves, lst), col in zip(results, ("#7b3294", "#008837")):
             for variant, ls in zip(VARIANTS, ("-", "--")):
                 ax.plot(lst, curves[variant, nu], color=col, lw=1.6, ls=ls, label=f"{d['name']} ({variant})")

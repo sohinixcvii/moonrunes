@@ -20,9 +20,8 @@ Steps (``moonrunes.pipeline.STEPS``; ``PIPELINE.md`` describes each one):
 Everything is set in ``configs/run_pipeline.yaml`` (the default ``--config``; data, beam, ring, ``pipeline:``) and
 ``configs/model_comp_config.yaml`` (models, priors, sampler, error bars, the comparison statistic).
 
-``--stage 1`` and ``--stage 2`` are the older interface: stage 1 is step 0 (``--nside`` and
-``--run-name`` apply to it), stage 2 is the older beam matching of Haslam and ARCADE 2 alone
-(``moonrunes.stage2_beam_matching``), which nothing downstream reads.
+``--stage 1`` runs step 0 (``--nside`` and ``--run-name`` apply to it); ``--stage 2`` beam-matches Haslam and
+ARCADE 2 on their own (``moonrunes.stage2_beam_matching``), a product nothing downstream reads.
 """
 
 from __future__ import annotations
@@ -56,7 +55,7 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
                       help="run one step, all of them, or only rewrite the report")
     what.add_argument("--from-step", choices=pipeline.STEPS, help="run this step and every step after it")
     what.add_argument("--stage", type=int, choices=[1, 2, 3, 4, 5],
-                      help="the older interface: 1 = step tris_maps, 2 = the older Haslam/ARCADE 2 beam matching")
+                      help="1 = step tris_maps; 2 = Haslam and ARCADE 2 beam-matched on their own")
     parser.add_argument("--config", type=Path, default=None)
     parser.add_argument("--archive-dir", type=Path, default=None, help="stage 1 / step tris_maps only")
     parser.add_argument("--output-dir", type=Path, default=None, help="--stage 1 and 2 only")

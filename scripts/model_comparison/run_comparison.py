@@ -2,7 +2,7 @@
 
 Models: power law, curved power law, and the moment expansion at each order in
 ``models.moment_orders`` (models.py).  Data: the SED
-points of the existing stage 3 prototype (``moonrunes.sed_prototype.Inputs``), per TRIS
+points of ``moonrunes.sed_prototype.Inputs``, per TRIS
 ring sample (TOD route) or per TRIS-stripe pixel (map route).  Error bars come from
 ``configs/error_bars.csv``, which marks placeholders.  The model choices are in
 ``configs/model_comp_config.yaml``; the data (maps, target, beam, ring) in ``configs/run_pipeline.yaml``.
@@ -89,9 +89,9 @@ def select_datasets(datasets, config, res_dir, exclude_tris=False):
 
     ``datasets`` is None -- every fit map that run_pipeline.yaml's ``sed.exclude_maps`` leaves in, plus TRIS 600
     and 820 unless ``exclude_tris`` (model_comp_config.yaml ``comparison.exclude_tris``): what the pipeline,
-    run_comparison.py and test_results Part C use -- or a list of keys as in error_bars.csv: ``TRIS_600``,
+    run_comparison.py and tests_analysis Part C use -- or a list of keys as in error_bars.csv: ``TRIS_600``,
     ``TRIS_820`` and map file names.  A list is used exactly (``exclude_tris`` is ignored), overriding
-    ``sed.exclude_maps`` for that caller only (test_results Part J; run_pipeline.yaml is not edited).
+    ``sed.exclude_maps`` for that caller only (tests_analysis Part J; run_pipeline.yaml is not edited).
     Returns (run config to build ``Inputs`` with, TRIS bands to include, map files included)."""
     fit_files = [m["file"] for m in sky_maps.discover(res_dir) if m["usable"] and m["role"] == "fit"]
     if datasets is None:

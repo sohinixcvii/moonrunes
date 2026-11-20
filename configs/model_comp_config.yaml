@@ -2,7 +2,7 @@
 # Nothing here was tuned to the data.
 #
 # Read by the pipeline (steps 2-7, via configs/run_pipeline.yaml pipeline.model_comparison_config), by
-# model_comparison/run_comparison.py (its --config default), and by notebooks/test_results.ipynb and
+# scripts/model_comparison/run_comparison.py (its --config default), and by notebooks/tests_analysis/ and
 # notebooks/10_paper_plots.ipynb.  Everything about the data -- which maps (run_pipeline.yaml sed.exclude_maps),
 # the Haslam target (pipeline.target_file), the beam, the ring -- is in configs/run_pipeline.yaml; nothing here
 # repeats it.
@@ -27,16 +27,15 @@ data:
   units: null
 
 zero_level:
-  # TODO N-3: is stage 1's fitted zero level z-hat sky (add it to the TRIS temperatures)
-  # or instrument (leave it out)?  Applies to the MAP route only: the TOD route fits the
-  # archive ring data, which contain no z-hat (sed_prototype.py:255-258).
-  # true reproduces sed_prototype's current map-route behaviour (sed_prototype.py:144-146).
+  # Open: is stage 1's fitted zero level z-hat sky (add it to the TRIS temperatures) or
+  # instrument (leave it out)?  Applies to the MAP route only: the TOD route fits the
+  # archive ring data, which contain no z-hat.  true adds it (sed_prototype's map route).
   add_zhat_to_tris: true
 
 models:
   # Pivot frequency for every model (sed_prototype.NU0_MHZ).  x = ln(nu / nu0).
   nu0_mhz: 408.0
-  # Moment expansion orders to compare, one model each (2026-10-27: both):
+  # Moment expansion orders to compare, one model each:
   #   2 -> "moment expansion (order 2)": omega1 (or beta), omega2;
   #   3 -> "moment expansion (order 3)": the same plus omega3 (prior below).
   # With beta fixed, order 3 has 4 parameters, so a unit with exactly min_points (4) points
@@ -54,7 +53,7 @@ comparison:
   # DECISION: the model comparison (pipeline step 3, run_comparison.py) uses the relative surveys only; TRIS is
   # left out and enters only the fit of the chosen model (pipeline step 5).
   exclude_tris: true
-  # What the models are compared on (pipeline step 3, run_comparison.py, test_results Part C);
+  # What the models are compared on (pipeline step 3, run_comparison.py, tests_analysis Part C);
   # set only here.
   #   max_likelihood: each model's best fit, ln L_max = -chi2_min / 2 + const (the minimum chi^2
   #                   inside the prior box).  A model is NOT penalised for its extra parameters,

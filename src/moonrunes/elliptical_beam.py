@@ -93,7 +93,7 @@ decides per map:
     along E and H so that its half-power widths are the quadrature widths.
     Convolved with the native beam, the core comes back to 19.155 x 23.366 deg
     and the shoulders keep the measured shape, approximately.  Exact only if
-    both were Gaussian; test_results.ipynb Part K2 measures how close it is.
+    both were Gaussian; tests_analysis Part K2 measures how close it is.
   - ``elliptical_gaussian``: the per-axis quadrature Gaussian.  The core is
     exact (for a Gaussian native beam) but the shoulders are Gaussian, not
     TRIS's.
@@ -126,7 +126,7 @@ from .config import Config, ConfigError
 KERNELS = ("circular_gaussian", "elliptical_gaussian", "tris_cuts")
 #: Every value ``beam_matching.elliptical.broad_native_kernel`` may take.
 BROAD_NATIVE_KERNELS = ("scaled_cuts", "elliptical_gaussian")
-#: FWHM = 2 sqrt(2 ln 2) sigma (test_results.ipynb Part K1, section 1).
+#: FWHM = 2 sqrt(2 ln 2) sigma (tests_analysis Part K1, section 1).
 FWHM_PER_SIGMA = 2.0 * np.sqrt(2.0 * np.log(2.0))
 #: The archive file holding the E/H principal-plane cuts.
 BEAM_PROFILE_FILE = "TRIS_Beam_Profile.txt"

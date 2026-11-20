@@ -2,7 +2,7 @@
 
 The geometry and Gaussian tests are synthetic and need only healpy.  The cut-beam
 tests need limTOD and the TRIS archive and are skipped without them.  The plots
-that go with these checks are in ``notebooks/test_results.ipynb`` Part K2, section
+that go with these checks are in ``notebooks/tests_analysis/`` Part K2, section
 "The elliptical beam for the map route".
 """
 
