@@ -1,6 +1,6 @@
 # Pipeline report
 
-Written 2026-11-16T19:59:13+00:00 by `python run_pipeline.py --step report` from each step's `manifest.json`.
+Written 2026-11-20T14:04:32+00:00 by `python run_pipeline.py --step report` from each step's `manifest.json`.
 
 ## Step 1 — Beam matching
 
@@ -80,7 +80,7 @@ Written 2026-11-16T19:31:14+00:00 (run_pipeline.py --step beam_match).
 
 ## Step 2 — Ring TODs
 
-Written 2026-11-16T19:38:39+00:00 (run_pipeline.py --step ring_tods).
+Written 2026-11-20T14:03:24+00:00 (run_pipeline.py --step ring_tods).
 
 ```json
 {
@@ -195,6 +195,40 @@ Written 2026-11-16T19:38:39+00:00 (run_pipeline.py --step ring_tods).
     "GSM2016": 31.33275223029157,
     "GSM2016, GINAN correction": 32.79683607424917,
     "LFSM": 27.624243690194067
+  },
+  "irfan_split_tris": {
+    "GSM2008 TRIS_600": {
+      "median total (K)": -2.1888789956021455,
+      "median offset part (K)": -2.2308536866878557,
+      "median spectrum part (K)": 0.04289165329810185,
+      "range (max \u2212 min) total (K)": 0.7523169975485611,
+      "range (max \u2212 min) offset part (K)": 0.39161567489843696,
+      "range (max \u2212 min) spectrum part (K)": 1.1171359490021384
+    },
+    "GSM2008 TRIS_820": {
+      "median total (K)": -0.9198297221252976,
+      "median offset part (K)": -0.9785856361912364,
+      "median spectrum part (K)": 0.05998409191688836,
+      "range (max \u2212 min) total (K)": 0.6684415493116325,
+      "range (max \u2212 min) offset part (K)": 0.3637032502284101,
+      "range (max \u2212 min) spectrum part (K)": 1.0079008536666567
+    },
+    "GSM2016 TRIS_600": {
+      "median total (K)": -5.154496834865508,
+      "median offset part (K)": -2.230853170676771,
+      "median spectrum part (K)": -2.933623998249864,
+      "range (max \u2212 min) total (K)": 1.9230693535847871,
+      "range (max \u2212 min) offset part (K)": 0.39161455683465896,
+      "range (max \u2212 min) spectrum part (K)": 2.2688030450328682
+    },
+    "GSM2016 TRIS_820": {
+      "median total (K)": -4.113727186385985,
+      "median offset part (K)": -0.97858520241182,
+      "median spectrum part (K)": -3.1446695227827828,
+      "range (max \u2212 min) total (K)": 1.498655485492769,
+      "range (max \u2212 min) offset part (K)": 0.3637022652832034,
+      "range (max \u2212 min) spectrum part (K)": 1.8184288659103722
+    }
   }
 }
 ```
@@ -202,6 +236,15 @@ Written 2026-11-16T19:38:39+00:00 (run_pipeline.py --step ring_tods).
 ## Step 3 — Model comparison (TRIS excluded)
 
 Written 2026-11-16T19:55:12+00:00 (run_pipeline.py --step compare).
+
+**Evidence of every model** (UltraNest ln Z summed over 120 ring samples; 1320 points in all; TRIS excluded):
+
+| model | parameters | Σ ln Z | ± (error) | Δ ln Z vs best | samples where it has the highest ln Z |
+|---|---|---|---|---|---|
+| power law | 2 | -10424.45 | 2.153 | 0 | 98 of 120 |
+| curved power law | 3 | -10460.72 | 2.294 | -36.27 | 22 of 120 |
+| moment expansion (order 2) | 3 | -10565.16 | 2.367 | -140.72 | 0 of 120 |
+| moment expansion (order 3) | 4 | -10573.89 | 2.368 | -149.44 | 0 of 120 |
 
 ```json
 {
@@ -237,6 +280,23 @@ Written 2026-11-16T19:55:12+00:00 (run_pipeline.py --step compare).
 ## Step 4 — Model selection
 
 Written 2026-11-16T19:55:14+00:00 (run_pipeline.py --step select).
+
+**Selection criteria** (rule: highest score; any model within tie_lnz = 1 of it with fewer parameters wins):
+
+| criterion | setting / result |
+|---|---|
+| statistic compared | evidence (sum of ln Z over 120 ring samples) |
+| 1. highest score | power law (score -10424.45) |
+| 2. models within `select.tie_lnz` of the best | tie_lnz = 1.0: power law |
+| 3. tie-break among those | fewest parameters, then highest score |
+| chosen model | power law (parameters: A_K, beta) |
+
+| model | parameters | score | score − best | within tie_lnz | samples won | chosen |
+|---|---|---|---|---|---|---|
+| power law | 2 | -10424.45 | 0 | yes | 98 | **yes** |
+| curved power law | 3 | -10460.72 | -36.27 | no | 22 |  |
+| moment expansion (order 2) | 3 | -10565.16 | -140.72 | no | 0 |  |
+| moment expansion (order 3) | 4 | -10573.89 | -149.44 | no | 0 |  |
 
 ```json
 {
@@ -318,6 +378,14 @@ Written 2026-11-16T19:58:57+00:00 (run_pipeline.py --step fit).
 
 Written 2026-11-16T19:58:58+00:00 (run_pipeline.py --step predict_408).
 
+**Top 3 sky models against our prediction at 408 MHz** (model − prediction along the ring, TRIS beam; ranked by χ² with the prediction's σ; all 7 in `residuals_408.csv`):
+
+| rank | sky model | χ²/N | median (K) | mean (K) | rms (K) | samples within 1σ | N |
+|---|---|---|---|---|---|---|---|
+| 1 | GSM2016 | 133.56 | -0.8351 | -1.28 | 2.212 | 5 | 120 |
+| 2 | Haslam, Carter correction | 139.91 | -1.841 | -1.574 | 1.995 | 10 | 120 |
+| 3 | LFSM | 387.20 | -3.001 | -3.221 | 3.359 | 0 | 120 |
+
 ```json
 {
   "model": "power law",
@@ -397,7 +465,23 @@ Written 2026-11-16T19:58:58+00:00 (run_pipeline.py --step predict_408).
 
 ## Step 7 — RHINO prediction
 
-Written 2026-11-16T19:59:13+00:00 (run_pipeline.py --step rhino).
+Written 2026-11-20T14:04:32+00:00 (run_pipeline.py --step rhino).
+
+**Top 3 sky models against our prediction, TRIS beam (ring at Dec +42.4°)** (model − this work; ranked by χ²/N with this work's σ over every sample and frequency; 6 models in `rhino_tods_tris_beam.csv`):
+
+| rank | sky model | χ²/N | median 60 MHz (K) | median 65 MHz (K) | median 70 MHz (K) | median 75 MHz (K) | median 80 MHz (K) | rms, all (K) | N |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | GSM2016 | 43.5 | 194.66 | 121.44 | 72.6 | 42.2 | 24.97 | 302.13 | 600 |
+| 2 | GSM2008, Carter correction | 43.92 | 77.18 | 79.86 | 73.25 | 65.92 | 58.67 | 289.73 | 600 |
+| 3 | GSM2008 | 52.56 | -129.78 | -96.92 | -74.76 | -59.41 | -43.98 | 301.16 | 600 |
+
+**Top 3 sky models against our prediction, RHINO beam (Jodrell Bank zenith)** (model − this work; ranked by χ²/N with this work's σ over every sample and frequency; 6 models in `rhino_tods_rhino_beam.csv`):
+
+| rank | sky model | χ²/N | median 60 MHz (K) | median 65 MHz (K) | median 70 MHz (K) | median 75 MHz (K) | median 80 MHz (K) | rms, all (K) | N |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | GSM2016 | 154.96 | 114.28 | 72.42 | 40.65 | 21.95 | 9.306 | 149.55 | 600 |
+| 2 | GSM2008, Carter correction | 170.43 | 23.41 | 55.56 | 68.31 | 76.69 | 78.95 | 179.24 | 600 |
+| 3 | GSM2008 | 312.34 | -185.64 | -118.10 | -76.55 | -47.04 | -28.18 | 184.34 | 600 |
 
 ```json
 {
@@ -486,11 +570,11 @@ Written 2026-11-16T19:59:13+00:00 (run_pipeline.py --step rhino).
       0.045466492018685925
     ],
     "GSM2008, Irfan correction": [
-      -0.2732731120413464,
-      -0.2621130385571738,
-      -0.25198103039341113,
-      -0.24807643202011315,
-      -0.22564005644507967
+      -0.2657976985706264,
+      -0.25814727594667475,
+      -0.24907277734520605,
+      -0.24593979329969018,
+      -0.21915850166038686
     ],
     "GSM2016, GINAN correction": [
       0.14435637754473307,
@@ -498,8 +582,71 @@ Written 2026-11-16T19:59:13+00:00 (run_pipeline.py --step rhino).
       0.15821228246572402,
       0.14957015774072235,
       0.1431108141954305
+    ],
+    "GSM2008, Irfan spectrum only": [
+      -0.060737202889393174,
+      -0.05189662064771802,
+      -0.04097425072363027,
+      -0.0365148312490997,
+      -0.015874875753490784
     ]
   },
-  "max_closure_K": 230.1214422574203
+  "max_closure_K": 230.1214422574203,
+  "median_closure_K": {
+    "60": 32.32172333324161,
+    "65": 22.05220701387634,
+    "70": 15.251351768009954,
+    "75": 10.741791973685622,
+    "80": 7.907151433325339
+  },
+  "irfan_offset_at_408_K": -6.1842987328039225,
+  "irfan_split": {
+    "TRIS beam": {
+      "total": [
+        -877.4295294714818,
+        -721.7176628386425,
+        -605.8045763759159,
+        -511.1349307762763,
+        -436.45719029192713
+      ],
+      "offset part": [
+        -769.6577482840443,
+        -631.7933187647881,
+        -526.0397132147231,
+        -443.3382085907115,
+        -377.5820464115787
+      ],
+      "spectrum part": [
+        -125.2850110777681,
+        -95.96366352697737,
+        -79.12632496183437,
+        -66.46000278203678,
+        -57.91230578297848
+      ]
+    },
+    "RHINO beam": {
+      "total": [
+        -740.2838285195046,
+        -630.7832307878449,
+        -538.4404035736245,
+        -462.5798088695325,
+        -393.2467493451177
+      ],
+      "offset part": [
+        -807.8896926868085,
+        -657.1333083713935,
+        -546.1800561284754,
+        -459.1687020483229,
+        -392.19421436025266
+      ],
+      "spectrum part": [
+        91.0245438140214,
+        43.96278245070357,
+        17.305859677893068,
+        3.6503432759826637,
+        0.9507086575370067
+      ]
+    }
+  }
 }
 ```

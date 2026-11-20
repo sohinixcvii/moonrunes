@@ -28,6 +28,8 @@ model TRIS_600,"GSM2016, Carter correction",600.5,0.8,tris_cuts,19.155,23.366,12
 model TRIS_600,"GSM2016, Irfan correction",600.5,0.8,tris_cuts,19.155,23.366,120
 model TRIS_600,"GSM2016, GINAN correction",600.5,0.8,tris_cuts,19.155,23.366,120
 model TRIS_600,"LFSM, stretched",600.5,5.1,tris_cuts,18.463586460923565,22.802630462295355,120
+model TRIS_600,"GSM2008, Irfan spectrum only",600.5,1.0,tris_cuts,19.155,23.366,120
+model TRIS_600,"GSM2016, Irfan spectrum only",600.5,0.8,tris_cuts,19.155,23.366,120
 model TRIS_820,GSM2008,817.8,1.0,tris_cuts,19.155,23.366,120
 model TRIS_820,GSM2016,817.8,0.8,tris_cuts,19.155,23.366,120
 model TRIS_820,"GSM2008, Carter correction",817.8,1.0,tris_cuts,19.155,23.366,120
@@ -36,3 +38,5 @@ model TRIS_820,"GSM2016, Carter correction",817.8,0.8,tris_cuts,19.155,23.366,12
 model TRIS_820,"GSM2016, Irfan correction",817.8,0.8,tris_cuts,19.155,23.366,120
 model TRIS_820,"GSM2016, GINAN correction",817.8,0.8,tris_cuts,19.155,23.366,120
 model TRIS_820,"LFSM, stretched",817.8,5.1,tris_cuts,18.463586460923565,22.802630462295355,120
+model TRIS_820,"GSM2008, Irfan spectrum only",817.8,1.0,tris_cuts,19.155,23.366,120
+model TRIS_820,"GSM2016, Irfan spectrum only",817.8,0.8,tris_cuts,19.155,23.366,120

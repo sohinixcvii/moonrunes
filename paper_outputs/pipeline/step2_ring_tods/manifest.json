@@ -1,17 +1,15 @@
 {
   "step": "ring_tods",
   "step_number": 2,
-  "written_utc": "2026-11-16T19:38:39+00:00",
+  "written_utc": "2026-11-20T14:03:24+00:00",
   "produced_by": "run_pipeline.py --step ring_tods",
-  "config_path": "/Users/user/Documents/Codes/project3/moonrunes/configs/run_config.yaml",
+  "config_path": "/Users/user/Documents/Codes/project3/moonrunes/configs/run_pipeline.yaml",
   "pipeline_config": {
     "output_dir": "paper_outputs/pipeline",
-    "model_comparison_config": "model_comparison/config.yaml",
+    "model_comparison_config": "configs/model_comp_config.yaml",
     "target_file": "HASLAM_DESTRIPED_ONLY.fits",
     "beam_match_kernel": "tris_cuts",
     "compare": {
-      "statistic": "evidence",
-      "exclude_tris": true,
       "seed": 20260903
     },
     "select": {
@@ -35,6 +33,9 @@
         "offset_k": 0.91
       },
       "irfan_monopole_k": 8.9,
+      "irfan_nu0_mhz": 45.0,
+      "irfan_beta_map": "external/irfan_puglisi_2025/final_beta_1deg.npy",
+      "irfan_cs_map": "external/irfan_puglisi_2025/final_cs_1deg.npy",
       "ginan_freq_mhz": 350.0,
       "lfsm_beta_from_mhz": 300.0
     },
@@ -66,7 +67,8 @@
     "beam_matched_tods.npz",
     "beam_matched_tods.csv",
     "beam_matched_tods_meta.csv",
-    "sky_tods.npz"
+    "sky_tods.npz",
+    "irfan_split_tris.csv"
   ],
   "summary": {
     "ring_samples": 120,
@@ -180,6 +182,40 @@
       "GSM2016": 31.33275223029157,
       "GSM2016, GINAN correction": 32.79683607424917,
       "LFSM": 27.624243690194067
+    },
+    "irfan_split_tris": {
+      "GSM2008 TRIS_600": {
+        "median total (K)": -2.1888789956021455,
+        "median offset part (K)": -2.2308536866878557,
+        "median spectrum part (K)": 0.04289165329810185,
+        "range (max \u2212 min) total (K)": 0.7523169975485611,
+        "range (max \u2212 min) offset part (K)": 0.39161567489843696,
+        "range (max \u2212 min) spectrum part (K)": 1.1171359490021384
+      },
+      "GSM2008 TRIS_820": {
+        "median total (K)": -0.9198297221252976,
+        "median offset part (K)": -0.9785856361912364,
+        "median spectrum part (K)": 0.05998409191688836,
+        "range (max \u2212 min) total (K)": 0.6684415493116325,
+        "range (max \u2212 min) offset part (K)": 0.3637032502284101,
+        "range (max \u2212 min) spectrum part (K)": 1.0079008536666567
+      },
+      "GSM2016 TRIS_600": {
+        "median total (K)": -5.154496834865508,
+        "median offset part (K)": -2.230853170676771,
+        "median spectrum part (K)": -2.933623998249864,
+        "range (max \u2212 min) total (K)": 1.9230693535847871,
+        "range (max \u2212 min) offset part (K)": 0.39161455683465896,
+        "range (max \u2212 min) spectrum part (K)": 2.2688030450328682
+      },
+      "GSM2016 TRIS_820": {
+        "median total (K)": -4.113727186385985,
+        "median offset part (K)": -0.97858520241182,
+        "median spectrum part (K)": -3.1446695227827828,
+        "range (max \u2212 min) total (K)": 1.498655485492769,
+        "range (max \u2212 min) offset part (K)": 0.3637022652832034,
+        "range (max \u2212 min) spectrum part (K)": 1.8184288659103722
+      }
     }
   }
 }

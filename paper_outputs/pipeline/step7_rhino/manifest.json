@@ -1,17 +1,15 @@
 {
   "step": "rhino",
   "step_number": 7,
-  "written_utc": "2026-11-16T19:59:13+00:00",
+  "written_utc": "2026-11-20T14:04:32+00:00",
   "produced_by": "run_pipeline.py --step rhino",
-  "config_path": "/Users/user/Documents/Codes/project3/moonrunes/configs/run_config.yaml",
+  "config_path": "/Users/user/Documents/Codes/project3/moonrunes/configs/run_pipeline.yaml",
   "pipeline_config": {
     "output_dir": "paper_outputs/pipeline",
-    "model_comparison_config": "model_comparison/config.yaml",
+    "model_comparison_config": "configs/model_comp_config.yaml",
     "target_file": "HASLAM_DESTRIPED_ONLY.fits",
     "beam_match_kernel": "tris_cuts",
     "compare": {
-      "statistic": "evidence",
-      "exclude_tris": true,
       "seed": 20260903
     },
     "select": {
@@ -35,6 +33,9 @@
         "offset_k": 0.91
       },
       "irfan_monopole_k": 8.9,
+      "irfan_nu0_mhz": 45.0,
+      "irfan_beta_map": "external/irfan_puglisi_2025/final_beta_1deg.npy",
+      "irfan_cs_map": "external/irfan_puglisi_2025/final_cs_1deg.npy",
       "ginan_freq_mhz": 350.0,
       "lfsm_beta_from_mhz": 300.0
     },
@@ -153,11 +154,11 @@
         0.045466492018685925
       ],
       "GSM2008, Irfan correction": [
-        -0.2732731120413464,
-        -0.2621130385571738,
-        -0.25198103039341113,
-        -0.24807643202011315,
-        -0.22564005644507967
+        -0.2657976985706264,
+        -0.25814727594667475,
+        -0.24907277734520605,
+        -0.24593979329969018,
+        -0.21915850166038686
       ],
       "GSM2016, GINAN correction": [
         0.14435637754473307,
@@ -165,8 +166,71 @@
         0.15821228246572402,
         0.14957015774072235,
         0.1431108141954305
+      ],
+      "GSM2008, Irfan spectrum only": [
+        -0.060737202889393174,
+        -0.05189662064771802,
+        -0.04097425072363027,
+        -0.0365148312490997,
+        -0.015874875753490784
       ]
     },
-    "max_closure_K": 230.1214422574203
+    "max_closure_K": 230.1214422574203,
+    "median_closure_K": {
+      "60": 32.32172333324161,
+      "65": 22.05220701387634,
+      "70": 15.251351768009954,
+      "75": 10.741791973685622,
+      "80": 7.907151433325339
+    },
+    "irfan_offset_at_408_K": -6.1842987328039225,
+    "irfan_split": {
+      "TRIS beam": {
+        "total": [
+          -877.4295294714818,
+          -721.7176628386425,
+          -605.8045763759159,
+          -511.1349307762763,
+          -436.45719029192713
+        ],
+        "offset part": [
+          -769.6577482840443,
+          -631.7933187647881,
+          -526.0397132147231,
+          -443.3382085907115,
+          -377.5820464115787
+        ],
+        "spectrum part": [
+          -125.2850110777681,
+          -95.96366352697737,
+          -79.12632496183437,
+          -66.46000278203678,
+          -57.91230578297848
+        ]
+      },
+      "RHINO beam": {
+        "total": [
+          -740.2838285195046,
+          -630.7832307878449,
+          -538.4404035736245,
+          -462.5798088695325,
+          -393.2467493451177
+        ],
+        "offset part": [
+          -807.8896926868085,
+          -657.1333083713935,
+          -546.1800561284754,
+          -459.1687020483229,
+          -392.19421436025266
+        ],
+        "spectrum part": [
+          91.0245438140214,
+          43.96278245070357,
+          17.305859677893068,
+          3.6503432759826637,
+          0.9507086575370067
+        ]
+      }
+    }
   }
 }
